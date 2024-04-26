@@ -7,7 +7,6 @@ set -xeuo pipefail
 # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/managing_storage_devices/configuring-nvme-over-fabrics-using-nvme-tcp_managing-storage-devices
 
 
-
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <target_name>"
     exit

@@ -20,5 +20,5 @@ install-deps:
 	# sudo apt install -y meson libfmt-dev libaio-dev librados-dev mold \
 	# 	libtcmalloc-minimal4 libboost-dev libradospp-dev \
 	# 	liburing-dev pkg-config uuid-dev
-	sudo apt install -y meson nmcli
+	sudo apt install -y meson libfuse3-dev
 
