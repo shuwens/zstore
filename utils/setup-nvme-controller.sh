@@ -15,7 +15,9 @@ echo "Running gateway on $gw_ip, remote on $host_ip"
 modprobe nvme-fabrics
 # nvme disconnect -n nqn.2016-06.io.spdk:cnode1
 # gw_ip=${gw_ip:-10.1.0.5}
-nvme connect -t tcp --traddr $gw_ip -s 9922 -n nqn.2024-04.io.spdk:cnode0 -o normal
+# nvme connect -t tcp --traddr $gw_ip -s 9922 -n nqn.2024-04.io.spdk:cnode8
+# nvme connect -t tcp --traddr $gw_ip -s 9922 -n nqn.2016-06.io.spdk:cnode8
+nvme connect -t tcp --traddr $host_ip -s 23789 -n nqn.2016-06.io.spdk:cnode8
 sleep 2
 nvme list
 dev_name=$(nvme list | perl -lane 'print @F[0] if /SPDK/')
