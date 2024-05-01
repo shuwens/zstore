@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/Krien/SimpleZNSDevice.git
+revision = 3c24aee
+; patch_directory = spdk
+clone-recursive = true
+
+[provide]
+_szd = szd_dep

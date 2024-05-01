@@ -1,3 +1,6 @@
 [submodule "spdk"]
 	path = spdk
 	url = https://github.com/spdk/spdk.git
+[submodule "simpleznsdevice"]
+	path = simpleznsdevice
+	url = git@github.com:krien/simpleznsdevice.git
