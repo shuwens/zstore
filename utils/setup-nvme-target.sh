@@ -32,6 +32,6 @@ scripts/rpc.py nvmf_create_transport -t TCP -u 16384 -m 8 -c 8192
 scripts/rpc.py nvmf_create_subsystem nqn.2024-04.io.zstore:cnode1 -a -s SPDK00000000000001 -d SPDK_Controller1
 sleep 1
 
-scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 nvme0n2
-scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 nvme1n2
+scripts/rpc.py nvmf_subsystem_add_ns nqn.2024-04.io.spdk:cnode1 nvme0n2
+scripts/rpc.py nvmf_subsystem_add_ns nqn.2024-04.io.spdk:cnode1 nvme1n2
 scripts/rpc.py nvmf_subsystem_add_listener nqn.2024-04.io.zstore:cnode1 -t tcp -a $host_ip -s 23789
