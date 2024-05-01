@@ -18,6 +18,10 @@ fi
 
 cd $zstore_dir/subprojects/spdk
 
+modprobe nvme
+modprobe nvmet
+modprobe nvmet_tcp
+
 ./build/bin/nvmf_tgt -m '[0,1,2,3]' &
 sleep 3
 
