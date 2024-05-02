@@ -5,6 +5,56 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
+using u64 = uint64_t;
+using u32 = uint32_t;
+using u16 = uint16_t;
+using usize = size_t;
+using ssize = ssize_t;
+
+#define log_trace(MSG, ...)                                                    \
+    do {                                                                       \
+        if (LOGLV <= 0)                                                        \
+            fmt::print(stderr, "[TRC {}:{} {}] " MSG "\n", __FILE__, __LINE__, \
+                       __func__, ##__VA_ARGS__);                               \
+    } while (0)
+
+#define log_debug(MSG, ...)                                                    \
+    do {                                                                       \
+        if (LOGLV <= 1)                                                        \
+            fmt::print(stderr, fg(fmt::terminal_color::magenta),               \
+                       "[DBG {}:{} {}] " MSG "\n", __FILE__, __LINE__,         \
+                       __func__, ##__VA_ARGS__);                               \
+    } while (0)
+
+#define log_info(MSG, ...)                                                     \
+    do {                                                                       \
+        if (LOGLV <= 2)                                                        \
+            fmt::print(stderr,                                                 \
+                       fg(fmt::terminal_color::cyan) | fmt::emphasis::bold,    \
+                       "[INFO {}:{} {}] " MSG "\n", __FILE__, __LINE__,        \
+                       __func__, ##__VA_ARGS__);                               \
+    } while (0)
+
+#define log_error(MSG, ...)                                                    \
+    do {                                                                       \
+        fmt::print(stderr, fg(fmt::terminal_color::red) | fmt::emphasis::bold, \
+                   "[ERR {}:{} {}] " MSG "\n", __FILE__, __LINE__, __func__,   \
+                   ##__VA_ARGS__);                                             \
+    } while (0)
+
+#define log_warn(MSG, ...)                                                     \
+    do {                                                                       \
+        if (LOGLV <= 3)                                                        \
+            fmt::print(stderr,                                                 \
+                       fg(fmt::terminal_color::yellow) | fmt::emphasis::bold,  \
+                       "[WARN {}:{} {}] " MSG "\n", __FILE__, __LINE__,        \
+                       __func__, ##__VA_ARGS__);                               \
+    } while (0)
+
+#define trap_to_debugger()                                                     \
+    do {                                                                       \
+        raise(SIGTRAP);
+
 /**
  * Check return values of libstdc functions. If it's -1, print the error and
  * throw an exception
