@@ -1,5 +1,6 @@
 project(
-	'lsvd-rbd',
+	'zstore',
+	'c',
 	'cpp',
 	version: '0.1',
 	default_options: [
@@ -18,7 +19,7 @@ if get_option('buildtype') == 'debug'
 
 	# # add sanitizers for debug builds
 	# add_project_arguments(
-	# 	'-fsanitize=address,undefined,nullability,implicit-conversion',
+	# 	'-fsanitize=address,undefined',
 	# 	language: 'cpp',
 	# )
 	# add_project_link_arguments(
@@ -26,11 +27,12 @@ if get_option('buildtype') == 'debug'
 	# 	'-Wl,--unresolved-symbols=ignore-in-object-files',
 	# 	language: 'cpp',
 	# )
+elif get_option('buildtype') == 'release'
+	add_project_arguments('-DLOGLV=2', language: 'cpp')
 endif
 
 
 zstore_deps = [
-	# szd_proj.dependency('szd_extended'),
 	dependency('uuid'),
 	dependency('numa'),
 	dependency('openssl'),
@@ -41,23 +43,7 @@ zstore_deps = [
 zstore_src = files(
 	'src/main.cc',
 )
+
 executable('zstore', zstore_src, dependencies: zstore_deps)
-
-# trying to use simpleznsdevice but failing
-
-# cmake = import('cmake')
-# szd_proj = cmake.subproject('simpleznsdevice')
-
-# szd_deps = [
-# 	szd_proj.dependency('szd_extended'),
-# 	dependency('uuid'),
-# 	dependency('numa'),
-# 	dependency('openssl'),
-# 	dependency('fmt'),
-# 	dependency('spdk_nvme'),
-# ]
-
-# zstore_s_src = files(
-# 	'src/main_szd.cc',
-# )
-# executable('zstore_s', zstore_s_src, dependencies: szd_deps)
+executable('zone', 'src/zoned.cc', dependencies: zstore_deps)
+# executable('append', 'src/async_example.c', dependencies: zstore_deps)
