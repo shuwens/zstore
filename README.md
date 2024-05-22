@@ -1,5 +1,17 @@
 # zstore
 
+## Get started
+```bash
+set -x SPDK_DIR ..../SPDK
+sudo ./zstore 1
+sudo gdb --args ./zstore 1
+
+
+```
+
+
+
+
 ## Proof of concept design
 
 remote is server `gundyr` and gateway is `pjdrz`.
