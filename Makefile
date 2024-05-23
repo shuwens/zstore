@@ -19,14 +19,27 @@ debug: setup
 	cd builddir; meson compile
 	# cd build-dbg; meson compile
 
-# ===================================================
+install-deps:
+	# useful tools
+	sudo apt install -y meson cmake # numa
+	# useful tools
+	sudo apt install -y nvme-cli
+	sudo apt install -y libfmt-dev libaio-dev librados-dev mold \
+		libtcmalloc-minimal4 libboost-dev libradospp-dev \
+		liburing-dev pkg-config uuid-dev libfuse3-dev
 
-# paper:
-# 	@$(MAKE) -C atc2024
-#
-# install-deps:
-# 	# sudo apt install -y meson libfmt-dev libaio-dev librados-dev mold \
-# 	# 	libtcmalloc-minimal4 libboost-dev libradospp-dev \
-# 	# 	liburing-dev pkg-config uuid-dev
-# 	sudo apt install -y meson libfuse3-dev
-#
+install-spdk:
+	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.bak
+	cd subprojects
+	git clone https://github.com/spdk/spdk.git
+	cd spdk
+	sudo ./scripts/pkgdep.sh --all
+
+install-xnvme:
+	pushd subprojects
+	git clone https://github.com/OpenMPDK/xNVMe.git xnvme
+	cd xnvme
+	git checkout next
+	sudo ./toolbox/pkgs/ubuntu-focal.sh
+	make build
+	sudo make install
