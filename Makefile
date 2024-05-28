@@ -23,7 +23,7 @@ install-deps:
 	# useful tools
 	sudo apt install -y meson cmake # numa
 	# useful tools
-	sudo apt install -y nvme-cli
+	sudo apt install -y nvme-cli smartmontools
 	sudo apt install -y libfmt-dev libaio-dev librados-dev mold \
 		libtcmalloc-minimal4 libboost-dev libradospp-dev \
 		liburing-dev pkg-config uuid-dev libfuse3-dev
