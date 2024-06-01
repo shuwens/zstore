@@ -4,10 +4,17 @@
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
-#include "../utils.hpp"
+#include "../utils.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
+/**
+ * @brief Represents a Zoned Namespace (ZNS) device.
+ * 
+ * The `ZNSDevice` class provides an interface to interact with a ZNS device.
+ * It allows opening and closing the device, as well as performing operations
+ * such as appending data, reading data, and managing zones.
+ */
 class ZNSDevice
 {
   public:

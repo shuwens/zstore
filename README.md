@@ -5,10 +5,10 @@
 set -x SPDK_DIR ..../SPDK
 sudo ./zstore 1
 sudo gdb --args ./zstore 1
-
-
 ```
 
+
+TODO: Configuring the Linux NVMe over Fabrics Host
 
 
 
