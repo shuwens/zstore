@@ -4,9 +4,11 @@
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
-#include "target/zns_device.h"
+#include "include/zns_device.h"
+// #include "include/zstore.h"
+#include "include/utils.h"
 
-#include "utils.h"
+#include "s3/aws_s3.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 

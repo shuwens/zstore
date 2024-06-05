@@ -31,6 +31,7 @@ elif get_option('buildtype') == 'release'
 	add_project_arguments('-DLOGLV=2', language: 'cpp')
 endif
 
+cpp = meson.get_compiler('cpp')
 
 zstore_deps = [
 	dependency('uuid'),
@@ -38,12 +39,16 @@ zstore_deps = [
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('xnvme'),
+	# cpp.find_library('curlpp'),
+	cpp.find_library('curl'),
 ]
 
 zstore_src = files(
 	'src/main.cc',
 )
 
-executable('zstore', zstore_src, dependencies: zstore_deps)
-executable('zone', 'src/zoned.cc', dependencies: zstore_deps)
+incdir = include_directories('civetweb-1.12/include')
+
+executable('zstore', zstore_src, dependencies: zstore_deps,  include_directories : incdir)
+executable('zone', 'src/zoned.cc', dependencies: zstore_deps,  include_directories : incdir)
 # executable('append', 'src/async_example.c', dependencies: zstore_deps)

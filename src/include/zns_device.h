@@ -4,7 +4,7 @@
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
-#include "../utils.h"
+#include "utils.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
@@ -263,5 +263,3 @@ class ZNSDevice
         }
     }
 };
-
-

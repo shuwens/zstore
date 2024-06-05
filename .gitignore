@@ -1,7 +1,16 @@
+# dev
+.vscode/
+
+# build
 build/
 spdk/
 xnvme/
 simpleznsdevice/
 venv/
 .cache/
-.vscode/
+
+# third party
+civetweb-1.12/
+civetweb-v1.12.tar.gz
+curlpp-0.7.3.tar.gz
+curlpp-0.7.3/

@@ -5,7 +5,7 @@
 #include <errno.h>
 #include <libxnvme.h>
 
-#include "utils.hpp"
+#include "include/utils.h"
 
 int enumerate_cb(struct xnvme_dev *dev, void *cb_args)
 {
