@@ -4,11 +4,14 @@
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
+#include "include/utils.h"
 #include "include/zns_device.h"
 // #include "include/zstore.h"
-#include "include/utils.h"
 
-#include "s3/aws_s3.h"
+#include "zstore/backend.cc"
+#include "zstore/zstore.cc"
+
+// #include "s3/aws_s3.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
@@ -20,6 +23,12 @@ void memset64(void *dest, u64 val, usize bytes)
         cdest[i] = val;
 }
 
+int begin_request(struct mg_connection *conn)
+{
+    Backend backend("test_backend");
+    return backend.begin_request(conn);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 3) {
@@ -27,6 +36,37 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Create and configure Zstore instance
+    std::string zstore_name, bucket_name;
+    zstore_name = "test";
+    Zstore zstore(zstore_name);
+
+    // create a bucket: this process is now manual, not via create/get bucket
+    zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, ""));
+
+    // create an object
+
+    struct mg_callbacks callbacks = {.begin_request = begin_request};
+
+    sprintf(port_str, "%d", port);
+
+    const char *options[] = {"listening_ports", port_str, "tcp_nodelay", "1",
+                             //"num_threads", "1",
+                             "enable_keep_alive", "yes",
+                             //"max_request_size", "65536",
+                             0};
+
+    // obj_table = avl_alloc_tree(obj_cmp, NULL);
+
+    mg_init_library(MG_FEATURES_DEFAULT);
+    g_ctx = mg_start(&callbacks, NULL, options);
+
+    signal(SIGINT, handler);
+
+    while (1)
+        sleep(1);
+
+    //
     u64 zone_dist = 0x80000;
     u64 zone_num = std::stoull(argv[1]);
     u16 qd = std::stoull(argv[2]);

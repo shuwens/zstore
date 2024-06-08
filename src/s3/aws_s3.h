@@ -28,13 +28,13 @@
 #ifndef AWS_S3_H
 #define AWS_S3_H
 
-#include <iostream>
 #include <fstream>
-#include <string>
-#include <vector>
+#include <iostream>
 #include <list>
 #include <map>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include <CivetServer.h>
 // #include <civetweb.h>
@@ -51,7 +51,6 @@ typedef mg_connection Zstore_Connection;
 // TODO: BitTorrent
 // TODO: bucket location
 
-
 // AWS_IO objects specify data and headers to send,
 // and collect the data and headers of the response.
 // TODO: this has grown a bit...make a class, add accessors.
@@ -65,21 +64,24 @@ typedef mg_connection Zstore_Connection;
 // Cache-Control:
 //
 // Content-MD5 is computed by AWS::PutObject().
-// Content-Size for PUT operations is set by libcurl using bytesToPut. Do not specify as a header.
+// Content-Size for PUT operations is set by libcurl using bytesToPut. Do not
+// specify as a header.
 
 struct AWS_IO {
-    std::string httpDate;// Timestamp, set by AWS::Send()
-    AWS_MultiDict sendHeaders;// Headers for request
+    std::string httpDate;      // Timestamp, set by AWS::Send()
+    AWS_MultiDict sendHeaders; // Headers for request
 
-    std::string result;// Result code for response, minus the leading "HTTP/1.1"
-    int numResult;// Numeric result code for response
-    AWS_MultiDict headers;// Headers from response
+    std::string
+        result;    // Result code for response, minus the leading "HTTP/1.1"
+    int numResult; // Numeric result code for response
+    AWS_MultiDict headers; // Headers from response
 
-    std::ostringstream response;// default output stream, contains body of response
-    std::istream * istrm;
-    std::ostream * ostrm;
+    std::ostringstream
+        response; // default output stream, contains body of response
+    std::istream *istrm;
+    std::ostream *ostrm;
 
-    size_t bytesToGet;// used only for progress reporting
+    size_t bytesToGet; // used only for progress reporting
     size_t bytesReceived;
     size_t bytesToPut;
     size_t bytesSent;
@@ -87,12 +89,13 @@ struct AWS_IO {
     bool printProgress;
     bool error;
 
-    AWS_IO() {Reset();}
-    AWS_IO(std::istream * i) {Reset(i, NULL);}
-    AWS_IO(std::ostream * o) {Reset(NULL, o);}
-    AWS_IO(std::istream * i, std::ostream * o) {Reset(i, o);}
+    AWS_IO() { Reset(); }
+    AWS_IO(std::istream *i) { Reset(i, NULL); }
+    AWS_IO(std::ostream *o) { Reset(NULL, o); }
+    AWS_IO(std::istream *i, std::ostream *o) { Reset(i, o); }
 
-    void Reset(std::istream * i = NULL, std::ostream * o = NULL) {
+    void Reset(std::istream *i = NULL, std::ostream *o = NULL)
+    {
         sendHeaders.Clear();
         headers.Clear();
         response.clear();
@@ -100,16 +103,18 @@ struct AWS_IO {
         result = "";
         numResult = 0;
         istrm = NULL;
-        ostrm = (o == NULL)? &response : o;
-        bytesToGet = 0; bytesReceived = 0;
-        bytesToPut = 0; bytesSent = 0;
+        ostrm = (o == NULL) ? &response : o;
+        bytesToGet = 0;
+        bytesReceived = 0;
+        bytesToPut = 0;
+        bytesSent = 0;
         printProgress = false;
         error = false;
     }
 
     // "200 OK", or some other 20x message
-    bool Success() const {return result[0] == '2' && !error;}
-    bool Failure() const {return !Success();}
+    bool Success() const { return result[0] == '2' && !error; }
+    bool Failure() const { return !Success(); }
 
     // Called prior to performing action
     virtual void WillStart();
@@ -118,16 +123,16 @@ struct AWS_IO {
     virtual void DidFinish();
 
     // Handler for data received by libcurl
-    virtual size_t Write(char * buf, size_t size, size_t nmemb);
+    virtual size_t Write(char *buf, size_t size, size_t nmemb);
 
     // Handler for data requested by libcurl for transmission
-    virtual size_t Read(char * buf, size_t size, size_t nmemb);
+    virtual size_t Read(char *buf, size_t size, size_t nmemb);
 
     // Handler for headers: overrides must call if other functionality of
     // AWS_IO is to be used.
-    virtual size_t HandleHeader(char * buf, size_t size, size_t nmemb);
+    virtual size_t HandleHeader(char *buf, size_t size, size_t nmemb);
 
-    friend std::ostream & operator<<(std::ostream & ostrm, AWS_IO & io);
+    friend std::ostream &operator<<(std::ostream &ostrm, AWS_IO &io);
 };
 
 // Instances of this class represent objects stored on Amazon S3.
@@ -144,7 +149,7 @@ struct AWS_S3_Object {
 
     AWS_S3_Object() {}
 
-    size_t GetSize() const {return strtol(size.c_str(), NULL, 0);}
+    size_t GetSize() const { return strtol(size.c_str(), NULL, 0); }
 };
 
 // Instances of this class represent buckets on Amazon S3.
@@ -154,24 +159,31 @@ struct AWS_S3_Bucket {
 
     std::list<AWS_S3_Object> objects;
     // TODO: object map
-//    std::map<std::string, AWS_S3_Object *> objects;
+    //    std::map<std::string, AWS_S3_Object *> objects;
 
-    AWS_S3_Bucket(const std::string & nm, const std::string & dt): name(nm), creationDate(dt) {}
+    AWS_S3_Bucket(const std::string &nm, const std::string &dt)
+        : name(nm), creationDate(dt)
+    {
+    }
 };
 
+/*
 class AWS {
     std::string keyID, secret;
     int verbosity;
     std::list<AWS_S3_Bucket> buckets;
 
-    std::string GenRequestSignature(const AWS_IO & io, const std::string & uri, const std::string & mthd);
+    std::string GenRequestSignature(const AWS_IO & io, const std::string & uri,
+const std::string & mthd);
 
     void Send(const std::string & url, const std::string & uri,
-              const std::string & method, AWS_IO & io, Zstore_Connection ** conn);
+              const std::string & method, AWS_IO & io, Zstore_Connection **
+conn);
 
 
-    static void ParseBucketsList(std::list<AWS_S3_Bucket> & buckets, const std::string & xml);
-    static void ParseObjectsList(std::list<AWS_S3_Object> & objects, const std::string & xml);
+    static void ParseBucketsList(std::list<AWS_S3_Bucket> & buckets, const
+std::string & xml); static void ParseObjectsList(std::list<AWS_S3_Object> &
+objects, const std::string & xml);
 
   public:
     AWS(const std::string & kid, const std::string & sk);
@@ -183,28 +195,33 @@ class AWS {
                                           Zstore_Connection ** conn = NULL);
     void RefreshBuckets(bool getContents, Zstore_Connection ** conn = NULL);
 
-    void GetBucketContents(AWS_S3_Bucket & bucket, Zstore_Connection ** conn = NULL);
+    void GetBucketContents(AWS_S3_Bucket & bucket, Zstore_Connection ** conn =
+NULL);
 
 //    void GetObjectInfo(std::string & bktName, std::string & key,
-//                       AWS_S3_Object & bucket, Zstore_Connection ** conn = NULL) {
+//                       AWS_S3_Object & bucket, Zstore_Connection ** conn =
+NULL) {
 //        AWS_S3_Bucket bucket(bktName, "");
 //        aws.GetBucketContents(bucket);
 //    }
 
-    // To perform multiple operations on the same connection, provide a pointer to
-    // a pointer to an Zstore_Connection as the last parameter, initialized to NULL:
+    // To perform multiple operations on the same connection, provide a pointer
+to
+    // a pointer to an Zstore_Connection as the last parameter, initialized to
+NULL:
     // Zstore_Connection * conn = NULL;
     // PutObject("bucket", "key", io, &conn);
     // PutObject("bucket", "key2", io, &conn);
-    // The first operation will create the Zstore_Connection. The user should delete
+    // The first operation will create the Zstore_Connection. The user should
+delete
     // the connection themselves after they are done.
 
     // Upload object
-    void PutObject(const std::string & bkt, const std::string & key, const std::string & acl,
-                   AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
-    void PutObject(const std::string & bkt, const std::string & key,
-                   const std::string & acl, const std::string & localpath,
-                   AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+    void PutObject(const std::string & bkt, const std::string & key, const
+std::string & acl, AWS_IO & io, Zstore_Connection ** reqPtr = NULL); void
+PutObject(const std::string & bkt, const std::string & key, const std::string &
+acl, const std::string & localpath, AWS_IO & io, Zstore_Connection ** reqPtr =
+NULL);
 
     // Get object data (GET /key)
     void GetObject(const std::string & bkt, const std::string & key,
@@ -222,21 +239,24 @@ class AWS {
     // Copy object (COPY)
     //TODO: copy ACL option
     void CopyObject(const std::string & srcbkt, const std::string & srckey,
-                    const std::string & dstbkt, const std::string & dstkey, bool copyMD,
-                    AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+                    const std::string & dstbkt, const std::string & dstkey, bool
+copyMD, AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
 
 
     // List buckets (s3.amazonaws.com GET /)
     void ListBuckets(AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
 
     // Create bucket (bucket.s3.amazonaws.com PUT /)
-    void CreateBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+    void CreateBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection **
+reqPtr = NULL);
 
     // List bucket (bucket.s3.amazonaws.com GET /)
-    void ListBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+    void ListBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection **
+reqPtr = NULL);
 
     // Delete bucket (bucket.s3.amazonaws.com DELETE /)
-    void DeleteBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+    void DeleteBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection **
+reqPtr = NULL);
 
 
     std::string GetACL(const std::string & bkt, const std::string & key,
@@ -244,16 +264,16 @@ class AWS {
     std::string GetACL(const std::string & bkt, AWS_IO & io,
                        Zstore_Connection ** reqPtr = NULL);
 
-    void SetACL(const std::string & bkt, const std::string & key, const std::string & acl,
-                AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
-    void SetACL(const std::string & bkt, const std::string & acl,
-                AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+    void SetACL(const std::string & bkt, const std::string & key, const
+std::string & acl, AWS_IO & io, Zstore_Connection ** reqPtr = NULL); void
+SetACL(const std::string & bkt, const std::string & acl, AWS_IO & io,
+Zstore_Connection ** reqPtr = NULL);
 
-    // Set using a canned ACL: "private", "public-read", "public-read-write", "authenticated-read"
-    void SetCannedACL(const std::string & bkt, const std::string & key, const std::string & acl,
-                      AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
-    void SetCannedACL(const std::string & bkt, const std::string & acl,
-                      AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
+    // Set using a canned ACL: "private", "public-read", "public-read-write",
+"authenticated-read" void SetCannedACL(const std::string & bkt, const
+std::string & key, const std::string & acl, AWS_IO & io, Zstore_Connection **
+reqPtr = NULL); void SetCannedACL(const std::string & bkt, const std::string &
+acl, AWS_IO & io, Zstore_Connection ** reqPtr = NULL);
 };
-
+*/
 #endif // AWS_S3_H

@@ -25,23 +25,20 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //******************************************************************************
 
-
-
-#include <iostream>
 #include <fstream>
-#include <string>
-#include <vector>
+#include <iostream>
 #include <map>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "aws_s3.h"
 #include "aws_s3_misc.h"
 
-#include <curlpp/cURLpp.hpp>
 #include <curlpp/Options.hpp>
+#include <curlpp/cURLpp.hpp>
 
 using namespace std;
-
 
 //************************************************************************************************
 // AWS_IO
@@ -49,49 +46,51 @@ using namespace std;
 
 void AWS_IO::WillStart()
 {
-//    if(printProgress)
-//        cout << endl;
+    //    if(printProgress)
+    //        cout << endl;
 }
 
 void AWS_IO::DidFinish()
 {
-    if(printProgress)
+    if (printProgress)
         cout << endl;
-    
-    if(Failure())
+
+    if (Failure())
         cerr << "#### ERROR: Operation failed:\n" << *this << endl;
 }
 
-
-size_t AWS_IO::Write(char * buf, size_t size, size_t nmemb)
+size_t AWS_IO::Write(char *buf, size_t size, size_t nmemb)
 {
-    if(ostrm) {
-        ostrm->write(buf, size*nmemb);
-        bytesReceived += size*nmemb;
-        if(printProgress) {
-            if(bytesToGet == 0)
-                cout << "received " << bytesReceived << " bytes, content size unknown";
+    if (ostrm) {
+        ostrm->write(buf, size * nmemb);
+        bytesReceived += size * nmemb;
+        if (printProgress) {
+            if (bytesToGet == 0)
+                cout << "received " << bytesReceived
+                     << " bytes, content size unknown";
             else
-                cout << "received " << bytesReceived << " bytes, " << 100*bytesReceived/bytesToGet << "%";
+                cout << "received " << bytesReceived << " bytes, "
+                     << 100 * bytesReceived / bytesToGet << "%";
             cout << "                        \r";
             cout.flush();
         }
     }
-    return size*nmemb;
+    return size * nmemb;
 }
 
-size_t AWS_IO::Read(char * buf, size_t size, size_t nmemb)
+size_t AWS_IO::Read(char *buf, size_t size, size_t nmemb)
 {
     streamsize count = 0;
-    if(istrm) {
-        istrm->read(buf, size*nmemb);
+    if (istrm) {
+        istrm->read(buf, size * nmemb);
         count = istrm->gcount();
         bytesSent += count;
-        if(printProgress) {
-            if(bytesToPut == 0)
+        if (printProgress) {
+            if (bytesToPut == 0)
                 cout << "sent " << bytesSent << " bytes, content size unknown";
             else
-                cout << "sent " << bytesSent << " bytes, " << 100*bytesSent/bytesToPut << "%";
+                cout << "sent " << bytesSent << " bytes, "
+                     << 100 * bytesSent / bytesToPut << "%";
             cout << "                        \r";
             cout.flush();
         }
@@ -99,36 +98,35 @@ size_t AWS_IO::Read(char * buf, size_t size, size_t nmemb)
     return count;
 }
 
-size_t AWS_IO::HandleHeader(char * buf, size_t size, size_t nmemb)
+size_t AWS_IO::HandleHeader(char *buf, size_t size, size_t nmemb)
 {
-    size_t length = size*nmemb;
-//        cout << "#### HeaderCB, Header received: " << string(buf, length);
-    if(length >= 8 && strncmp(buf, "HTTP/1.1", 8) == 0) {
+    size_t length = size * nmemb;
+    //        cout << "#### HeaderCB, Header received: " << string(buf, length);
+    if (length >= 8 && strncmp(buf, "HTTP/1.1", 8) == 0) {
         result = string(buf + 9, length - 9);
         numResult = strtol(result.c_str(), NULL, 0);
-    }
-    else if(length == 2 && strncmp(buf, "\r\n", 2) == 0) {
+    } else if (length == 2 && strncmp(buf, "\r\n", 2) == 0) {
         // ignore
-    }
-    else {
+    } else {
         // Find first occurrence of ':'
         size_t c = 0;
-        while(c < length && buf[c] != ':')
+        while (c < length && buf[c] != ':')
             ++c;
-        
-        if(c < length) {
+
+        if (c < length) {
             string header(buf, c);
-            string data(buf+c+2, length - c - 2);
-            if(data[data.length()-1] == '\n')
-                data.erase(data.length()-1);
-//                cout << "#### HeaderCB, parsed header: " << header << endl;
-//                cout << "#### HeaderCB, parsed header data: " << data << endl;
+            string data(buf + c + 2, length - c - 2);
+            if (data[data.length() - 1] == '\n')
+                data.erase(data.length() - 1);
+            //                cout << "#### HeaderCB, parsed header: " << header
+            //                << endl; cout << "#### HeaderCB, parsed header
+            //                data: " << data << endl;
             headers.Set(header, data);
-        }
-        else {
-            cerr << "#### ERROR: HeaderCB, unknown header received: " << string(buf, length);
+        } else {
+            cerr << "#### ERROR: HeaderCB, unknown header received: "
+                 << string(buf, length);
             cerr << "#### length: " << length << endl;
-            for(size_t j = 0; j < length; ++j)
+            for (size_t j = 0; j < length; ++j)
                 cerr << (int)buf[j] << " ";
             cerr << endl;
         }
@@ -136,12 +134,12 @@ size_t AWS_IO::HandleHeader(char * buf, size_t size, size_t nmemb)
     return length;
 }
 
-std::ostream & operator<<(std::ostream & ostrm, AWS_IO & io)
+std::ostream &operator<<(std::ostream &ostrm, AWS_IO &io)
 {
     ostrm << "result: " << io.result << std::endl;
     ostrm << "headers:" << std::endl;
     AWS_MultiDict::iterator i;
-    for(i = io.headers.begin(); i != io.headers.end(); ++i)
+    for (i = io.headers.begin(); i != io.headers.end(); ++i)
         ostrm << i->first << ": " << i->second << std::endl;
     return ostrm;
 }
@@ -150,6 +148,7 @@ std::ostream & operator<<(std::ostream & ostrm, AWS_IO & io)
 // AWS
 //************************************************************************************************
 
+/*
 AWS::AWS(const string & kid, const string & sk):
     keyID(kid), secret(sk),
     verbosity(0)
@@ -170,7 +169,7 @@ void AWS::ParseBucketsList(list<AWS_S3_Bucket> & buckets, const string & xml)
     string ownerName, ownerID;
     ExtractXML(ownerID, crsr, "ID", xml);
     ExtractXML(ownerName, crsr, "DisplayName", xml);
-    
+
     while(ExtractXML(data, crsr, "Name", xml))
     {
         name = data;
@@ -186,30 +185,30 @@ void AWS::ParseObjectsList(list<AWS_S3_Object> & objects, const string & xml)
 {
     string::size_type crsr = 0;
     string data;
-    
+
     while(ExtractXML(data, crsr, "Key", xml))
     {
         AWS_S3_Object obj;
         obj.key = data;
-        
+
         if(ExtractXML(data, crsr, "LastModified", xml))
             obj.lastModified = data;
         if(ExtractXML(data, crsr, "ETag", xml)) {
-			// eTag starts and ends with &quot;, remove these
+                        // eTag starts and ends with &quot;, remove these
             //obj.eTag = data;
-			obj.eTag = data.substr(6, data.size() - 12);
-		}
+                        obj.eTag = data.substr(6, data.size() - 12);
+                }
         if(ExtractXML(data, crsr, "Size", xml))
             obj.size = data;
-        
+
         if(ExtractXML(data, crsr, "ID", xml))
             obj.ownerID = data;
         if(ExtractXML(data, crsr, "DisplayName", xml))
             obj.ownerDisplayName = data;
-        
+
         if(ExtractXML(data, crsr, "StorageClass", xml))
             obj.storageClass = data;
-        
+
         objects.push_back(obj);
     }
 }
@@ -227,10 +226,10 @@ void AWS::RefreshBuckets(bool getContents, AWS_Connection ** conn)
     std::ostringstream bucketList;
     AWS_IO io(NULL, &bucketList);
     ListBuckets(io, conn);
-    
+
     buckets.clear();
     ParseBucketsList(buckets, bucketList.str());
-    
+
     if(getContents) {
         list<AWS_S3_Bucket>::iterator bkt;
         for(bkt = buckets.begin(); bkt != buckets.end(); ++bkt)
@@ -246,15 +245,17 @@ void AWS::GetBucketContents(AWS_S3_Bucket & bucket, AWS_Connection ** conn)
     ParseObjectsList(bucket.objects, objectList.str());
 }
 
-string AWS::GenRequestSignature(const AWS_IO & io, const string & uri, const string & mthd)
+string AWS::GenRequestSignature(const AWS_IO & io, const string & uri, const
+string & mthd)
 {
-	std::ostringstream sigstrm;
+        std::ostringstream sigstrm;
     sigstrm << mthd << "\n";
     sigstrm << io.sendHeaders.GetWithDefault("Content-MD5", "") << "\n";
     sigstrm << io.sendHeaders.GetWithDefault("Content-Type", "") << "\n";
     sigstrm << io.httpDate << "\n";
-    
-    // http://docs.amazonwebservices.com/AmazonS3/latest/index.html?RESTAccessPolicy.html
+
+    //
+http://docs.amazonwebservices.com/AmazonS3/latest/index.html?RESTAccessPolicy.html
     // CanonicalizedAmzHeaders
     // TODO: convert headers into canonicalized form (almost there already):
     // lower-case (TODO)
@@ -270,8 +271,9 @@ string AWS::GenRequestSignature(const AWS_IO & io, const string & uri, const str
     sigstrm << "/" << uri;
 
     if(verbosity >= 3)
-        cout << "#### sigtext:\n" << sigstrm.str() << "\n#### end sigtext" << endl;
-    
+        cout << "#### sigtext:\n" << sigstrm.str() << "\n#### end sigtext" <<
+endl;
+
     return GenerateSignature(secret, sigstrm.str());
 }
 
@@ -279,14 +281,16 @@ string AWS::GenRequestSignature(const AWS_IO & io, const string & uri, const str
 struct ReadDataCB {
     AWS_IO & io;
     ReadDataCB(AWS_IO & ioio): io(ioio) {}
-    size_t operator()(char * buf, size_t size, size_t nmemb) {return io.Read(buf, size, nmemb);}
+    size_t operator()(char * buf, size_t size, size_t nmemb) {return
+io.Read(buf, size, nmemb);}
 };
 
 // write by libcurl...handle data received
 struct WriteDataCB {
     AWS_IO & io;
     WriteDataCB(AWS_IO & ioio): io(ioio) {}
-    size_t operator()(char * buf, size_t size, size_t nmemb) {return io.Write(buf, size, nmemb);}
+    size_t operator()(char * buf, size_t size, size_t nmemb) {return
+io.Write(buf, size, nmemb);}
 };
 
 // Handle header data.
@@ -295,7 +299,8 @@ struct WriteDataCB {
 struct HeaderCB {
     AWS_IO & io;
     HeaderCB(AWS_IO & ioio): io(ioio) {}
-    size_t operator()(char * buf, size_t size, size_t nmemb) {return io.HandleHeader(buf, size, nmemb);}
+    size_t operator()(char * buf, size_t size, size_t nmemb) {return
+io.HandleHeader(buf, size, nmemb);}
 };
 
 void AWS::Send(const string & url, const string & uri, const string & method,
@@ -304,10 +309,10 @@ void AWS::Send(const string & url, const string & uri, const string & method,
     string signature;
     io.httpDate = HTTP_Date();
     signature = GenRequestSignature(io, uri, method);
-    
+
     if(verbosity >= 2)
         io.printProgress = true;
-    
+
     try {
         cURLpp::Easy * req;
         // create new Easy or reset and reuse old one.
@@ -324,33 +329,37 @@ void AWS::Send(const string & url, const string & uri, const string & method,
                 req->reset();
             }
         }
-        
+
         cURLpp::Easy & request = *req;
-        
+
         std::ostringstream authstrm, datestrm, urlstrm;
         datestrm << "Date: " << io.httpDate;
         authstrm << "Authorization: AWS " << keyID << ":" << signature;
-        
+
         std::list<std::string> headers;
         headers.push_back(datestrm.str());
         headers.push_back(authstrm.str());
-        
+
         AWS_MultiDict::iterator i;
         for(i = io.sendHeaders.begin(); i != io.sendHeaders.end(); ++i) {
             headers.push_back(i->first + ": " + i->second);
             if(verbosity >= 3)
-                cout << "special header: " << i->first + ": " + i->second << endl;
+                cout << "special header: " << i->first + ": " + i->second <<
+endl;
         }
-        
-        request.setOpt(new cURLpp::Options::WriteFunction(cURLpp::Types::WriteFunctionFunctor(WriteDataCB(io))));
-        request.setOpt(new cURLpp::Options::HeaderFunction(cURLpp::Types::WriteFunctionFunctor(HeaderCB(io))));
-        
+
+        request.setOpt(new
+cURLpp::Options::WriteFunction(cURLpp::Types::WriteFunctionFunctor(WriteDataCB(io))));
+        request.setOpt(new
+cURLpp::Options::HeaderFunction(cURLpp::Types::WriteFunctionFunctor(HeaderCB(io))));
+
         if(method == "GET") {
             request.setOpt(new cURLpp::Options::HttpGet(true));
         }
         else if(method == "PUT") {
             request.setOpt(new cURLpp::Options::Upload(true));
-            request.setOpt(new cURLpp::Options::ReadFunction(cURLpp::Types::ReadFunctionFunctor(ReadDataCB(io))));
+            request.setOpt(new
+cURLpp::Options::ReadFunction(cURLpp::Types::ReadFunctionFunctor(ReadDataCB(io))));
             request.setOpt(new cURLpp::Options::InfileSize(io.bytesToPut));
         }
         else if(method == "HEAD") {
@@ -360,15 +369,15 @@ void AWS::Send(const string & url, const string & uri, const string & method,
         else {
             request.setOpt(new cURLpp::Options::CustomRequest(method));
         }
-        
+
         request.setOpt(new cURLpp::Options::Url(url));
         request.setOpt(new cURLpp::Options::Verbose(verbosity >= 3));
         request.setOpt(new cURLpp::Options::HttpHeader(headers));
-        
+
         io.WillStart();
         request.perform();
         io.DidFinish();
-        
+
         // If created new Easy for this call, delete it.
         if(reqPtr == NULL)
             delete req;
@@ -389,23 +398,23 @@ void AWS::PutObject(const string & bkt, const string & key, const string & acl,
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/" << key;
-    
+
     if(acl != "") io.sendHeaders.Set("x-amz-acl", acl);
-    
+
     istream & fin = *io.istrm;
     uint8_t md5[EVP_MAX_MD_SIZE];
     size_t mdLen = ComputeMD5(md5, fin);
     io.sendHeaders.Set("Content-MD5", EncodeB64(md5, mdLen));
-    
+
     fin.clear();
     fin.seekg(0, std::ios_base::end);
     ifstream::pos_type endOfFile = fin.tellg();
     fin.seekg(0, std::ios_base::beg);
     ifstream::pos_type startOfFile = fin.tellg();
-    
+
     io.bytesReceived = 0;
     io.bytesToPut = static_cast<size_t>(endOfFile - startOfFile);
-    
+
     Send(urlstrm.str(), bkt + "/" + key, "PUT", io, reqPtr);
 }
 
@@ -451,13 +460,14 @@ void AWS::DeleteObject(const string & bkt, const string & key,
 }
 
 void AWS::CopyObject(const std::string & srcbkt, const std::string & srckey,
-                     const std::string & dstbkt, const std::string & dstkey, bool copyMD,
-                     AWS_IO & io, AWS_Connection ** reqPtr)
+                     const std::string & dstbkt, const std::string & dstkey,
+bool copyMD, AWS_IO & io, AWS_Connection ** reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << dstbkt << ".s3.amazonaws.com/" << dstkey;
-    io.sendHeaders.Set("x-amz-copy-source", string("/") + srcbkt + "/" + srckey);
-    io.sendHeaders.Set("x-amz-metadata-directive", copyMD? "COPY" : "REPLACE");
+    io.sendHeaders.Set("x-amz-copy-source", string("/") + srcbkt + "/" +
+srckey); io.sendHeaders.Set("x-amz-metadata-directive", copyMD? "COPY" :
+"REPLACE");
 //    io.sendHeaders["x-amz-copy-source-if-match"] =  etag
 //    io.sendHeaders["x-amz-copy-source-if-none-match"] =  etag
 //    io.sendHeaders["x-amz-copy-source-if-unmodified-since"] =  time_stamp
@@ -474,7 +484,8 @@ void AWS::ListBuckets(AWS_IO & io, AWS_Connection ** reqPtr)
     Send("http://s3.amazonaws.com/", "", "GET", io, reqPtr);
 }
 
-void AWS::CreateBucket(const string & bkt, AWS_IO & io, AWS_Connection ** reqPtr)
+void AWS::CreateBucket(const string & bkt, AWS_IO & io, AWS_Connection **
+reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com";
@@ -489,7 +500,8 @@ void AWS::ListBucket(const string & bkt, AWS_IO & io, AWS_Connection ** reqPtr)
     Send(urlstrm.str(), bkt + "/", "GET", io, reqPtr);
 }
 
-void AWS::DeleteBucket(const string & bkt, AWS_IO & io, AWS_Connection ** reqPtr)
+void AWS::DeleteBucket(const string & bkt, AWS_IO & io, AWS_Connection **
+reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com";
@@ -510,24 +522,25 @@ std::string AWS::GetACL(const std::string & bkt, const std::string & key,
 //    urlstrm << "http://" << bkt << ".s3.amazonaws.com/";
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/" << key << "?acl";
     Send(urlstrm.str(), bkt + "/" + key + "?acl", "GET", io, reqPtr);
-    
+
     return aclResponse.str();
 }
 
-std::string AWS::GetACL(const std::string & bkt, AWS_IO & io, AWS_Connection ** reqPtr)
+std::string AWS::GetACL(const std::string & bkt, AWS_IO & io, AWS_Connection **
+reqPtr)
 {
     std::ostringstream aclResponse;
     io.ostrm = &aclResponse;
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/?acl";
     Send(urlstrm.str(), bkt + "/?acl", "GET", io, reqPtr);
-    
+
     return aclResponse.str();
 }
 
 // Set full ACL for object in bucket
-void AWS::SetACL(const std::string & bkt, const std::string & key, const std::string & acl,
-                 AWS_IO & io, AWS_Connection ** reqPtr)
+void AWS::SetACL(const std::string & bkt, const std::string & key, const
+std::string & acl, AWS_IO & io, AWS_Connection ** reqPtr)
 {
     std::istringstream aclStrm(acl);
     io.istrm = &aclStrm;
@@ -550,8 +563,8 @@ void AWS::SetACL(const std::string & bkt, const std::string & acl,
 }
 
 // Set canned ACL for object in bucket
-void AWS::SetCannedACL(const std::string & bkt, const std::string & key, const std::string & acl,
-                 AWS_IO & io, AWS_Connection ** reqPtr)
+void AWS::SetCannedACL(const std::string & bkt, const std::string & key, const
+std::string & acl, AWS_IO & io, AWS_Connection ** reqPtr)
 {
     // TODO: enforce valid acl, one of:
     // "private", "public-read", "public-read-write", "authenticated-read"
@@ -572,3 +585,4 @@ void AWS::SetCannedACL(const std::string & bkt, const std::string & acl,
     io.bytesToPut = 0;
     Send(urlstrm.str(), bkt + "/?acl", "PUT", io, reqPtr);
 }
+*/

@@ -34,6 +34,8 @@ endif
 cpp = meson.get_compiler('cpp')
 
 zstore_deps = [
+	# dependency('avl'),
+	dependency('boost'),
 	dependency('uuid'),
 	dependency('numa'),
 	dependency('openssl'),
@@ -50,5 +52,5 @@ zstore_src = files(
 incdir = include_directories('civetweb-1.12/include')
 
 executable('zstore', zstore_src, dependencies: zstore_deps,  include_directories : incdir)
-executable('zone', 'src/zoned.cc', dependencies: zstore_deps,  include_directories : incdir)
+executable('zone', 'src/third_party/zoned.cc', dependencies: zstore_deps,  include_directories : incdir)
 # executable('append', 'src/async_example.c', dependencies: zstore_deps)
