@@ -1,14 +1,21 @@
+#pragma once
+
 #include <map>
 
-// #include <stdio.h>
-// #include <string.h>
 #include <civetweb.h>
+#include <map>
+#include <mutex>
 #include <pthread.h>
 #include <stdlib.h>
+#include <string>
 #include <unistd.h>
-// #include <string.h>
-// #include <signal.h>
-#include <mutex>
+
+#include <CivetServer.h>
+// #include <civetweb.h>
+// #include <curlpp/Easy.hpp>
+
+#include "../s3/aws_s3.h"
+#include "../s3/multidict.h"
 
 #include "item.h"
 
@@ -16,7 +23,6 @@ class Backend
 {
   private:
     std::map<std::string, object> obj_table;
-    // avl_tree_t *obj_table;
     std::mutex obj_table_mutex;
     int verbose;
 

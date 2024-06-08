@@ -15,6 +15,8 @@
 #include "../s3/aws_s3.h"
 #include "../s3/multidict.h"
 
+#define EVP_MAX_MD_SIZE 64 /* SHA512 */
+
 // typedef cURLpp::Easy Zstore_Connection;
 typedef mg_connection Zstore_Connection;
 
@@ -57,8 +59,8 @@ class Zstore
     void PutObject(const std::string &bkt, const std::string &key, AWS_IO &io,
                    Zstore_Connection **reqPtr = NULL);
     void PutObject(const std::string &bkt, const std::string &key,
-                   const std::string &acl, const std::string &localpath,
-                   AWS_IO &io, Zstore_Connection **reqPtr = NULL);
+                   const std::string &localpath, AWS_IO &io,
+                   Zstore_Connection **reqPtr = NULL);
 
     // Get object data (GET /key)
     void GetObject(const std::string &bkt, const std::string &key, AWS_IO &io,

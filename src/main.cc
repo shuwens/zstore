@@ -1,15 +1,19 @@
 #include <chrono>
+
 #include <fmt/core.h>
 #include <fstream>
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
+#include "CivetServer.h"
+
 #include "include/utils.h"
 #include "include/zns_device.h"
-// #include "include/zstore.h"
+#include "include/webServer.h"
 
 #include "zstore/backend.cc"
 #include "zstore/zstore.cc"
+#include "zstore/webServer.cc"
 
 // #include "s3/aws_s3.h"
 
@@ -44,27 +48,8 @@ int main(int argc, char **argv)
     // create a bucket: this process is now manual, not via create/get bucket
     zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, ""));
 
-    // create an object
-
-    struct mg_callbacks callbacks = {.begin_request = begin_request};
-
-    sprintf(port_str, "%d", port);
-
-    const char *options[] = {"listening_ports", port_str, "tcp_nodelay", "1",
-                             //"num_threads", "1",
-                             "enable_keep_alive", "yes",
-                             //"max_request_size", "65536",
-                             0};
-
-    // obj_table = avl_alloc_tree(obj_cmp, NULL);
-
-    mg_init_library(MG_FEATURES_DEFAULT);
-    g_ctx = mg_start(&callbacks, NULL, options);
-
-    signal(SIGINT, handler);
-
-    while (1)
-        sleep(1);
+    // Start the web server controllers.
+    struct mg_context* web_server = startWebServer();
 
     //
     u64 zone_dist = 0x80000;
@@ -100,7 +85,7 @@ int main(int argc, char **argv)
     // append one block at a time for max re-ordering chance
     u64 num_appends = 128'000;
     log_info("Appending to zone {} (lba 0x{:x}), {} entries of 4k each",
-             zone_num, zslba, num_appends);
+            zone_num, zslba, num_appends);
     for (u64 i = 0; i < num_appends; i++) {
         if (i % 100 == 0)
             fmt::print(".");
@@ -123,7 +108,7 @@ int main(int argc, char **argv)
     auto total_write_num = wq1.num_completed + wq2.num_completed;
     auto avg_write_us = total_write_us / total_write_num;
     log_info("Wrote {} blocks in {} us, avg {} us", total_write_num,
-             total_write_us, avg_write_us);
+            total_write_us, avg_write_us);
 
     log_info("Reading back from zone {}", zone_num);
 
@@ -155,7 +140,7 @@ int main(int argc, char **argv)
     auto tot_read_num = rq1.num_completed + rq2.num_completed;
     auto avg_read_us = tot_read_us / tot_read_num;
     log_info("Read {} blocks in {} us, avg {} us", tot_read_num, tot_read_us,
-             avg_read_us);
+            avg_read_us);
 
     u64 mismatches = 0;
     for (u64 i = 0; i < num_appends; i++) {
@@ -172,5 +157,12 @@ int main(int argc, char **argv)
         of2 << d - data_off << " ";
 
     log_info("Wrote to files data1.txt and data2.txt");
+
+
+
+    // Stop the web server.
+    mg_stop(web_server);
+    mg_exit_library();
+
     return 0;
 }

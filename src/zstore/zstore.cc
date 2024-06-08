@@ -4,29 +4,24 @@
 
 #include "../include/utils.h"
 #include "../include/zstore.h"
+#include "../s3/aws_s3_misc.h"
 
-
-
-Zstore::Zstore(const std::string & name):
-    name(name)
-{
-}
+Zstore::Zstore(const std::string &name) : name(name) {}
 
 Zstore::~Zstore()
 {
     // Teardown connections, etc
 }
 
-
-void Zstore::PutObject(const std::string & bkt, const std::string & key,
-                    AWS_IO & io, Zstore_Connection ** reqPtr)
+void Zstore::PutObject(const std::string &bkt, const std::string &key,
+                       AWS_IO &io, Zstore_Connection **reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/" << key;
 
     // if(acl != "") io.sendHeaders.Set("x-amz-acl", acl);
 
-    std::istream & fin = *io.istrm;
+    std::istream &fin = *io.istrm;
     uint8_t md5[EVP_MAX_MD_SIZE];
     size_t mdLen = ComputeMD5(md5, fin);
     io.sendHeaders.Set("Content-MD5", EncodeB64(md5, mdLen));
@@ -43,12 +38,12 @@ void Zstore::PutObject(const std::string & bkt, const std::string & key,
     Send(urlstrm.str(), bkt + "/" + key, "PUT", io, reqPtr);
 }
 
-void AWS::PutObject(const std::string & bkt, const std::string & key,
-                    const std::string & path,
-                    AWS_IO & io, Zstore_Connection ** reqPtr)
+void Zstore::PutObject(const std::string &bkt, const std::string &key,
+                       const std::string &path, AWS_IO &io,
+                       Zstore_Connection **reqPtr)
 {
     std::ifstream fin(path.c_str(), std::ios_base::binary | std::ios_base::in);
-    if(!fin) {
+    if (!fin) {
         std::cerr << "Could not read file " << path << std::endl;
         return;
     }
@@ -60,35 +55,33 @@ void AWS::PutObject(const std::string & bkt, const std::string & key,
 // Objects
 //************************************************************************************************
 
-void AWS::GetObject(const std::string & bkt, const std::string & key,
-                    AWS_IO & io, Zstore_Connection ** reqPtr)
+void Zstore::GetObject(const std::string &bkt, const std::string &key,
+                       AWS_IO &io, Zstore_Connection **reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/" << key;
     Send(urlstrm.str(), bkt + "/" + key, "GET", io, reqPtr);
 }
 
-void AWS::GetObjectMData(const std::string & bkt, const std::string & key,
-                         AWS_IO & io, Zstore_Connection ** reqPtr)
+void Zstore::GetObjectMData(const std::string &bkt, const std::string &key,
+                            AWS_IO &io, Zstore_Connection **reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/" << key;
     Send(urlstrm.str(), bkt + "/" + key, "HEAD", io, reqPtr);
 }
 
-void AWS::DeleteObject(const std::string & bkt, const std::string & key,
-                       AWS_IO & io, Zstore_Connection ** reqPtr)
+void Zstore::DeleteObject(const std::string &bkt, const std::string &key,
+                          AWS_IO &io, Zstore_Connection **reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com/" << key;
     Send(urlstrm.str(), bkt + "/" + key, "DELETE", io, reqPtr);
 }
 
-
-
-
 /*
-void AWS::ParseBucketsList(list<AWS_S3_Bucket> & buckets, const std::string & xml)
+void AWS::ParseBucketsList(list<AWS_S3_Bucket> & buckets, const std::string &
+xml)
 {
     string::size_type crsr = 0;
     string data;
@@ -108,7 +101,8 @@ void AWS::ParseBucketsList(list<AWS_S3_Bucket> & buckets, const std::string & xm
     }
 }
 
-void AWS::ParseObjectsList(list<AWS_S3_Object> & objects, const std::string & xml)
+void AWS::ParseObjectsList(list<AWS_S3_Object> & objects, const std::string &
+xml)
 {
     string::size_type crsr = 0;
     string data;
@@ -121,10 +115,10 @@ void AWS::ParseObjectsList(list<AWS_S3_Object> & objects, const std::string & xm
         if(ExtractXML(data, crsr, "LastModified", xml))
             obj.lastModified = data;
         if(ExtractXML(data, crsr, "ETag", xml)) {
-			// eTag starts and ends with &quot;, remove these
+                        // eTag starts and ends with &quot;, remove these
             //obj.eTag = data;
-			obj.eTag = data.substr(6, data.size() - 12);
-		}
+                        obj.eTag = data.substr(6, data.size() - 12);
+                }
         if(ExtractXML(data, crsr, "Size", xml))
             obj.size = data;
 
@@ -172,15 +166,17 @@ void AWS::GetBucketContents(AWS_S3_Bucket & bucket, Zstore_Connection ** conn)
     ParseObjectsList(bucket.objects, objectList.str());
 }
 
-string AWS::GenRequestSignature(const AWS_IO & io, const std::string & uri, const std::string & mthd)
+string AWS::GenRequestSignature(const AWS_IO & io, const std::string & uri,
+const std::string & mthd)
 {
-	std::ostringstream sigstrm;
+        std::ostringstream sigstrm;
     sigstrm << mthd << "\n";
     sigstrm << io.sendHeaders.GetWithDefault("Content-MD5", "") << "\n";
     sigstrm << io.sendHeaders.GetWithDefault("Content-Type", "") << "\n";
     sigstrm << io.httpDate << "\n";
 
-    // http://docs.amazonwebservices.com/AmazonS3/latest/index.html?RESTAccessPolicy.html
+    //
+http://docs.amazonwebservices.com/AmazonS3/latest/index.html?RESTAccessPolicy.html
     // CanonicalizedAmzHeaders
     // TODO: convert headers into canonicalized form (almost there already):
     // lower-case (TODO)
@@ -196,7 +192,8 @@ string AWS::GenRequestSignature(const AWS_IO & io, const std::string & uri, cons
     sigstrm << "/" << uri;
 
     if(verbosity >= 3)
-        cout << "#### sigtext:\n" << sigstrm.str() << "\n#### end sigtext" << endl;
+        cout << "#### sigtext:\n" << sigstrm.str() << "\n#### end sigtext" <<
+endl;
 
     return GenerateSignature(secret, sigstrm.str());
 }
@@ -205,14 +202,16 @@ string AWS::GenRequestSignature(const AWS_IO & io, const std::string & uri, cons
 struct ReadDataCB {
     AWS_IO & io;
     ReadDataCB(AWS_IO & ioio): io(ioio) {}
-    size_t operator()(char * buf, size_t size, size_t nmemb) {return io.Read(buf, size, nmemb);}
+    size_t operator()(char * buf, size_t size, size_t nmemb) {return
+io.Read(buf, size, nmemb);}
 };
 
 // write by libcurl...handle data received
 struct WriteDataCB {
     AWS_IO & io;
     WriteDataCB(AWS_IO & ioio): io(ioio) {}
-    size_t operator()(char * buf, size_t size, size_t nmemb) {return io.Write(buf, size, nmemb);}
+    size_t operator()(char * buf, size_t size, size_t nmemb) {return
+io.Write(buf, size, nmemb);}
 };
 
 // Handle header data.
@@ -221,11 +220,12 @@ struct WriteDataCB {
 struct HeaderCB {
     AWS_IO & io;
     HeaderCB(AWS_IO & ioio): io(ioio) {}
-    size_t operator()(char * buf, size_t size, size_t nmemb) {return io.HandleHeader(buf, size, nmemb);}
+    size_t operator()(char * buf, size_t size, size_t nmemb) {return
+io.HandleHeader(buf, size, nmemb);}
 };
 
-void AWS::Send(const std::string & url, const std::string & uri, const std::string & method,
-               AWS_IO & io, Zstore_Connection ** reqPtr)
+void AWS::Send(const std::string & url, const std::string & uri, const
+std::string & method, AWS_IO & io, Zstore_Connection ** reqPtr)
 {
     string signature;
     io.httpDate = HTTP_Date();
@@ -265,18 +265,22 @@ void AWS::Send(const std::string & url, const std::string & uri, const std::stri
         for(i = io.sendHeaders.begin(); i != io.sendHeaders.end(); ++i) {
             headers.push_back(i->first + ": " + i->second);
             if(verbosity >= 3)
-                cout << "special header: " << i->first + ": " + i->second << endl;
+                cout << "special header: " << i->first + ": " + i->second <<
+endl;
         }
 
-        request.setOpt(new cURLpp::Options::WriteFunction(cURLpp::Types::WriteFunctionFunctor(WriteDataCB(io))));
-        request.setOpt(new cURLpp::Options::HeaderFunction(cURLpp::Types::WriteFunctionFunctor(HeaderCB(io))));
+        request.setOpt(new
+cURLpp::Options::WriteFunction(cURLpp::Types::WriteFunctionFunctor(WriteDataCB(io))));
+        request.setOpt(new
+cURLpp::Options::HeaderFunction(cURLpp::Types::WriteFunctionFunctor(HeaderCB(io))));
 
         if(method == "GET") {
             request.setOpt(new cURLpp::Options::HttpGet(true));
         }
         else if(method == "PUT") {
             request.setOpt(new cURLpp::Options::Upload(true));
-            request.setOpt(new cURLpp::Options::ReadFunction(cURLpp::Types::ReadFunctionFunctor(ReadDataCB(io))));
+            request.setOpt(new
+cURLpp::Options::ReadFunction(cURLpp::Types::ReadFunctionFunctor(ReadDataCB(io))));
             request.setOpt(new cURLpp::Options::InfileSize(io.bytesToPut));
         }
         else if(method == "HEAD") {
@@ -311,13 +315,14 @@ void AWS::Send(const std::string & url, const std::string & uri, const std::stri
 
 
 void AWS::CopyObject(const std::string & srcbkt, const std::string & srckey,
-                     const std::string & dstbkt, const std::string & dstkey, bool copyMD,
-                     AWS_IO & io, Zstore_Connection ** reqPtr)
+                     const std::string & dstbkt, const std::string & dstkey,
+bool copyMD, AWS_IO & io, Zstore_Connection ** reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << dstbkt << ".s3.amazonaws.com/" << dstkey;
-    io.sendHeaders.Set("x-amz-copy-source", string("/") + srcbkt + "/" + srckey);
-    io.sendHeaders.Set("x-amz-metadata-directive", copyMD? "COPY" : "REPLACE");
+    io.sendHeaders.Set("x-amz-copy-source", string("/") + srcbkt + "/" +
+srckey); io.sendHeaders.Set("x-amz-metadata-directive", copyMD? "COPY" :
+"REPLACE");
 //    io.sendHeaders["x-amz-copy-source-if-match"] =  etag
 //    io.sendHeaders["x-amz-copy-source-if-none-match"] =  etag
 //    io.sendHeaders["x-amz-copy-source-if-unmodified-since"] =  time_stamp
@@ -334,7 +339,8 @@ void AWS::ListBuckets(AWS_IO & io, Zstore_Connection ** reqPtr)
     Send("http://s3.amazonaws.com/", "", "GET", io, reqPtr);
 }
 
-void AWS::CreateBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection ** reqPtr)
+void AWS::CreateBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection
+** reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com";
@@ -342,14 +348,16 @@ void AWS::CreateBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection *
     Send(urlstrm.str(), bkt + "/", "PUT", io, reqPtr);
 }
 
-void AWS::ListBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection ** reqPtr)
+void AWS::ListBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection **
+reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com";
     Send(urlstrm.str(), bkt + "/", "GET", io, reqPtr);
 }
 
-void AWS::DeleteBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection ** reqPtr)
+void AWS::DeleteBucket(const std::string & bkt, AWS_IO & io, Zstore_Connection
+** reqPtr)
 {
     std::ostringstream urlstrm;
     urlstrm << "http://" << bkt << ".s3.amazonaws.com";

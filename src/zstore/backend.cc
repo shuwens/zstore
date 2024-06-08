@@ -1,12 +1,15 @@
 #include <civetweb.h>
+#include <csignal>
+#include <ctime>
 #include <map>
+#include <mutex>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include <unistd.h>
-
-#include <signal.h>
 
 #include "../include/backend.h"
 #include "../include/helper.h"
@@ -30,28 +33,26 @@ int Backend::begin_request(struct mg_connection *conn)
             if (verbose)
                 printf("PUT %s\n", key);
             struct object *o =
-                malloc(sizeof(*o) + strlen(key) + 1 + req->content_length);
-            strcpy(o->name, key);
-            o->data = &(o->name[strlen(key) + 1]);
+                (struct object *)malloc(sizeof(*o) + req->content_length);
+            o->name = key;
+            o->data = malloc(req->content_length);
             o->len = req->content_length;
             mg_printf(conn, "HTTP/1.1 100 Continue\r\n\r\n");
 
             mg_read(conn, o->data, req->content_length);
 
-            obj_table_mutex.lock();
-            avl_node_t *node = avl_search(obj_table, o);
-            if (node != NULL) {
-                avl_node_t *node = avl_search(obj_table, o);
-                free(node->item);
-                node->item = o;
-            } else
-                avl_insert(obj_table, o);
-            obj_table_mutex.unlock();
-            // obj_table.insert_or_assign(key, o);
+            std::lock_guard<std::mutex> lock(obj_table_mutex);
+            auto it = obj_table.find(key);
+            if (it != obj_table.end()) {
+                free(it->second.data);
+                it->second = *o;
+            } else {
+                obj_table[key] = *o;
+            }
 
             mg_printf(conn, "HTTP/1.1 204 No Content\r\n"
-                    "Cache-Control: no-cache\r\n"
-                    "Connection: keep-alive\r\n\r\n");
+                            "Cache-Control: no-cache\r\n"
+                            "Connection: keep-alive\r\n\r\n");
             return 204;
         } else {
             mg_send_http_error(conn, 400, "Bad Request");
@@ -59,21 +60,17 @@ int Backend::begin_request(struct mg_connection *conn)
         }
     }
     if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0 &&
-            query != NULL && strcmp(query, "location") == 0) {
+        query != NULL && strcmp(query, "location") == 0) {
         const char *msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            "<LocationConstraint "
-            "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
-            "here</LocationConstraint>";
+                          "<LocationConstraint "
+                          "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
+                          "here</LocationConstraint>";
         size_t len = strlen(msg);
         mg_send_http_ok(conn, "application/xml", len);
         mg_write(conn, msg, len);
         return 200;
     }
 
-    /* list bucket.
-     * - 1000 keys per reply * 300 bytes/key = 300KB
-     * TODO: doesn't handle continuation, only sends 1000 entries
-     */
     if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0) {
         const char *fmt =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n"
@@ -83,7 +80,7 @@ int Backend::begin_request(struct mg_connection *conn)
             "MaxKeys>"
             "<Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>";
 
-        char *msg = malloc(300 * 1024), *ptr = msg;
+        char *msg = (char *)malloc(300 * 1024), *ptr = msg;
         ptr += sprintf(msg, fmt, bucket);
 
         char date[64];
@@ -96,15 +93,14 @@ int Backend::begin_request(struct mg_connection *conn)
             "<Owner><ID>user</ID><DisplayName>user</DisplayName></Owner>"
             "<Type>Normal</Type></Contents>";
 
-        obj_table_mutex.lock();
-        int n = avl_count(obj_table);
-        for (int i = 0; i < n && i < 1000; i++) {
-            char etag[32];
-            avl_node_t *node = avl_at(obj_table, i);
-            struct object *o = node->item;
-            ptr += sprintf(ptr, objfmt, o->name, date, o, o->len);
+        std::lock_guard<std::mutex> lock(obj_table_mutex);
+        int count = 0;
+        for (const auto &pair : obj_table) {
+            if (count++ >= 1000)
+                break;
+            struct object o = pair.second;
+            ptr += sprintf(ptr, objfmt, o.name.c_str(), date, o.data, o.len);
         }
-        obj_table_mutex.unlock();
 
         ptr += sprintf(ptr, "%s", "<Marker></Marker></ListBucketResult>");
 
@@ -118,26 +114,25 @@ int Backend::begin_request(struct mg_connection *conn)
     if (strcmp(req->request_method, "GET") == 0 && strlen(key) > 0) {
         TMP_OBJECT(o, key);
 
-        obj_table_mutex.lock();
-        avl_node_t *node = avl_search(obj_table, o);
-        obj_table_mutex.unlock();
+        std::lock_guard<std::mutex> lock(obj_table_mutex);
+        auto it = obj_table.find(key);
 
-        if (node == NULL) {
+        if (it == obj_table.end()) {
             char *fmt = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                "<Error><Code>NoSuchKey</Code>"
-                "<BucketName>%s</BucketName>"
-                "<RequestId>tx00-00-00-default</RequestId>"
-                "<HostId>00-default-default</HostId></Error>";
+                        "<Error><Code>NoSuchKey</Code>"
+                        "<BucketName>%s</BucketName>"
+                        "<RequestId>tx00-00-00-default</RequestId>"
+                        "<HostId>00-default-default</HostId></Error>";
             char msg[strlen(fmt) + strlen(bucket) + 10];
             sprintf(msg, fmt, bucket);
 
             int len = strlen(msg);
             mg_printf(conn,
-                    "HTTP/1.1 404 Not Found\r\n"
-                    "Content-Type: application/xml\r\n"
-                    "Connection: keep-alive\r\n"
-                    "Content-Length: %d\r\n\r\n",
-                    len);
+                      "HTTP/1.1 404 Not Found\r\n"
+                      "Content-Type: application/xml\r\n"
+                      "Connection: keep-alive\r\n"
+                      "Content-Length: %d\r\n\r\n",
+                      len);
             mg_write(conn, msg, len);
 
             if (verbose)
@@ -146,16 +141,14 @@ int Backend::begin_request(struct mg_connection *conn)
             return 404;
         }
 
-        /* is it a range request?
-        */
+        struct object *obj = &(it->second);
+
         const char *range = NULL;
         for (int i = 0; i < req->num_headers; i++)
             if (!strcmp(req->http_headers[i].name, "Range")) {
                 range = req->http_headers[i].value;
                 break;
             }
-
-        struct object *obj = node->item;
 
         if (range != NULL) {
             off_t start, end, len;
@@ -164,7 +157,7 @@ int Backend::begin_request(struct mg_connection *conn)
 
             if (end >= obj->len) {
                 mg_send_http_error(conn, 416,
-                        "Requested Range Not Satisfiable");
+                                   "Requested Range Not Satisfiable");
                 return 416;
             }
 
@@ -173,15 +166,15 @@ int Backend::begin_request(struct mg_connection *conn)
             sprintf(len_str, "%ld", len);
 
             mg_printf(conn,
-                    "HTTP/1.1 206 Partial Content\r\n"
-                    "Content-Type: application/octet-stream\r\n"
-                    "Cache-Control: no-cache\r\n"
-                    "Connection: keep-alive\r\n"
-                    "Content-Range: bytes %ld-%ld/%ld\r\n"
-                    "Content-Length: %ld\r\n"
-                    "Accept-Ranges: bytes\r\n\r\n",
-                    start, end, (long)obj->len, len);
-            mg_write(conn, obj->data + start, len);
+                      "HTTP/1.1 206 Partial Content\r\n"
+                      "Content-Type: application/octet-stream\r\n"
+                      "Cache-Control: no-cache\r\n"
+                      "Connection: keep-alive\r\n"
+                      "Content-Range: %s\r\n"
+                      "Content-Length: %s\r\n"
+                      "Accept-Ranges: bytes\r\n\r\n",
+                      range_str, len_str);
+            mg_write(conn, (char *)obj->data + start, len);
 
             return 206;
         } else {
@@ -195,16 +188,16 @@ int Backend::begin_request(struct mg_connection *conn)
         TMP_OBJECT(o, key);
         struct object *obj = NULL;
 
-        obj_table_mutex.lock();
-        avl_node_t *node = avl_search(obj_table, o);
-        if (node != NULL)
-            obj = avl_delete_node(obj_table, node);
-        obj_table_mutex.unlock();
+        std::lock_guard<std::mutex> lock(obj_table_mutex);
+        auto it = obj_table.find(key);
+        if (it != obj_table.end()) {
+            obj = &(it->second);
+            obj_table.erase(it);
+        }
 
         if (obj != NULL) {
-            free(obj);
+            free(obj->data);
             mg_send_http_error(conn, 204, "No Content");
-            // mg_send_http_ok(conn, "application/octet-stream", 0);
             if (verbose)
                 printf("DELETE %s = 204\n", key);
             return 204;
@@ -212,7 +205,9 @@ int Backend::begin_request(struct mg_connection *conn)
             mg_send_http_error(conn, 404, "%s", "Not Found");
             if (verbose)
                 printf("DELETE %s = 404\n", key);
-            return 404;
+            return 404
+
+                ;
         }
     }
 

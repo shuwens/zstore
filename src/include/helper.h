@@ -1,8 +1,25 @@
-int obj_cmp(const void *arg1, const void *arg2)
-{
-    const struct object *o1 = arg1, *o2 = arg2;
-    return strcmp(o1->name, o2->name);
-}
+#pragma once
+
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include <CivetServer.h>
+// #include <civetweb.h>
+// #include <curlpp/Easy.hpp>
+
+#include "../s3/aws_s3.h"
+#include "../s3/multidict.h"
+
+// int obj_cmp(const void *arg1, const void *arg2)
+// {
+//     const struct object *o1 = arg1, *o2 = arg2;
+//     return strcmp(o1->name, o2->name);
+// }
 
 void handler(int sig)
 {

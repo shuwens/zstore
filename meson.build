@@ -12,6 +12,8 @@ project(
 
 add_project_arguments('-fPIC', language: 'cpp')
 add_project_arguments('-Wno-unused-parameter', language: 'cpp')
+add_project_arguments('-fPIC', language: 'cpp')
+
 
 if get_option('buildtype') == 'debug'
 	add_project_arguments('-fno-inline', language: 'cpp')
@@ -45,12 +47,18 @@ zstore_deps = [
 	cpp.find_library('curl'),
 ]
 
+libs = declare_dependency(
+  link_args : [
+    meson.current_source_dir() + '/lib/libcivetweb.a',
+  ]
+)
+
 zstore_src = files(
 	'src/main.cc',
 )
 
 incdir = include_directories('civetweb-1.12/include')
 
-executable('zstore', zstore_src, dependencies: zstore_deps,  include_directories : incdir)
+executable('zstore', zstore_src, dependencies: [libs, zstore_deps],  include_directories : incdir)
 executable('zone', 'src/third_party/zoned.cc', dependencies: zstore_deps,  include_directories : incdir)
 # executable('append', 'src/async_example.c', dependencies: zstore_deps)
