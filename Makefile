@@ -13,17 +13,24 @@ clean:
 debug:
 	cd build-dbg; meson compile
 
-# lib:
-# 	mkdir lib
+lib:
+	mkdir lib
 #
 # include:
 # 	mkdir include
 
-# curlpp/lib/libcurlpp.a:
-# 	tar -xzf curlpp-0.7.3.tar.gz
-# 	cd curlpp-0.7.3/ ; \
-# 	./configure --prefix=`pwd`/../curlpp/ ; \
-# 	make ; make install
+curlpp-0.8.1.tar.gz:
+	wget https://github.com/jpbarrette/curlpp/archive/refs/tags/v0.8.1.tar.gz
+	mv v0.8.1.tar.gz $@
+
+lib/libcurlpp.a: curlpp-0.8.1.tar.gz
+	tar -xzf curlpp-0.8.1.tar.gz
+	cd curlpp-0.8.1/ ; \
+	cmake . && make && sudo make install
+	sudo ldconfig
+	mv curlpp-0.8.1/libcurlpp.a lib/libcurlpp.a
+	# cmake . ; \
+	# cmake --build . --target install --config Debug --install-prefix=`pwd`/../curlpp/
 
 civetweb-v1.12.tar.gz:
 	wget https://github.com/civetweb/civetweb/archive/v1.12.tar.gz
@@ -32,11 +39,19 @@ civetweb-v1.12.tar.gz:
 civetweb-1.12: civetweb-v1.12.tar.gz
 	tar xfz civetweb-v1.12.tar.gz
 
-lib/libcivetweb.a: civetweb-1.12 # lib include
-	cd civetweb-1.12 && \
-	make lib PREFIX=$(PWD) COPT=-DNO_SSL WITH_CPP=1
+civetweb-v1.16.tar.gz:
+	wget https://github.com/civetweb/civetweb/archive/v1.16.tar.gz
+	mv v1.16.tar.gz $@
 
-# install-libs: curlpp/lib/libcurlpp.a lib/libcivetweb.a
+civetweb-1.16: civetweb-v1.16.tar.gz
+	tar xfz civetweb-v1.16.tar.gz
+
+lib/libcivetweb.a: civetweb-1.16 lib #include
+	cd civetweb-1.16 && \
+	make clean lib PREFIX=$(PWD) COPT=-DNO_SSL WITH_CPP=1
+	mv civetweb-1.16/libcivetweb.a lib
+
+install-libs: lib/libcurlpp.a lib/libcivetweb.a
 # install-libs: lib/libcivetweb.a
 
 install-deps:
@@ -51,8 +66,8 @@ install-deps:
 	sudo apt install libnuma-dev libarchive-dev libibverbs-dev librdmacm-dev \
 		python3-pyelftools libcunit1-dev libaio-dev
 	# Zstore deps
-	sudo apt install -y mold libfmt-dev libfuse3-dev net-tools \
-		libjemalloc-dev liburing-dev pkg-config uuid-dev
+	sudo apt install -y mold libfmt-dev libfuse3-dev net-tools libcurlpp-dev \
+		libjemalloc-dev liburing-dev pkg-config uuid-dev libssl-dev
 
 install-spdk:
 	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.bak

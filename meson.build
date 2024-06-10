@@ -43,13 +43,14 @@ zstore_deps = [
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('xnvme'),
-	# cpp.find_library('curlpp'),
+	cpp.find_library('curlpp'),
 	cpp.find_library('curl'),
 ]
 
 libs = declare_dependency(
   link_args : [
     meson.current_source_dir() + '/lib/libcivetweb.a',
+    meson.current_source_dir() + '/lib/libcurlpp.a',
   ]
 )
 
@@ -57,8 +58,9 @@ zstore_src = files(
 	'src/main.cc',
 )
 
-incdir = include_directories('civetweb-1.12/include')
+incdir = include_directories('civetweb-1.16/include')
 
 executable('zstore', zstore_src, dependencies: [libs, zstore_deps],  include_directories : incdir)
+executable('simple_zstore', 'src/simple_append.cc', dependencies: [libs, zstore_deps],  include_directories : incdir)
 executable('zone', 'src/third_party/zoned.cc', dependencies: zstore_deps,  include_directories : incdir)
 # executable('append', 'src/async_example.c', dependencies: zstore_deps)
