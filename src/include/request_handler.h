@@ -1,5 +1,6 @@
 // Simple example program on how to use Embedded C++ interface.
 
+#include "../include/global.h"
 #include "../include/helper.h"
 #include "../include/item.h"
 #include "../include/utils.h"
@@ -9,7 +10,7 @@
 #include <cstring>
 #include <unistd.h>
 // #include "../include/backend.h"
-#
+
 #define PORT "8081"
 #define EXAMPLE_URI "/example"
 #define EXIT_URI "/exit"
@@ -20,59 +21,35 @@ volatile bool exitNow = false;
 class ZstoreHandler : public CivetHandler
 {
   public:
-    int requestHandler(struct mg_connection *conn, void *cbdata)
-    {
-        log_info("Recv request: info");
-        log_debug("Recv request: debug");
-        int verbose = 1;
+    // int requestHandler(struct mg_connection *conn, void *cbdata)
+    // {
+    //     log_info("Recv request: info");
+    //     log_debug("Recv request: debug");
+    //     int verbose = 1;
 
+    //     const struct mg_request_info *req = mg_get_request_info(conn);
+
+    //     char bucket[128], key[128];
+    //     const char *query = req->query_string;
+    //     parse_uri(req->local_uri, bucket, key);
+
+    //     log_info("Recv request: bucket {}, key {}", bucket, key);
+    //     log_debug("Recv request: bucket {}, key {}", bucket, key);
+    // }
+
+    bool handleGet(CivetServer *server, struct mg_connection *conn)
+    {
         const struct mg_request_info *req = mg_get_request_info(conn);
 
         char bucket[128], key[128];
         const char *query = req->query_string;
         parse_uri(req->local_uri, bucket, key);
+        log_info("Recv GET: bucket {}, key {}", bucket, key);
 
-        log_info("Recv request: bucket {}, key {}", bucket, key);
-        log_debug("Recv request: bucket {}, key {}", bucket, key);
-
-        if (strcmp(req->request_method, "PUT") == 0 && strlen(key) == 0) {
-            /* create bucket */
-            mg_send_http_error(conn, 204, "No Content");
-            return 204;
-        }
-        if (strcmp(req->request_method, "PUT") == 0) {
-            if (req->content_length > 0) {
-                if (verbose)
-                    printf("PUT %s\n", key);
-                struct object *o =
-                    (struct object *)malloc(sizeof(*o) + req->content_length);
-                o->name = key;
-                o->data = malloc(req->content_length);
-                o->len = req->content_length;
-                mg_printf(conn, "HTTP/1.1 100 Continue\r\n\r\n");
-
-                mg_read(conn, o->data, req->content_length);
-
-                std::lock_guard<std::mutex> lock(obj_table_mutex);
-                auto it = obj_table.find(key);
-                if (it != obj_table.end()) {
-                    free(it->second.data);
-                    it->second = *o;
-                } else {
-                    obj_table[key] = *o;
-                }
-
-                mg_printf(conn, "HTTP/1.1 204 No Content\r\n"
-                                "Cache-Control: no-cache\r\n"
-                                "Connection: keep-alive\r\n\r\n");
-                return 204;
-            } else {
-                mg_send_http_error(conn, 400, "Bad Request");
-                return 400;
-            }
-        }
         if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0 &&
             query != NULL && strcmp(query, "location") == 0) {
+            log_info("Recv GET-1-: bucket {}, key {}", bucket, key);
+
             const char *msg =
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                 "<LocationConstraint "
@@ -85,6 +62,8 @@ class ZstoreHandler : public CivetHandler
         }
 
         if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0) {
+            log_info("Recv GET-2-: bucket {}, key {}", bucket, key);
+
             const char *fmt =
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n"
                 "<ListBucketResult "
@@ -128,6 +107,8 @@ class ZstoreHandler : public CivetHandler
         }
 
         if (strcmp(req->request_method, "GET") == 0 && strlen(key) > 0) {
+            log_info("Recv GET-3-: bucket {}, key {}", bucket, key);
+
             TMP_OBJECT(o, key);
 
             std::lock_guard<std::mutex> lock(obj_table_mutex);
@@ -151,8 +132,7 @@ class ZstoreHandler : public CivetHandler
                           len);
                 mg_write(conn, msg, len);
 
-                if (verbose)
-                    printf("GET %s = 404\n", key);
+                printf("GET %s = 404\n", key);
 
                 return 404;
             }
@@ -201,50 +181,6 @@ class ZstoreHandler : public CivetHandler
             }
         }
 
-        if (strcmp(req->request_method, "DELETE") == 0) {
-            TMP_OBJECT(o, key);
-            struct object *obj = NULL;
-
-            std::lock_guard<std::mutex> lock(obj_table_mutex);
-            auto it = obj_table.find(key);
-            if (it != obj_table.end()) {
-                obj = &(it->second);
-                obj_table.erase(it);
-            }
-
-            if (obj != NULL) {
-                free(obj->data);
-                mg_send_http_error(conn, 204, "No Content");
-                if (verbose)
-                    printf("DELETE %s = 204\n", key);
-                return 204;
-            } else {
-                mg_send_http_error(conn, 404, "%s", "Not Found");
-                if (verbose)
-                    printf("DELETE %s = 404\n", key);
-                return 404;
-            }
-        }
-
-        mg_send_http_error(conn, 405, "%s", "Method Not Allowed");
-        return 405;
-    }
-
-    bool handleGet(CivetServer *server, struct mg_connection *conn)
-    {
-        /* Handler may access the request info using mg_get_request_info */
-        const struct mg_request_info *req_info = mg_get_request_info(conn);
-
-        mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: "
-                        "text/html\r\nConnection: close\r\n\r\n");
-
-        mg_printf(conn, "<html><body>\n");
-        mg_printf(conn, "<h2>This is the Foo GET handler!!!</h2>\n");
-        mg_printf(conn, "<p>The request was:<br><pre>%s %s HTTP/%s</pre></p>\n",
-                  req_info->request_method, req_info->request_uri,
-                  req_info->http_version);
-        mg_printf(conn, "</body></html>\n");
-
         return true;
     }
 
@@ -290,65 +226,95 @@ class ZstoreHandler : public CivetHandler
         return true;
     }
 
-    // // #define fopen_recursive fopen
-    //
-    // bool handlePut(CivetServer *server, struct mg_connection *conn)
-    // {
-    //     /* Handler may access the request info using mg_get_request_info */
-    //     const struct mg_request_info *req_info = mg_get_request_info(conn);
-    //     long long rlen, wlen;
-    //     long long nlen = 0;
-    //     long long tlen = req_info->content_length;
-    //     FILE *f;
-    //     char buf[1024];
-    //     int fail = 0;
-    //
-    //     snprintf(buf, sizeof(buf), "~/somewhere/%s/%s", reqinfo->remote_user,
-    //              req_info->local_uri);
-    //     buf[sizeof(buf) - 1] = 0;
-    //     if (strlen(buf) > 1020) {
-    //         /* The string is too long and probably truncated. Make sure an
-    //          * UTF-8 string is never truncated between the UTF-8 code bytes.
-    //          * This example code must be adapted to the specific needs. */
-    //         fail = 1;
-    //         f = NULL;
-    //     } else {
-    //         f = fopen_recursive(buf, "w");
-    //     }
-    //
-    //     if (!f) {
-    //         fail = 1;
-    //     } else {
-    //         while (nlen < tlen) {
-    //             rlen = tlen - nlen;
-    //             if (rlen > sizeof(buf)) {
-    //                 rlen = sizeof(buf);
-    //             }
-    //             rlen = mg_read(conn, buf, (size_t)rlen);
-    //             if (rlen <= 0) {
-    //                 fail = 1;
-    //                 break;
-    //             }
-    //             wlen = fwrite(buf, 1, (size_t)rlen, f);
-    //             if (wlen != rlen) {
-    //                 fail = 1;
-    //                 break;
-    //             }
-    //             nlen += wlen;
-    //         }
-    //         fclose(f);
-    //     }
-    //
-    //     if (fail) {
-    //         mg_printf(conn, "HTTP/1.1 409 Conflict\r\n"
-    //                         "Content-Type: text/plain\r\n"
-    //                         "Connection: close\r\n\r\n");
-    //     } else {
-    //         mg_printf(conn, "HTTP/1.1 201 Created\r\n"
-    //                         "Content-Type: text/plain\r\n"
-    //                         "Connection: close\r\n\r\n");
-    //     }
-    //
-    //     return true;
-    // }
+    bool handlePut(CivetServer *server, struct mg_connection *conn)
+    {
+        const struct mg_request_info *req = mg_get_request_info(conn);
+
+        char bucket[128], key[128];
+        const char *query = req->query_string;
+        parse_uri(req->local_uri, bucket, key);
+        log_info("Recv PUT: bucket {}, key {}", bucket, key);
+
+        if (strcmp(req->request_method, "PUT") == 0 && strlen(key) == 0) {
+            log_info("Recv PUT-1-: bucket {}, key {}", bucket, key);
+
+            /* create bucket */
+            mg_send_http_error(conn, 204, "No Content");
+            return 204;
+        }
+        if (strcmp(req->request_method, "PUT") == 0) {
+            log_info("Recv PUT-2-: bucket {}, key {}", bucket, key);
+
+            if (req->content_length > 0) {
+                // if (verbose)
+                printf("PUT %s\n", key);
+                struct object *o =
+                    (struct object *)malloc(sizeof(*o) + req->content_length);
+                o->name = key;
+                o->data = malloc(req->content_length);
+                o->len = req->content_length;
+                mg_printf(conn, "HTTP/1.1 100 Continue\r\n\r\n");
+
+                mg_read(conn, o->data, req->content_length);
+
+                std::lock_guard<std::mutex> lock(obj_table_mutex);
+                auto it = obj_table.find(key);
+                if (it != obj_table.end()) {
+                    free(it->second.data);
+                    it->second = *o;
+                } else {
+                    obj_table[key] = *o;
+                }
+
+                mg_printf(conn, "HTTP/1.1 204 No Content\r\n"
+                                "Cache-Control: no-cache\r\n"
+                                "Connection: keep-alive\r\n\r\n");
+                return 204;
+            } else {
+                mg_send_http_error(conn, 400, "Bad Request");
+                return 400;
+            }
+        }
+
+        return true;
+    }
+
+    bool handleDelete(CivetServer *server, struct mg_connection *conn)
+    {
+        const struct mg_request_info *req = mg_get_request_info(conn);
+
+        char bucket[128], key[128];
+        const char *query = req->query_string;
+        parse_uri(req->local_uri, bucket, key);
+        log_info("Recv DELETE: bucket {}, key {}", bucket, key);
+
+        if (strcmp(req->request_method, "DELETE") == 0) {
+            TMP_OBJECT(o, key);
+            struct object *obj = NULL;
+
+            std::lock_guard<std::mutex> lock(obj_table_mutex);
+            auto it = obj_table.find(key);
+            if (it != obj_table.end()) {
+                obj = &(it->second);
+                obj_table.erase(it);
+            }
+
+            if (obj != NULL) {
+                free(obj->data);
+                mg_send_http_error(conn, 204, "No Content");
+                // if (verbose)
+                printf("DELETE %s = 204\n", key);
+                return 204;
+            } else {
+                mg_send_http_error(conn, 404, "%s", "Not Found");
+                // if (verbose)
+                printf("DELETE %s = 404\n", key);
+                return 404;
+            }
+        }
+
+        mg_send_http_error(conn, 405, "%s", "Method Not Allowed");
+        return 405;
+        return true;
+    }
 };

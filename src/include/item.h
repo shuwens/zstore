@@ -15,15 +15,15 @@
 #include "../s3/aws_s3.h"
 #include "../s3/multidict.h"
 
-#define TMP_OBJECT(var, key)                                                   \
-    struct object var;                                                         \
-    var.name = key;
-
-struct object {
-    int len;
-    void *data;       /* points to after 'name' */
-    std::string name; /* null terminated */
-};
+// #define TMP_OBJECT(var, key)                                                   \
+//     struct object var;                                                         \
+//     var.name = key;
+//
+// struct object {
+//     int len;
+//     void *data;       /* points to after 'name' */
+//     std::string name; /* null terminated */
+// };
 
 /* ----------- */
 

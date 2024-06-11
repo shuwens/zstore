@@ -8,9 +8,11 @@
 #include <curlpp/cURLpp.hpp>
 #include <unistd.h>
 
+#include "include/global.h"
 #include "include/utils.h"
 #include "include/zns_device.h"
 #include "include/zstore.h"
+#include "src/include/helper.h"
 #include "zstore/backend.cc"
 #include "zstore/zstore.cc"
 
@@ -53,9 +55,10 @@ int main(int argc, char **argv)
     // create a bucket: this process is now manual, not via create/get bucket
     zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, "db"));
 
+    create_dummy_objects();
     // Start the web server controllers.
     CivetServer web_server = startWebServer();
-// struct mg_context* web_server = startWebServer();
+    // struct mg_context* web_server = startWebServer();
 
     while (1) {
         sleep(1);

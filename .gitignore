@@ -1,5 +1,7 @@
 # dev
 .vscode/
+.ccls-cache/
+
 
 # build
 build/

@@ -14,6 +14,8 @@
 
 #include "../s3/aws_s3.h"
 #include "../s3/multidict.h"
+#include "global.h"
+#include "utils.h"
 
 // int obj_cmp(const void *arg1, const void *arg2)
 // {
@@ -67,3 +69,23 @@ void start() { stime = std::chrono::high_resolution_clock::now(); }
                 return dur.count();
             }
 */
+
+void create_dummy_objects()
+{
+    log_info("Create dummy objects in table: foo, bar, test");
+
+    std::vector<std::string> keys;
+    keys.push_back("foo");
+    keys.push_back("bar");
+    keys.push_back("test");
+
+    int object_size = 64;
+    for (const std::string &it : keys) {
+        struct object *o = (struct object *)malloc(sizeof(*o) + object_size);
+        o->name = it;
+        o->data = malloc(object_size);
+        o->len = object_size;
+
+        obj_table[it] = *o;
+    }
+}
