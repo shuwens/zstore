@@ -43,7 +43,7 @@ void parse_uri(const char *uri, char *bkt, char *key)
     *bkt = 0;
 
     if (c == 0)
-        return;
+         return;
 
     while ((c = *uri++) != 0)
         *key++ = c;

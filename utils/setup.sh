@@ -3,7 +3,8 @@
 set -xeuo pipefail
 
 if [[ $# -lt 2 ]]; then
-	echo "Usage: $0 <node> <rdma/tcp>"
+	echo "Usage: $0 <node> <network>"
+	echo "Example: $0 zstore1 tcp"
 	exit
 fi
 node=$1

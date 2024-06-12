@@ -11,7 +11,7 @@ using namespace std;
 // external API.
 CivetServer startWebServer()
 {
-    printf("Starting web server!\n");
+    printf("Starting web server with port 2000!\n");
     mg_init_library(0);
 
     // const char *options[] = {

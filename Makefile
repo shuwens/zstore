@@ -67,7 +67,7 @@ install-deps:
 		python3-pyelftools libcunit1-dev libaio-dev
 	# Zstore deps
 	sudo apt install -y mold libfmt-dev libfuse3-dev net-tools libcurlpp-dev \
-		libjemalloc-dev liburing-dev pkg-config uuid-dev libssl-dev
+		libjemalloc-dev liburing-dev pkg-config uuid-dev libssl-dev httpie
 
 install-spdk:
 	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.bak
