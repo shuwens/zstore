@@ -95,8 +95,8 @@ if [[ $3 == "target" ]]; then
     scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
     scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
     if [[ $transport == 'tcp' ]]; then
-        scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 4420
-        scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 5520
+        scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 127.0.0.1 -s 4420
+        scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 127.0.0.1 -s 5520
     elif [[ $transport == 'rdma' ]]; then
         scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 4420
         scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 5520
@@ -105,22 +105,15 @@ if [[ $3 == "target" ]]; then
     wait
 
 elif [[ $3 == "initiator" ]]; then
+	ls
     if pidof bdevperf; then
         pkill -f bdevperf || true
         sleep 3
     fi
     ./build/examples/bdevperf -m 0x4 -z -r /tmp/bdevperf.sock -q 128 -o 4096 -w verify -t 90 &> bdevperf.log &
-    sleep 1
+sleep 1
     ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_set_options -r -1
-
-
-    if [[ $node == '1' ]]; then
-    ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 192.168.1.149 -s 4420 -f ipv4 -n $ctrl_nqn -l -1 -o 10
-
-    elif [[ $node == '2' ]]; then
-    ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 192.168.1.149 -s 5520 -f ipv4 -n $ctrl_nqn -x multipath -l -1 -o 10
-    elif [[ $node == '3' ]]; then
-echo "pass"
-    fi
+    ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 127.0.0.1 -s 4420 -f ipv4 -n $ctrl_nqn -l -1 -o 10
+    ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 127.0.0.1 -s 5520 -f ipv4 -n $ctrl_nqn -x multipath -l -1 -o 10
 
 fi
