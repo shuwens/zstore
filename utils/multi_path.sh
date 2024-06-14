@@ -101,7 +101,6 @@ if [[ $3 == "target" ]]; then
         scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 4420
         scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 5520
     fi
-
     wait
 
 elif [[ $3 == "initiator" ]]; then

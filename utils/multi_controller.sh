@@ -11,7 +11,8 @@ fi
 node=$1
 transport=$2
 side=$3
-ctrl_nqn="nqn.2024-04.io.zstore:cnode${node}"
+#ctrl_nqn="nqn.2024-04.io.zstore:cnode${node}"
+ctrl_nqn="nqn.2024-04.io.zstore:cnode1"
 
 
 zstore_dir=$(git rev-parse --show-toplevel)
@@ -49,8 +50,6 @@ modprobe nvmet
         ifconfig enp1s0d1 192.168.100.9 netmask 255.255.255.0 up
     fi
 
-
-
     if [[ $3 == "target" ]]; then
         if pidof nvmf_tgt; then
             scripts/rpc.py spdk_kill_instance SIGTERM >/dev/null || true
@@ -60,7 +59,6 @@ modprobe nvmet
             sleep 3
         fi
 
-
     # TODO: FC transport support?
 
     # Configuring the SPDK NVMe over Fabrics Target
@@ -68,7 +66,6 @@ modprobe nvmet
     ./build/bin/nvmf_tgt -m 0x3 &
 
     sleep 3
-
 
     # pci1=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | head -1)
     # pci2=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | tail -1)
@@ -125,4 +122,4 @@ elif [[ $3 == "initiator" ]]; then
         echo "pass"
     fi
 
-    fi
+fi
