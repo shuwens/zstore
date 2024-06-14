@@ -20,10 +20,10 @@ source $zstore_dir/.env
 cd $zstore_dir/subprojects/spdk
 
 
- HUGEMEM=4096 ./scripts/setup.sh
+HUGEMEM=4096 ./scripts/setup.sh
 
-    modprobe nvme
-    modprobe nvmet
+modprobe nvme
+modprobe nvmet
 
     # RDMA over fabric
     modprobe ib_cm
@@ -51,16 +51,16 @@ cd $zstore_dir/subprojects/spdk
 
 
 
-if [[ $3 == "target" ]]; then
-    if pidof nvmf_tgt; then
-        scripts/rpc.py spdk_kill_instance SIGTERM >/dev/null || true
-        scripts/rpc.py spdk_kill_instance SIGKILL >/dev/null || true
-        pkill -f nvmf_tgt || true
-        pkill -f reactor_0 || true
-        sleep 3
-    fi
+    if [[ $3 == "target" ]]; then
+        if pidof nvmf_tgt; then
+            scripts/rpc.py spdk_kill_instance SIGTERM >/dev/null || true
+            scripts/rpc.py spdk_kill_instance SIGKILL >/dev/null || true
+            pkill -f nvmf_tgt || true
+            pkill -f reactor_0 || true
+            sleep 3
+        fi
 
-   
+
     # TODO: FC transport support?
 
     # Configuring the SPDK NVMe over Fabrics Target
@@ -117,14 +117,12 @@ elif [[ $3 == "initiator" ]]; then
     sleep 1
     ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_set_options -r -1
 
-
     if [[ $node == '1' ]]; then
-    ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 192.168.1.149 -s 4420 -f ipv4 -n $ctrl_nqn -l -1 -o 10
-
+        ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 192.168.1.149 -s 4420 -f ipv4 -n $ctrl_nqn -l -1 -o 10
     elif [[ $node == '2' ]]; then
-    ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 192.168.1.149 -s 5520 -f ipv4 -n $ctrl_nqn -x multipath -l -1 -o 10
+        ./scripts/rpc.py -s /tmp/bdevperf.sock bdev_nvme_attach_controller -b Nvme0 -t tcp -a 192.168.1.149 -s 5520 -f ipv4 -n $ctrl_nqn -x multipath -l -1 -o 10
     elif [[ $node == '3' ]]; then
-echo "pass"
+        echo "pass"
     fi
 
-fi
+    fi
