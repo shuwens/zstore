@@ -37,6 +37,26 @@ class ZstoreHandler : public CivetHandler
     //     log_debug("Recv request: bucket {}, key {}", bucket, key);
     // }
 
+    // Upload object
+    void PutObject(const std::string &bkt, const std::string &key, AWS_IO &io,
+                   Zstore_Connection **reqPtr = NULL);
+    void PutObject(const std::string &bkt, const std::string &key,
+                   const std::string &localpath, AWS_IO &io,
+                   Zstore_Connection **reqPtr = NULL);
+
+    // Get object data (GET /key)
+    void GetObject(const std::string &bkt, const std::string &key, AWS_IO &io,
+                   Zstore_Connection **reqPtr = NULL);
+
+    // Get meta-data on object (HEAD)
+    // Headers are same as for GetObject(), but no data is retrieved.
+    void GetObjectMData(const std::string &bkt, const std::string &key,
+                        AWS_IO &io, Zstore_Connection **reqPtr = NULL);
+
+    // Delete object (DELETE)
+    void DeleteObject(const std::string &bkt, const std::string &key,
+                      AWS_IO &io, Zstore_Connection **reqPtr = NULL);
+
     bool handleGet(CivetServer *server, struct mg_connection *conn)
     {
         const struct mg_request_info *req = mg_get_request_info(conn);
@@ -48,7 +68,7 @@ class ZstoreHandler : public CivetHandler
 
         if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0 &&
             query != NULL && strcmp(query, "location") == 0) {
-            log_info("Recv GET-1-: bucket {}, key {}", bucket, key);
+            log_info("Recv GET with no key: bucket {}, key {}", bucket, key);
 
             const char *msg =
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -184,48 +204,6 @@ class ZstoreHandler : public CivetHandler
         return true;
     }
 
-    bool handlePost(CivetServer *server, struct mg_connection *conn)
-    {
-        /* Handler may access the request info using mg_get_request_info */
-        const struct mg_request_info *req_info = mg_get_request_info(conn);
-        long long rlen, wlen;
-        long long nlen = 0;
-        long long tlen = req_info->content_length;
-        char buf[1024];
-
-        mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: "
-                        "text/html\r\nConnection: close\r\n\r\n");
-
-        mg_printf(conn, "<html><body>\n");
-        mg_printf(conn, "<h2>This is the Foo POST handler!!!</h2>\n");
-        mg_printf(conn, "<p>The request was:<br><pre>%s %s HTTP/%s</pre></p>\n",
-                  req_info->request_method, req_info->request_uri,
-                  req_info->http_version);
-        mg_printf(conn, "<p>Content Length: %li</p>\n", (long)tlen);
-        mg_printf(conn, "<pre>\n");
-
-        while (nlen < tlen) {
-            rlen = tlen - nlen;
-            if (rlen > sizeof(buf)) {
-                rlen = sizeof(buf);
-            }
-            rlen = mg_read(conn, buf, (size_t)rlen);
-            if (rlen <= 0) {
-                break;
-            }
-            wlen = mg_write(conn, buf, (size_t)rlen);
-            if (wlen != rlen) {
-                break;
-            }
-            nlen += wlen;
-        }
-
-        mg_printf(conn, "\n</pre>\n");
-        mg_printf(conn, "</body></html>\n");
-
-        return true;
-    }
-
     bool handlePut(CivetServer *server, struct mg_connection *conn)
     {
         const struct mg_request_info *req = mg_get_request_info(conn);
@@ -315,6 +293,48 @@ class ZstoreHandler : public CivetHandler
 
         mg_send_http_error(conn, 405, "%s", "Method Not Allowed");
         return 405;
+        return true;
+    }
+
+    bool handlePost(CivetServer *server, struct mg_connection *conn)
+    {
+        /* Handler may access the request info using mg_get_request_info */
+        const struct mg_request_info *req_info = mg_get_request_info(conn);
+        long long rlen, wlen;
+        long long nlen = 0;
+        long long tlen = req_info->content_length;
+        char buf[1024];
+
+        mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: "
+                        "text/html\r\nConnection: close\r\n\r\n");
+
+        mg_printf(conn, "<html><body>\n");
+        mg_printf(conn, "<h2>This is the Foo POST handler!!!</h2>\n");
+        mg_printf(conn, "<p>The request was:<br><pre>%s %s HTTP/%s</pre></p>\n",
+                  req_info->request_method, req_info->request_uri,
+                  req_info->http_version);
+        mg_printf(conn, "<p>Content Length: %li</p>\n", (long)tlen);
+        mg_printf(conn, "<pre>\n");
+
+        while (nlen < tlen) {
+            rlen = tlen - nlen;
+            if (rlen > sizeof(buf)) {
+                rlen = sizeof(buf);
+            }
+            rlen = mg_read(conn, buf, (size_t)rlen);
+            if (rlen <= 0) {
+                break;
+            }
+            wlen = mg_write(conn, buf, (size_t)rlen);
+            if (wlen != rlen) {
+                break;
+            }
+            nlen += wlen;
+        }
+
+        mg_printf(conn, "\n</pre>\n");
+        mg_printf(conn, "</body></html>\n");
+
         return true;
     }
 };

@@ -21,3 +21,6 @@ curlpp-0.8.1/
 curlpp/
 
 lib/
+
+*/backend.*
+*/webServer.*

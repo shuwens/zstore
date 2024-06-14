@@ -70,7 +70,7 @@ install-deps:
 		libjemalloc-dev liburing-dev pkg-config uuid-dev libssl-dev httpie
 
 install-spdk:
-	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.bak
+	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.bak  || true
 	cd subprojects; git clone https://github.com/spdk/spdk.git
 	cd subprojects/spdk; sudo ./scripts/pkgdep.sh --all \
 		git submodule update --init \

@@ -22,6 +22,7 @@
 class Backend
 {
   private:
+    std::string name;
     std::map<std::string, object> obj_table;
     std::mutex obj_table_mutex;
     int verbose;

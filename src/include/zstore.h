@@ -39,16 +39,16 @@ typedef mg_connection Zstore_Connection;
 
 class Zstore : public CivetHandler
 {
-  private:
+private:
     std::string name;
     int verbose;
 
-        int DoRequest(struct mg_connection *conn);
+    // int DoRequest(struct mg_connection *conn);
 
     // std::string GenRequestSignature(const AWS_IO &io, const std::string &uri,
     //                                 const std::string &mthd);
 
-  public:
+public:
     Zstore(const std::string &name);
     ~Zstore();
 

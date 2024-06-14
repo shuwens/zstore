@@ -15,6 +15,12 @@
 #include "../include/helper.h"
 #include "../include/item.h"
 
+Backend::Backend(const std::string &name) : name(name) {}
+
+Backend::~Backend()
+{
+}
+
 int Backend::begin_request(struct mg_connection *conn)
 {
     const struct mg_request_info *req = mg_get_request_info(conn);
