@@ -2,7 +2,6 @@
 .vscode/
 .ccls-cache/
 
-
 # build
 build/
 spdk/
@@ -24,3 +23,5 @@ lib/
 
 */backend.*
 */webServer.*
+
+data*.txt
