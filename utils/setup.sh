@@ -87,7 +87,7 @@ sleep 1
 scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 if [[ $transport == 'tcp' ]]; then
-	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 127.0.0.1 -s 23789
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 4420
 elif [[ $transport == 'rdma' ]]; then
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 4420
 fi

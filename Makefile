@@ -56,7 +56,7 @@ install-libs: lib/libcurlpp.a lib/libcivetweb.a
 
 install-deps:
 	# useful tools
-	sudo apt install -y meson cmake nvme-cli curl smartmontools # numa
+	sudo apt install -y meson cmake nvme-cli curl smartmontools lld-18 # numa
 	# Folly deps
 	sudo apt install libboost-all-dev libdouble-conversion-dev libevent-dev \
 		libgflags-dev libgmock-dev libgoogle-glog-dev libgtest-dev \

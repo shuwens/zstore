@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     u16 qd = std::stoull(argv[2]);
 
     // auto host = "10.0.0.2:23789";
-    auto host = "127.0.0.1:23789";
+    auto host = "192.168.1.149:4420";
     auto dev1 = ZNSDevice(host, 1);
     auto dev2 = ZNSDevice(host, 2);
 
