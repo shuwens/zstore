@@ -99,7 +99,9 @@ if [[ $3 == "target" ]]; then
     sleep 1
 
     echo "# Export -- add device to SPDK subsystem/controller"
+    # scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme0n1
     scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme0n2
+    # scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme1n1
     scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme1n2
    
     echo "## Setup NVMe-oF connection-listener"

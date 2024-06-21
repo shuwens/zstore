@@ -41,7 +41,9 @@ int main(int argc, char **argv)
         host = "192.168.1.149:5520";
     else
         return 1;
+    log_info("make device 1");
     auto dev1 = ZNSDevice(host, 1);
+    log_info("make device 2");
     auto dev2 = ZNSDevice(host, 2);
 
     u64 zslba = zone_num * zone_dist;
@@ -52,7 +54,7 @@ int main(int argc, char **argv)
 
     auto zone2 = dev2.zone_desc(zslba);
     auto wq2 = dev2.create_queue(qd);
-    auto buf2 = dev2.alloc(zone1.zcap * dev1.lba_bytes);
+    auto buf2 = dev2.alloc(zone2.zcap * dev2.lba_bytes);
 
     auto zcap = std::min(zone1.zcap, zone2.zcap);
 
@@ -66,7 +68,8 @@ int main(int argc, char **argv)
     }
 
     // append one block at a time for max re-ordering chance
-    u64 num_appends = 128'000;
+    // u64 num_appends = 128'000;
+    u64 num_appends = 20;
     log_info("Appending to zone {} (lba 0x{:x}), {} entries of 4k each",
              zone_num, zslba, num_appends);
     for (u64 i = 0; i < num_appends; i++) {
@@ -76,9 +79,13 @@ int main(int argc, char **argv)
             fmt::print("|{}\n", i / 1000);
 
         auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
-        auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
-        if (r1 < 0 || r2 < 0) // bail if we fail to queue
+        if (r1 < 0 ) // bail if we fail to queue
             break;
+        auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
+        // if (r1 < 0 || r2 < 0) // bail if we fail to queue
+        if (r2 < 0) // bail if we fail to queue
+            break;
+        fmt::print("{}", i);
     }
 
     wq1.drain();
