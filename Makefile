@@ -1,10 +1,11 @@
 .DEFAULT_GOAL := debug
 .PHONY: setup setup-debug release debug paper clean
 
-setup: lib/libcivetweb.a
+setup: lib install-libs
 	meson setup --native-file meson.ini build-rel --buildtype=release
 	meson setup --native-file meson.ini build-dbg --buildtype=debug
 	ln -s build-dbg build
+	meson wrap install gtest
 
 clean:
 	cd build-rel; meson compile --clean
@@ -23,7 +24,7 @@ curlpp-0.8.1.tar.gz:
 	wget https://github.com/jpbarrette/curlpp/archive/refs/tags/v0.8.1.tar.gz
 	mv v0.8.1.tar.gz $@
 
-lib/libcurlpp.a: curlpp-0.8.1.tar.gz
+lib/libcurlpp.a: lib curlpp-0.8.1.tar.gz
 	tar -xzf curlpp-0.8.1.tar.gz
 	cd curlpp-0.8.1/ ; \
 	cmake . && make && sudo make install
@@ -46,7 +47,7 @@ civetweb-v1.16.tar.gz:
 civetweb-1.16: civetweb-v1.16.tar.gz
 	tar xfz civetweb-v1.16.tar.gz
 
-lib/libcivetweb.a: civetweb-1.16 lib #include
+lib/libcivetweb.a: lib civetweb-1.16
 	cd civetweb-1.16 && \
 	make clean lib PREFIX=$(PWD) COPT=-DNO_SSL WITH_CPP=1
 	mv civetweb-1.16/libcivetweb.a lib
