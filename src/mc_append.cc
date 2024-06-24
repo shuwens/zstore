@@ -36,9 +36,9 @@ int main(int argc, char **argv)
     // auto host = "127.0.0.1:23789";
     std::string host;
     if (node == 1)
-        host = "192.168.1.149:4420";
+        host = "192.168.1.121:4420";
     else if (node == 2)
-        host = "192.168.1.149:5520";
+        host = "192.168.1.121:5520";
     else
         return 1;
     log_info("make device 1");

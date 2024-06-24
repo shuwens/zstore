@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
 
-# This 
+# This
 
 if [[ $# -lt 3 ]]; then
     echo "Usage: $0 <node> <network> <side>"
@@ -66,23 +66,29 @@ if [[ $3 == "target" ]]; then
 
     sleep 3
 
+    # TODO: either use lspci to figure it out automatically or move to env
     # pci1=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | head -1)
     # pci2=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | tail -1)
     if [[ $node == '1' ]]; then
         pci1=05:00.0
         pci2=0b:00.0
+        ipaddr=192.168.1.149
+        ssd1=nvme0
+        ssd2=nvme1
     elif [[ $node == '2' ]]; then
         pci1=05:00.0
-        pci1=06:00.0
+        pci2=06:00.0
+        ipaddr=192.168.1.121
+        ssd1=nvme0
+        ssd2=nvme1
     elif [[ $node == '3' ]]; then
         pci1=05:00.0
-        pci1=06:00.0
+        pci2=06:00.0
     fi
 
     echo "## Attach local PCIe controllers"
-    # scripts/rpc.py bdev_nvme_attach_controller -b nvme0 -t PCIe -a $pci1 -n $ctrl1_nqn
-    scripts/rpc.py bdev_nvme_attach_controller -b nvme0 -t PCIe -a $pci1
-    scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
+    scripts/rpc.py bdev_nvme_attach_controller -b $ssd1 -t PCIe -a $pci1
+    scripts/rpc.py bdev_nvme_attach_controller -b $ssd2 -t PCIe -a $pci2
 
     echo "## Create NVMe-oF transport (${transport})"
     if [[ $transport == 'tcp' ]]; then
@@ -100,16 +106,16 @@ if [[ $3 == "target" ]]; then
 
     echo "# Export -- add device to SPDK subsystem/controller"
     # scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme0n1
-    scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme0n2
+    scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn ${ssd1}n2
     # scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme1n1
-    scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn nvme1n2
-   
+    scripts/rpc.py nvmf_subsystem_add_ns $ctrl1_nqn ${ssd2}n2
+
     echo "## Setup NVMe-oF connection-listener"
     if [[ $transport == 'tcp' ]]; then
-        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a 192.168.1.149 -s 4420
-        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a 192.168.1.149 -s 5520
-        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a 192.168.1.149 -s 6620
-        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a 192.168.1.149 -s 7720
+        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a $ipaddr -s 4420
+        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a $ipaddr -s 5520
+        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a $ipaddr -s 6620
+        scripts/rpc.py nvmf_subsystem_add_listener $ctrl1_nqn -t tcp -a $ipaddr -s 7720
         # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 6620
         # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 7720
     elif [[ $transport == 'rdma' ]]; then
@@ -120,6 +126,7 @@ if [[ $3 == "target" ]]; then
     wait
 
 elif [[ $3 == "initiator" ]]; then
+    # TODO: not fully working yet
     if pidof bdevperf; then
         pkill -f bdevperf || true
         sleep 3
