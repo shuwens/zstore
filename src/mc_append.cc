@@ -77,14 +77,9 @@ int main(int argc, char **argv)
         if (i % 1000 == 999)
             fmt::print("|{}\n", i / 1000);
 
-        // auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
-        auto r1 = wq1.enq_append(zslba, 4096, nullptr);
-        if (r1 < 0) // bail if we fail to queue
-            break;
-        // auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
-        auto r2 = wq2.enq_append(zslba, 4096, nullptr);
-        // if (r1 < 0 || r2 < 0) // bail if we fail to queue
-        if (r2 < 0) // bail if we fail to queue
+        auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
+        auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
+        if (r1 < 0 || r2 < 0) // bail if we fail to queue
             break;
     }
 
