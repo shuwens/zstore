@@ -16,9 +16,9 @@ debug:
 
 lib:
 	mkdir lib
-#
-# include:
-# 	mkdir include
+	#
+	# include:
+	# 	mkdir include
 
 curlpp-0.8.1.tar.gz:
 	wget https://github.com/jpbarrette/curlpp/archive/refs/tags/v0.8.1.tar.gz
@@ -27,11 +27,11 @@ curlpp-0.8.1.tar.gz:
 lib/libcurlpp.a: lib curlpp-0.8.1.tar.gz
 	tar -xzf curlpp-0.8.1.tar.gz
 	cd curlpp-0.8.1/ ; \
-	cmake . && make && sudo make install
+		cmake . && make && sudo make install
 	sudo ldconfig
 	mv curlpp-0.8.1/libcurlpp.a lib/libcurlpp.a
 	# cmake . ; \
-	# cmake --build . --target install --config Debug --install-prefix=`pwd`/../curlpp/
+		# cmake --build . --target install --config Debug --install-prefix=`pwd`/../curlpp/
 
 civetweb-v1.12.tar.gz:
 	wget https://github.com/civetweb/civetweb/archive/v1.12.tar.gz
@@ -49,11 +49,11 @@ civetweb-1.16: civetweb-v1.16.tar.gz
 
 lib/libcivetweb.a: lib civetweb-1.16
 	cd civetweb-1.16 && \
-	make clean lib PREFIX=$(PWD) COPT=-DNO_SSL WITH_CPP=1
+		make clean lib PREFIX=$(PWD) COPT=-DNO_SSL WITH_CPP=1
 	mv civetweb-1.16/libcivetweb.a lib
 
 install-libs: lib/libcurlpp.a lib/libcivetweb.a
-# install-libs: lib/libcivetweb.a
+	# install-libs: lib/libcivetweb.a
 
 install-deps:
 	# useful tools
@@ -73,14 +73,15 @@ install-deps:
 install-spdk:
 	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.bak  || true
 	cd subprojects; git clone https://github.com/spdk/spdk.git
-	cd subprojects/spdk; sudo ./scripts/pkgdep.sh --all \
-		git submodule update --init \
-		./configure --with-rdma \
-		make
+	cd subprojects/spdk; sudo ./scripts/pkgdep.sh --all 
+	cd subprojects/spdk; git submodule update --init 
+	cd subprojects/spdk; ./configure --with-rdma 
+	cd subprojects/spdk;	make
 
 install-xnvme:
 	cd subprojects; git clone https://github.com/OpenMPDK/xNVMe.git xnvme
-	cd subprojects/xnvme; git checkout next \
-		sudo ./toolbox/pkgs/ubuntu-focal.sh \
-		make build \
-		sudo make install
+	cd subprojects/xnvme; git checkout v0.7.4
+	cd subprojects/xnvme;	sudo ./toolbox/pkgs/ubuntu-focal.sh 
+	cd subprojects/xnvme; meson setup builddir
+	cd subprojects/xnvme;make build  
+	cd subprojects/xnvme;sudo make install

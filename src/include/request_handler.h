@@ -2,7 +2,7 @@
 
 #include "../include/global.h"
 #include "../include/helper.h"
-#include "../include/item.h"
+// #include "../include/item.h"
 #include "../include/utils.h"
 #include "../include/zstore.h"
 
@@ -38,15 +38,22 @@ class ZstoreHandler : public CivetHandler
     // }
 
     // Upload object
-    void PutObject(const std::string &bkt, const std::string &key, AWS_IO &io,
-                   Zstore_Connection **reqPtr = NULL);
-    void PutObject(const std::string &bkt, const std::string &key,
-                   const std::string &localpath, AWS_IO &io,
-                   Zstore_Connection **reqPtr = NULL);
+    // void PutObject(const std::string &bkt, const std::string &key, AWS_IO
+    // &io,
+    //                Zstore_Connection **reqPtr = NULL);
+    void PutObject(const std::string &bkt, const std::string &key
+                   // const std::string &localpath, AWS_IO &io,
+                   // Zstore_Connection **reqPtr = NULL
+    )
+    {
+    }
 
     // Get object data (GET /key)
-    void GetObject(const std::string &bkt, const std::string &key, AWS_IO &io,
-                   Zstore_Connection **reqPtr = NULL);
+    struct object GetObject(const std::string &bkt, const std::string &key
+                            // AWS_IO &io, Zstore_Connection **reqPtr = NULL
+    )
+    {
+    }
 
     // Get meta-data on object (HEAD)
     // Headers are same as for GetObject(), but no data is retrieved.
@@ -54,8 +61,11 @@ class ZstoreHandler : public CivetHandler
                         AWS_IO &io, Zstore_Connection **reqPtr = NULL);
 
     // Delete object (DELETE)
-    void DeleteObject(const std::string &bkt, const std::string &key,
-                      AWS_IO &io, Zstore_Connection **reqPtr = NULL);
+    void DeleteObject(const std::string &bkt, const std::string &key
+                      // AWS_IO &io, Zstore_Connection **reqPtr = NULL
+    )
+    {
+    }
 
     bool handleGet(CivetServer *server, struct mg_connection *conn)
     {
@@ -107,6 +117,7 @@ class ZstoreHandler : public CivetHandler
                 "<Owner><ID>user</ID><DisplayName>user</DisplayName></Owner>"
                 "<Type>Normal</Type></Contents>";
 
+            // TODO: This is list objects
             std::lock_guard<std::mutex> lock(obj_table_mutex);
             int count = 0;
             for (const auto &pair : obj_table) {
@@ -116,7 +127,6 @@ class ZstoreHandler : public CivetHandler
                 ptr +=
                     sprintf(ptr, objfmt, o.name.c_str(), date, o.data, o.len);
             }
-
             ptr += sprintf(ptr, "%s", "<Marker></Marker></ListBucketResult>");
 
             size_t len = strlen(msg);
@@ -129,7 +139,7 @@ class ZstoreHandler : public CivetHandler
         if (strcmp(req->request_method, "GET") == 0 && strlen(key) > 0) {
             log_info("Recv GET-3-: bucket {}, key {}", bucket, key);
 
-            TMP_OBJECT(o, key);
+            // TMP_OBJECT(o, key);
 
             std::lock_guard<std::mutex> lock(obj_table_mutex);
             auto it = obj_table.find(key);

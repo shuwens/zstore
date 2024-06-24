@@ -77,10 +77,12 @@ int main(int argc, char **argv)
         if (i % 1000 == 999)
             fmt::print("|{}\n", i / 1000);
 
-        auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
+        // auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
+        auto r1 = wq1.enq_append(zslba, 4096, nullptr);
         if (r1 < 0) // bail if we fail to queue
             break;
-        auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
+        // auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
+        auto r2 = wq2.enq_append(zslba, 4096, nullptr);
         // if (r1 < 0 || r2 < 0) // bail if we fail to queue
         if (r2 < 0) // bail if we fail to queue
             break;
@@ -90,7 +92,7 @@ int main(int argc, char **argv)
     wq2.drain();
     dev1.finish_zone(zslba);
     dev2.finish_zone(zslba);
-    log_info("\nAppending done");
+    log_info("\nappending done");
 
     auto total_write_us = wq1.total_us + wq2.total_us;
     auto total_write_num = wq1.num_completed + wq2.num_completed;

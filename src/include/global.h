@@ -17,5 +17,10 @@ struct object {
     std::string name; /* null terminated */
 };
 
+// in memory object tables
+std::map<std::string, object> mem_obj_table;
+std::mutex mem_obj_table_mutex;
+
+// object tables
 std::map<std::string, object> obj_table;
 std::mutex obj_table_mutex;

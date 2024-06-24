@@ -6,28 +6,22 @@
 #         exit
 # fi
 
-if [[ $# -lt 1 ]]; then
-# if (( $# > 2 )); then
-        sudo nvme list
-        echo "Usage: $0 <ssd>"
-        exit
-fi
+# if [[ $# -lt 1 ]]; then
+#         # if (( $# > 2 )); then
+#         sudo nvme list
+#         echo "Usage: $0 <ssd>"
+#         exit
+#         fi
 ssd=$1
 
-echo "# Report zones"
-sudo nvme zns report-zones /dev/$ssd -d 10
-echo "# State code: empty(1), full(e)"
+if [[ $2 == "reset" ]]; then
+        echo "# Reseting zns drives: " $ssd
+        sudo nvme zns reset-zone /dev/$ssd -a
 
-if [[ $2 != "reset" ]]; then
-        echo "Usage: we only support reseting zns drives"
-        exit
+        echo "# Report zones again"
+        sudo nvme zns report-zones /dev/$ssd -d 10
+else
+        echo "# Report zones"
+        sudo nvme zns report-zones /dev/$ssd -d 10
+        echo "# State code: empty(1), full(e)"
 fi
-cmd="reset"
-
-echo "# Reset all zones"
-sudo nvme zns reset-zone /dev/$ssd -a
-
-echo "# Report zones again"
-sudo nvme zns report-zones /dev/$ssd -d 10
-
-
