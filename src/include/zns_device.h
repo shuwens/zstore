@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <fmt/core.h>
-#include <fstream>
+// #include <fstream>
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 // #include <libxnvme_pp.h>
@@ -16,8 +16,9 @@ using chrono_tp = std::chrono::high_resolution_clock::time_point;
  * @brief Represents a Zoned Namespace (ZNS) device.
  *
  * The `ZNSDevice` class provides an interface to interact with a ZNS device.
- * It allows opening and closing the device, as well as performing operations
- * such as appending data, reading data, and managing zones.
+ * It encapsulates the functionality to open, close, read, and append to the
+ * device. It also provides the ability to create a device buffer and a device
+ * queue.
  */
 class ZNSDevice
 {
@@ -56,6 +57,13 @@ class ZNSDevice
     }
     ~ZNSDevice() { xnvme_dev_close(dev); }
 
+    /**
+     * @brief Represents a device buffer used by the ZNSDevice class.
+     *
+     * The DeviceBuf class provides a wrapper for allocating and freeing a
+     * buffer on a ZNSDevice. It prevents copying and assignment of the buffer
+     * to ensure proper resource management.
+     */
     class DeviceBuf
     {
       private:
@@ -63,16 +71,38 @@ class ZNSDevice
         DeviceBuf operator=(DeviceBuf &cpy) = delete;
 
       public:
-        ZNSDevice &dev;
-        void *buf = nullptr;
+        ZNSDevice &dev;      ///< Reference to the ZNSDevice object.
+        void *buf = nullptr; ///< Pointer to the allocated buffer.
+
+        /**
+         * @brief Constructs a DeviceBuf object with the specified ZNSDevice and
+         * buffer size.
+         *
+         * @param dev The ZNSDevice object to associate the buffer with.
+         * @param bytes The size of the buffer to allocate.
+         */
         DeviceBuf(ZNSDevice &dev, size_t bytes) : dev(dev)
         {
             buf = xnvme_buf_alloc(dev.dev, bytes);
             check_cond(buf == nullptr, "Failed to alloc size {} buf", bytes);
         }
+
+        /**
+         * @brief Destroys the DeviceBuf object and frees the associated buffer.
+         */
         ~DeviceBuf() { xnvme_buf_free(dev.dev, buf); }
     };
 
+    /**
+     * @class DevQueue
+     * @brief Represents a device queue for submitting I/O requests.
+     *
+     * The `DevQueue` class provides a mechanism for submitting I/O requests to
+     * a device and managing the completion of those requests. It encapsulates a
+     * queue and provides methods for enqueueing different types of I/O
+     * operations such as append and read. It also tracks statistics related to
+     * the queue and the completion of requests.
+     */
     class DevQueue
     {
       private:
@@ -112,15 +142,36 @@ class ZNSDevice
             check_ret_neg(ret, "Failed to drain queue");
         }
 
+        /**
+         * @brief Represents a ZNS request.
+         *
+         * This class encapsulates a ZNS request and provides methods to measure
+         * the duration of the request.
+         */
         class ZNSRequest
         {
           public:
-            DevQueue &q;
-            chrono_tp stime;
+            DevQueue &q;     /**< Reference to the DevQueue object. */
+            chrono_tp stime; /**< Start time of the request. */
 
+            /**
+             * @brief Constructs a ZNSRequest object.
+             *
+             * @param q Reference to the DevQueue object.
+             */
             ZNSRequest(DevQueue &q) : q(q) {}
 
+            /**
+             * @brief Starts the timer for the request.
+             */
             void start() { stime = std::chrono::high_resolution_clock::now(); }
+
+            /**
+             * @brief Ends the timer for the request and returns the duration in
+             * microseconds.
+             *
+             * @return The duration of the request in microseconds.
+             */
             u64 end()
             {
                 auto etime = std::chrono::high_resolution_clock::now();
@@ -131,6 +182,16 @@ class ZNSDevice
             }
         };
 
+        /**
+         * Appends data to the ZNS device.
+         *
+         * @param lba The logical block address to append the data to.
+         * @param bytes The number of bytes to append.
+         * @param buf A pointer to the buffer containing the data to be
+         * appended.
+         * @return The result of the operation. Returns 0 on success, or a
+         * negative error code on failure.
+         */
         int enq_append(u64 lba, usize bytes, void *buf)
         {
             assert(bytes % dev.lba_bytes == 0);
@@ -157,6 +218,14 @@ class ZNSDevice
             return ret;
         }
 
+        /**
+         * Enqueues a read command to the device.
+         *
+         * @param lba The logical block address to read from.
+         * @param bytes The number of bytes to read.
+         * @param buf The buffer to store the read data.
+         * @return The result of the read command.
+         */
         int enq_read(u64 lba, usize bytes, void *buf)
         {
             assert(bytes % dev.lba_bytes == 0);
@@ -171,6 +240,31 @@ class ZNSDevice
             int ret;
             while (true) {
                 ret = xnvme_nvm_read(ctx, dev.nsid, lba, blocks, buf, nullptr);
+                if (ret == -EBUSY || ret == -EAGAIN)
+                    xnvme_queue_poke(q, 0);
+                else
+                    break;
+            }
+
+            rq->start();
+            num_queued += 1;
+            return ret;
+        }
+
+        int enq_write(u64 lba, usize bytes, void *buf)
+        {
+            assert(bytes % dev.lba_bytes == 0);
+            assert(buf != nullptr);
+
+            auto ctx = xnvme_queue_get_cmd_ctx(q);
+            auto blocks = bytes / dev.lba_bytes;
+
+            auto rq = new ZNSRequest(*this);
+            xnvme_cmd_ctx_set_cb(ctx, on_complete, rq);
+
+            int ret;
+            while (true) {
+                ret = xnvme_nvm_write(ctx, dev.nsid, lba, blocks, buf, nullptr);
                 if (ret == -EBUSY || ret == -EAGAIN)
                     xnvme_queue_poke(q, 0);
                 else

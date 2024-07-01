@@ -69,11 +69,11 @@ if [[ $node == 'zstore1' ]]; then
 	pci2=0b:00.0
 elif [[ $node == 'zstore2' ]]; then
 	pci1=05:00.0
-	pci1=06:00.0
+	pci2=06:00.0
 fi
 
-scripts/rpc.py bdev_nvme_attach_controller -b nvme0 -t PCIe -a $pci1
-scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
+scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci1
+scripts/rpc.py bdev_nvme_attach_controller -b nvme2 -t PCIe -a $pci2
 
 if [[ $transport == 'tcp' ]]; then
 	scripts/rpc.py nvmf_create_transport -t TCP -u 16384 -m 8 -c 8192
@@ -84,10 +84,11 @@ fi
 scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK00000000000001 -d SPDK_Controller1 -r
 sleep 1
 
-scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
+scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme2n2
 if [[ $transport == 'tcp' ]]; then
-	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 4420
+	# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.149 -s 4420
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.121 -s 4420
 elif [[ $transport == 'rdma' ]]; then
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 4420
 fi

@@ -55,6 +55,8 @@ int main(int argc, char **argv)
     for (u64 i = 0; i < zcap; i++) {
         memset64((char *)buf1.buf + 4096 * i, i + data_off, 4096);
         memset64((char *)buf2.buf + 4096 * i, i + data_off, 4096);
+        // log_info("memset value src: {} ", i + data_off);
+        // log_info("memset value result: {} ", (char *)buf1.buf + 4096 * i);
     }
 
     // append one block at a time for max re-ordering chance
@@ -68,7 +70,9 @@ int main(int argc, char **argv)
             fmt::print("|{}\n", i / 1000);
 
         auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
+        // log_info("buf 1: {} ", (char *)buf1.buf + 4096 * i);
         auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
+        // log_info("buf 2: {} ", (char *)buf2.buf + 4096 * i);
         if (r1 < 0 || r2 < 0) // bail if we fail to queue
             break;
     }
@@ -103,6 +107,8 @@ int main(int argc, char **argv)
 
         rq1.enq_read(zslba + i, 4096, rbuf1 + i * 4096);
         rq2.enq_read(zslba + i, 4096, rbuf2 + i * 4096);
+        // log_info("buf 1: {} ", rbuf1 + 4096 * i);
+        // log_info("buf 2: {} ", rbuf2 + 4096 * i);
 
         data1.push_back(*(u64 *)rbuf1);
         data2.push_back(*(u64 *)rbuf2);

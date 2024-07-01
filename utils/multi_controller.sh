@@ -79,8 +79,8 @@ if [[ $3 == "target" ]]; then
         pci1=05:00.0
         pci2=06:00.0
         ipaddr=192.168.1.121
-        ssd1=nvme0
-        ssd2=nvme1
+        ssd1=nvme1
+        ssd2=nvme2
     elif [[ $node == '3' ]]; then
         pci1=05:00.0
         pci2=06:00.0

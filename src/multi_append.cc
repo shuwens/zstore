@@ -1,10 +1,8 @@
 #include <chrono>
-#include <cmath>
 #include <fmt/core.h>
 #include <fstream>
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
-#include <thread>
 
 #include "include/utils.h"
 #include "include/zns_device.h"
@@ -12,7 +10,6 @@
 // #include "s3/aws_s3.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-using namespace std::chrono_literals;
 
 void memset64(void *dest, u64 val, usize bytes)
 {
@@ -24,19 +21,17 @@ void memset64(void *dest, u64 val, usize bytes)
 
 int main(int argc, char **argv)
 {
+
     if (argc < 4) {
         log_info("Usage: ./zstore <node> <zone_num> <qd>");
         return 1;
     }
 
-    //
     u64 zone_dist = 0x80000;
     u64 zone_num = std::stoull(argv[2]);
     u16 qd = std::stoull(argv[3]);
     u16 node = std::stoull(argv[1]);
 
-    // auto host = "10.0.0.2:23789";
-    // auto host = "127.0.0.1:23789";
     std::string host1;
     std::string host2;
     if (node == 1) {
@@ -47,9 +42,8 @@ int main(int argc, char **argv)
         host2 = "192.168.1.121:7720";
     } else
         return 1;
-    log_info("make device 1");
+
     auto dev1 = ZNSDevice(host1, 1);
-    log_info("make device 2");
     auto dev2 = ZNSDevice(host2, 2);
 
     u64 zslba = zone_num * zone_dist;
@@ -60,54 +54,50 @@ int main(int argc, char **argv)
 
     auto zone2 = dev2.zone_desc(zslba);
     auto wq2 = dev2.create_queue(qd);
-    auto buf2 = dev2.alloc(zone2.zcap * dev2.lba_bytes);
+    auto buf2 = dev2.alloc(zone1.zcap * dev1.lba_bytes);
 
     auto zcap = std::min(zone1.zcap, zone2.zcap);
 
     // NOTE we're not explicitly opening zones for now
 
     // fill bufs with repeated numbers corresponding to lba
-    // u64 data_off = 0xdeadbeef;
-    u64 data_off = 0xbeefdead;
+    u64 data_off = 0xdeadbeef;
     for (u64 i = 0; i < zcap; i++) {
         memset64((char *)buf1.buf + 4096 * i, i + data_off, 4096);
         memset64((char *)buf2.buf + 4096 * i, i + data_off, 4096);
+        // log_info("memset value src: {} ", i + data_off);
+        // log_info("memset value result: {} ", (char *)buf1.buf + 4096 * i);
     }
 
     // append one block at a time for max re-ordering chance
     u64 num_appends = 128'000;
     log_info("Appending to zone {} (lba 0x{:x}), {} entries of 4k each",
              zone_num, zslba, num_appends);
-    int w_mismatch = 0;
     for (u64 i = 0; i < num_appends; i++) {
         if (i % 100 == 0)
             fmt::print(".");
         if (i % 1000 == 999)
             fmt::print("|{}\n", i / 1000);
 
-        // if ((char *)buf1.buf + i * 4096 != (char *)buf2.buf + i * 4096)
-        //     w_mismatch++;
-
         auto r1 = wq1.enq_append(zslba, 4096, (char *)buf1.buf + i * 4096);
+        // log_info("buf 1: {} ", (char *)buf1.buf + 4096 * i);
         auto r2 = wq2.enq_append(zslba, 4096, (char *)buf2.buf + i * 4096);
+        // log_info("buf 2: {} ", (char *)buf2.buf + 4096 * i);
         if (r1 < 0 || r2 < 0) // bail if we fail to queue
             break;
     }
-    // log_info("write mismatch count: {}", w_mismatch);
 
     wq1.drain();
     wq2.drain();
     dev1.finish_zone(zslba);
     dev2.finish_zone(zslba);
-    log_info("\nappending done");
+    log_info("\nAppending done");
 
     auto total_write_us = wq1.total_us + wq2.total_us;
     auto total_write_num = wq1.num_completed + wq2.num_completed;
     auto avg_write_us = total_write_us / total_write_num;
     log_info("Wrote {} blocks in {} us, avg {} us", total_write_num,
              total_write_us, avg_write_us);
-
-    std::this_thread::sleep_for(10s);
 
     log_info("Reading back from zone {}", zone_num);
 
@@ -118,8 +108,7 @@ int main(int argc, char **argv)
 
     auto rq1 = dev1.create_queue(qd);
     auto rq2 = dev2.create_queue(qd);
-    int r_mismatch = 0;
-    int d_mismatch = 0;
+
     for (u64 i = 0; i < num_appends; i++) {
         if (i % 100 == 0)
             fmt::print("*");
@@ -128,16 +117,12 @@ int main(int argc, char **argv)
 
         rq1.enq_read(zslba + i, 4096, rbuf1 + i * 4096);
         rq2.enq_read(zslba + i, 4096, rbuf2 + i * 4096);
+        // log_info("buf 1: {} ", rbuf1 + 4096 * i);
+        // log_info("buf 2: {} ", rbuf2 + 4096 * i);
 
-        if (rbuf1 + i * 4096 != rbuf2 + i * 4096)
-            r_mismatch++;
         data1.push_back(*(u64 *)rbuf1);
         data2.push_back(*(u64 *)rbuf2);
-        if (data1 != data2)
-            d_mismatch++;
     }
-
-    log_info("read mismatch {}, data mismatch {}", r_mismatch, d_mismatch);
 
     delete[] rbuf2;
     delete[] rbuf1;

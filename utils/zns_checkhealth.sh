@@ -23,5 +23,5 @@ if [[ $2 == "reset" ]]; then
 else
         echo "# Report zones"
         sudo nvme zns report-zones /dev/$ssd -d 10
-        echo "# State code: empty(1), full(e)"
+        echo "# State code: empty(1), full(e), open(2,3), closed(4)"
 fi

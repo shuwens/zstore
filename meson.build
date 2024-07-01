@@ -14,7 +14,6 @@ add_project_arguments('-fPIC', language: 'cpp')
 add_project_arguments('-Wno-unused-parameter', language: 'cpp')
 add_project_arguments('-fPIC', language: 'cpp')
 
-
 if get_option('buildtype') == 'debug'
 	add_project_arguments('-fno-inline', language: 'cpp')
 	add_project_arguments('-DLOGLV=1', language: 'cpp')
@@ -48,10 +47,10 @@ zstore_deps = [
 ]
 
 libs = declare_dependency(
-  link_args : [
-    meson.current_source_dir() + '/lib/libcivetweb.a',
-    meson.current_source_dir() + '/lib/libcurlpp.a',
-  ]
+	link_args: [
+		meson.current_source_dir() + '/lib/libcivetweb.a',
+		meson.current_source_dir() + '/lib/libcurlpp.a',
+	],
 )
 
 zstore_src = files(
@@ -60,8 +59,30 @@ zstore_src = files(
 
 incdir = include_directories('civetweb-1.16/include')
 
-executable('zstore', zstore_src, dependencies: [libs, zstore_deps],  include_directories : incdir)
-executable('simple_zstore', 'src/simple_append.cc', dependencies: [libs, zstore_deps],  include_directories : incdir)
-executable('mc_zstore', 'src/mc_append.cc', dependencies: [libs, zstore_deps],  include_directories : incdir)
-executable('zone', 'src/third_party/zoned.cc', dependencies: zstore_deps,  include_directories : incdir)
+executable(
+	'zstore',
+	zstore_src,
+	dependencies: [libs, zstore_deps],
+	include_directories: incdir,
+)
+executable(
+	'simple_zstore',
+	'src/simple_append.cc',
+	dependencies: [libs, zstore_deps],
+	include_directories: incdir,
+)
+executable(
+	'multi_append',
+	'src/multi_append.cc',
+	dependencies: [libs, zstore_deps],
+	include_directories: incdir,
+)
+
+executable(
+	'zone',
+	'src/third_party/zoned.cc',
+	dependencies: zstore_deps,
+	include_directories: incdir,
+)
+
 # executable('append', 'src/async_example.c', dependencies: zstore_deps)
