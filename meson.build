@@ -28,7 +28,6 @@ if get_option('buildtype') == 'debug'
 	# )
 endif
 
-
 zstore_deps = [
 	# szd_proj.dependency('szd_extended'),
 	dependency('uuid'),
@@ -38,10 +37,33 @@ zstore_deps = [
 	dependency('xnvme'),
 ]
 
+libs = declare_dependency(
+	link_args: [
+		meson.current_source_dir() + '/lib/libcivetweb.a',
+	],
+)
+incdir = include_directories('civetweb-1.16/include')
+
 zstore_src = files(
 	'src/main.cc',
 )
-executable('zstore', zstore_src, dependencies: zstore_deps)
+simple_src = files(
+	'src/simple_append.cc',
+)
+
+executable(
+	'zstore',
+	zstore_src,
+	dependencies: [zstore_deps, libs],
+	include_directories: incdir,
+)
+executable(
+	'simple',
+	simple_src,
+	dependencies: [zstore_deps, libs],
+	include_directories: incdir,
+
+)
 
 # trying to use simpleznsdevice but failing
 

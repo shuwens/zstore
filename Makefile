@@ -9,6 +9,23 @@ setup:
 debug: setup
 	cd build-dbg; meson compile
 
+lib:
+	mkdir lib
+
+civetweb-v1.16.tar.gz:
+	wget https://github.com/civetweb/civetweb/archive/v1.16.tar.gz
+	mv v1.16.tar.gz $@
+
+civetweb-1.16: civetweb-v1.16.tar.gz
+	tar xfz civetweb-v1.16.tar.gz
+
+lib/libcivetweb.a: lib civetweb-1.16
+	cd civetweb-1.16 && \
+		make clean lib PREFIX=$(PWD) COPT=-DNO_SSL WITH_CPP=1
+	mv civetweb-1.16/libcivetweb.a lib
+
+install-libs: lib/libcivetweb.a
+
 paper:
 	@$(MAKE) -C atc2024
 
