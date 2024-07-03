@@ -9,7 +9,13 @@
 #include "utils.hpp"
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
-
+/**
+ * @brief Represents a Zoned Namespace (ZNS) device.
+ *
+ * The `ZNSDevice` class provides an interface to interact with a ZNS device.
+ * It encapsulates the functionality to open and close the device, allocate and
+ * free buffers, perform append and read operations, and manage zones.
+ */
 class ZNSDevice
 {
   public:
@@ -44,6 +50,17 @@ class ZNSDevice
     }
     ~ZNSDevice() { xnvme_dev_close(dev); }
 
+    /**
+     * @class DeviceBuf
+     * @brief Represents a device buffer used for I/O operations.
+     *
+     * The DeviceBuf class provides a wrapper for managing device buffers used
+     * for I/O operations. It allocates and frees the buffer memory using the
+     * xnvme_buf_alloc and xnvme_buf_free functions. The buffer is associated
+     * with a ZNSDevice object, which represents the underlying device. The
+     * class also disables the copy constructor and copy assignment operator to
+     * prevent unintended copying.
+     */
     class DeviceBuf
     {
       private:
@@ -51,16 +68,44 @@ class ZNSDevice
         DeviceBuf operator=(DeviceBuf &cpy) = delete;
 
       public:
-        ZNSDevice &dev;
-        void *buf = nullptr;
+        ZNSDevice &dev; ///< Reference to the ZNSDevice object associated with
+                        ///< the buffer
+        void *buf = nullptr; ///< Pointer to the allocated buffer memory
+
+        /**
+         * @brief Constructs a DeviceBuf object with the specified device and
+         * buffer size.
+         *
+         * @param dev The ZNSDevice object associated with the buffer
+         * @param bytes The size of the buffer in bytes
+         */
         DeviceBuf(ZNSDevice &dev, size_t bytes) : dev(dev)
         {
             buf = xnvme_buf_alloc(dev.dev, bytes);
             check_cond(buf == nullptr, "Failed to alloc size {} buf", bytes);
         }
+
+        /**
+         * @brief Destructor that frees the allocated buffer memory.
+         */
         ~DeviceBuf() { xnvme_buf_free(dev.dev, buf); }
     };
 
+    /**
+     * @class DevQueue
+     * @brief Represents a queue for submitting I/O requests to a ZNSDevice.
+     *
+     * The DevQueue class provides functionality for initializing and managing a
+     * queue for submitting I/O requests to a ZNSDevice. It tracks statistics
+     * such as the number of queued requests, completed requests, successful
+     * requests, and failed requests. It also provides methods for draining the
+     * queue and printing the queue statistics.
+     *
+     * The DevQueue class also contains an inner class ZNSRequest, which
+     * represents an individual I/O request. Each ZNSRequest is associated with
+     * a DevQueue and tracks the start and end time of the request for
+     * calculating the duration.
+     */
     class DevQueue
     {
       private:
@@ -100,15 +145,38 @@ class ZNSDevice
             check_ret_neg(ret, "Failed to drain queue");
         }
 
+        /**
+         * @brief Represents a ZNS (Zoned Namespace) request.
+         *
+         * This class encapsulates a ZNS request and provides methods to measure
+         * the execution time of the request.
+         */
         class ZNSRequest
         {
           public:
-            DevQueue &q;
-            chrono_tp stime;
+            DevQueue &q; /**< Reference to the DevQueue object associated with
+                            the request. */
+            chrono_tp stime; /**< Start time of the request. */
 
+            /**
+             * @brief Constructs a ZNSRequest object.
+             *
+             * @param q Reference to the DevQueue object associated with the
+             * request.
+             */
             ZNSRequest(DevQueue &q) : q(q) {}
 
+            /**
+             * @brief Starts the timer for the request execution time.
+             */
             void start() { stime = std::chrono::high_resolution_clock::now(); }
+
+            /**
+             * @brief Ends the timer and returns the execution time of the
+             * request.
+             *
+             * @return The execution time of the request in microseconds.
+             */
             u64 end()
             {
                 auto etime = std::chrono::high_resolution_clock::now();
@@ -119,6 +187,14 @@ class ZNSDevice
             }
         };
 
+        /**
+         * Enqueues an append command to the ZNS device.
+         *
+         * @param lba The logical block address to append data to.
+         * @param bytes The number of bytes to append.
+         * @param buf Pointer to the buffer containing the data to be appended.
+         * @return 0 on success, or a negative error code on failure.
+         */
         int enq_append(u64 lba, usize bytes, void *buf)
         {
             assert(bytes % dev.lba_bytes == 0);
@@ -145,6 +221,14 @@ class ZNSDevice
             return ret;
         }
 
+        /**
+         * Enqueues a read command to the device.
+         *
+         * @param lba The logical block address to read from.
+         * @param bytes The number of bytes to read.
+         * @param buf The buffer to store the read data.
+         * @return The result of the read command.
+         */
         int enq_read(u64 lba, usize bytes, void *buf)
         {
             assert(bytes % dev.lba_bytes == 0);
@@ -176,6 +260,14 @@ class ZNSDevice
                      num_queued, num_completed, num_success, num_fail);
         }
 
+        /**
+         * Callback function called when an I/O operation is completed.
+         *
+         * @param ctx The command context associated with the completed
+         * operation.
+         * @param cbarg A pointer to the callback argument, which is a
+         * ZNSRequest object.
+         */
         static void on_complete(xnvme_cmd_ctx *ctx, void *cbarg)
         {
             auto r = static_cast<ZNSRequest *>(cbarg);
@@ -183,8 +275,8 @@ class ZNSDevice
             r->q.num_completed += 1;
 
             if (xnvme_cmd_ctx_cpl_status(ctx) != 0) {
-                // log_error("I/O request failed");
-                // xnvme_cmd_ctx_pr(ctx, XNVME_PR_DEF);
+                log_error("I/O request failed");
+                xnvme_cmd_ctx_pr(ctx, XNVME_PR_DEF);
                 r->q.num_fail += 1;
             } else {
                 r->q.num_success += 1;
@@ -242,6 +334,12 @@ class ZNSDevice
         }
     }
 
+    /**
+     * Finish a zone by sending a management command to close it.
+     *
+     * @param slba The starting logical block address (LBA) of the zone to
+     * finish.
+     */
     void finish_zone(u64 slba)
     {
         auto ctx = xnvme_cmd_ctx_from_dev(dev);

@@ -2,13 +2,11 @@
 
 #include "global.h"
 #include "helper.h"
-#include "request_handler.h"
 
 #include "CivetServer.h"
 #include <CivetServer.h>
-#include <unistd.h>
 #include <iostream>
-
+#include <unistd.h>
 
 #define EVP_MAX_MD_SIZE 64 /* SHA512 */
 
@@ -17,7 +15,17 @@
 #define EXIT_URI "/exit"
 typedef mg_connection Zstore_Connection;
 
+/* Exit flag for main loop */
+volatile bool exitNow = false;
 
+/**
+ * @class Zstore
+ * @brief Represents a Zstore object.
+ *
+ * The Zstore class is a subclass of CivetHandler and provides functionality for
+ * managing Zstore objects. It allows setting the verbosity level and provides a
+ * destructor.
+ */
 class Zstore : public CivetHandler
 {
   private:
@@ -25,18 +33,35 @@ class Zstore : public CivetHandler
     int verbose;
 
   public:
-    Zstore(const std::string &name): name(name) {};
-    ~Zstore() {};
+    /**
+     * @brief Constructs a Zstore object with the specified name.
+     *
+     * @param name The name of the Zstore object.
+     */
+    Zstore(const std::string &name) : name(name){};
 
+    /**
+     * @brief Destroys the Zstore object.
+     */
+    ~Zstore(){};
+
+    /**
+     * @brief Sets the verbosity level of the Zstore object.
+     *
+     * @param v The verbosity level to set.
+     */
     void SetVerbosity(int v) { verbose = v; }
+
     // std::list<AWS_S3_Bucket> buckets;
 };
 
 // https://github.com/civetweb/civetweb/blob/master/examples/embedded_cpp/embedded_cpp.cpp
-
-// Starts the local web server to allow for communcation between the robot and
-// external API.
-CivetServer startWebServer()
+/**
+ * Starts the web server on port 2000.
+ *
+ * @return The CivetServer object representing the started web server.
+ */
+CivetServer startWebServer(CivetHandler h)
 {
     printf("Starting web server with port 2000!\n");
     mg_init_library(0);
@@ -57,7 +82,7 @@ CivetServer startWebServer()
     }
 
     CivetServer server(cpp_options); // <-- C++ style start
-    ZstoreHandler h;
+    // ZstoreHandler h;
     server.addHandler("", h);
 
     while (!exitNow) {
@@ -78,7 +103,7 @@ const char *options[] = {
     0};
 
 // NOTE: this is a copy paste of Peter's kv store which uses civetweb
-int doRequest(struct mg_connection *conn)
+int XXXXdoRequest(struct mg_connection *conn)
 {
     log_info("Recv request: info");
     log_debug("Recv request: debug");
@@ -247,6 +272,7 @@ int doRequest(struct mg_connection *conn)
             mg_write(conn, (char *)obj->data + start, len);
 
             return 206;
+
         } else {
             mg_send_http_ok(conn, "application/octet-stream", obj->len);
             mg_write(conn, obj->data, obj->len);

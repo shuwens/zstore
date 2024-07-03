@@ -6,7 +6,7 @@
 
 #include "include/global.h"
 #include "include/helper.h"
-#include "include/request_handler.h"
+#include "include/kv_handler.h"
 #include "include/utils.hpp"
 #include "include/zns_device.h"
 #include "include/zstore.h"
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 
     create_dummy_objects();
     // Start the web server controllers.
-    ZstoreHandler h;
+    KVstoreHandler h;
     CivetServer web_server = startWebServer(h);
     // struct mg_context* web_server = startWebServer();
 

@@ -11,7 +11,7 @@
 #include <unistd.h>
 // #include "../include/backend.h"
 
-class ZstoreHandler : public CivetHandler
+class KVstoreHandler : public CivetHandler
 {
   public:
     // int requestHandler(struct mg_connection *conn, void *cbdata)

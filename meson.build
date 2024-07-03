@@ -47,10 +47,21 @@ incdir = include_directories('civetweb-1.16/include')
 zstore_src = files(
 	'src/main.cc',
 )
+
+kvstore_src = files(
+	'src/kvstore.cc',
+)
+
 simple_src = files(
 	'src/simple_append.cc',
 )
 
+executable(
+	'kvstore',
+	kvstore_src,
+	dependencies: [zstore_deps, libs],
+	include_directories: incdir,
+)
 executable(
 	'zstore',
 	zstore_src,
