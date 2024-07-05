@@ -1,5 +1,5 @@
 project(
-	'lsvd-rbd',
+	'zstore',
 	'cpp',
 	version: '0.1',
 	default_options: [
@@ -16,7 +16,7 @@ if get_option('buildtype') == 'debug'
 	add_project_arguments('-fno-inline', language: 'cpp')
 	add_project_arguments('-DLOGLV=1', language: 'cpp')
 
-	# # add sanitizers for debug builds
+	# add sanitizers for debug builds
 	# add_project_arguments(
 	# 	'-fsanitize=address,undefined,nullability,implicit-conversion',
 	# 	language: 'cpp',
@@ -55,16 +55,14 @@ kvstore_src = files(
 simple_src = files(
 	'src/simple_append.cc',
 )
+multi_src = files(
+	'src/multi_append.cc',
+)
+
 
 executable(
 	'kvstore',
 	kvstore_src,
-	dependencies: [zstore_deps, libs],
-	include_directories: incdir,
-)
-executable(
-	'zstore',
-	zstore_src,
 	dependencies: [zstore_deps, libs],
 	include_directories: incdir,
 )
@@ -75,22 +73,19 @@ executable(
 	include_directories: incdir,
 
 )
+executable(
+	'multi',
+	multi_src,
+	dependencies: [zstore_deps, libs],
+	include_directories: incdir,
 
-# trying to use simpleznsdevice but failing
+)
 
-# cmake = import('cmake')
-# szd_proj = cmake.subproject('simpleznsdevice')
+executable(
+'zstore',
+zstore_src,
+dependencies: [zstore_deps, libs],
+include_directories: incdir,
+)
 
-# szd_deps = [
-# 	szd_proj.dependency('szd_extended'),
-# 	dependency('uuid'),
-# 	dependency('numa'),
-# 	dependency('openssl'),
-# 	dependency('fmt'),
-# 	dependency('spdk_nvme'),
-# ]
 
-# zstore_s_src = files(
-# 	'src/main_szd.cc',
-# )
-# executable('zstore_s', zstore_s_src, dependencies: szd_deps)

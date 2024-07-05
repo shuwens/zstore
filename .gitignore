@@ -7,4 +7,4 @@ venv/
 civetweb-1.16/
 civetweb-v1.16.tar.gz
 lib/
-
+subprojects/*

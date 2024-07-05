@@ -6,10 +6,21 @@
 
 #include "include/global.h"
 #include "include/helper.h"
+#include "include/object.h"
 #include "include/request_handler.h"
 #include "include/utils.hpp"
 #include "include/zns_device.h"
 #include "include/zstore.h"
+#include "zstore.cc"
+
+void create_dummy_objects(Zstore zstore)
+{
+    log_info("Create dummy objects in table: foo, bar, test");
+
+    zstore.putObject("foo", "foo_data");
+    zstore.putObject("bar", "bar_data");
+    zstore.putObject("baz", "baz_data");
+}
 
 int main(int argc, char **argv)
 {
@@ -28,11 +39,10 @@ int main(int argc, char **argv)
     // create a bucket: this process is now manual, not via create/get bucket
     // zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, "db"));
 
-    create_dummy_objects();
+    create_dummy_objects(zstore);
     // Start the web server controllers.
     ZstoreHandler h;
     CivetServer web_server = startWebServer(h);
-    // struct mg_context* web_server = startWebServer();
 
     while (1) {
         sleep(1);

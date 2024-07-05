@@ -4,25 +4,20 @@
 #include <mutex>
 #include <string>
 
-static struct mg_context *g_ctx; /* Set by start_civetweb() */
+#include "object.h"
 
 // These data struct are not supposed to be global like this, but this is the
 // simple way to do it. So sue me.
 
-#define TMP_OBJECT(var, key)                                                   \
-    struct object var;                                                         \
-    var.name = key;
+// typedef lba
 
-struct object {
-    int len;
-    void *data;       /* points to after 'name' */
-    std::string name; /* null terminated */
-};
+static struct mg_context *g_ctx; /* Set by start_civetweb() */
 
-// in memory object tables
-std::map<std::string, object> mem_obj_table;
+// object tables, used only by zstore
+// key -> tuple of <zns target, lba>
+// std::map<std::string, std::tuple<std::pair<std::string, int32_t>>> zstore_map;
+// std::mutex obj_table_mutex;
+
+// in memory object tables, used only by kv store
+std::map<std::string, kvobject> mem_obj_table;
 std::mutex mem_obj_table_mutex;
-
-// object tables
-std::map<std::string, object> obj_table;
-std::mutex obj_table_mutex;

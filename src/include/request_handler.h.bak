@@ -11,7 +11,7 @@
 #include <unistd.h>
 // #include "../include/backend.h"
 
-class KVstoreHandler : public CivetHandler
+class ZstoreHandler : public CivetHandler
 {
   public:
     // int requestHandler(struct mg_connection *conn, void *cbdata)
@@ -92,12 +92,12 @@ class KVstoreHandler : public CivetHandler
                 "<Type>Normal</Type></Contents>";
 
             // TODO: This is list objects
-            std::lock_guard<std::mutex> lock(mem_obj_table_mutex);
+            std::lock_guard<std::mutex> lock(obj_table_mutex);
             int count = 0;
-            for (const auto &pair : mem_obj_table) {
+            for (const auto &pair : obj_table) {
                 if (count++ >= 1000)
                     break;
-                struct kvobject o = pair.second;
+                struct object o = pair.second;
                 ptr +=
                     sprintf(ptr, objfmt, o.name.c_str(), date, o.data, o.len);
             }
@@ -115,10 +115,10 @@ class KVstoreHandler : public CivetHandler
 
             // TMP_OBJECT(o, key);
 
-            std::lock_guard<std::mutex> lock(mem_obj_table_mutex);
-            auto it = mem_obj_table.find(key);
+            std::lock_guard<std::mutex> lock(obj_table_mutex);
+            auto it = obj_table.find(key);
 
-            if (it == mem_obj_table.end()) {
+            if (it == obj_table.end()) {
                 char *fmt = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                             "<Error><Code>NoSuchKey</Code>"
                             "<BucketName>%s</BucketName>"
@@ -141,7 +141,7 @@ class KVstoreHandler : public CivetHandler
                 return 404;
             }
 
-            struct kvobject *obj = &(it->second);
+            struct object *obj = &(it->second);
 
             const char *range = NULL;
             for (int i = 0; i < req->num_headers; i++)
@@ -210,8 +210,8 @@ class KVstoreHandler : public CivetHandler
             if (req->content_length > 0) {
                 // if (verbose)
                 printf("PUT %s\n", key);
-                struct kvobject *o =
-                    (struct kvobject *)malloc(sizeof(*o) + req->content_length);
+                struct object *o =
+                    (struct object *)malloc(sizeof(*o) + req->content_length);
                 o->name = key;
                 o->data = malloc(req->content_length);
                 o->len = req->content_length;
@@ -219,13 +219,13 @@ class KVstoreHandler : public CivetHandler
 
                 mg_read(conn, o->data, req->content_length);
 
-                std::lock_guard<std::mutex> lock(mem_obj_table_mutex);
-                auto it = mem_obj_table.find(key);
-                if (it != mem_obj_table.end()) {
+                std::lock_guard<std::mutex> lock(obj_table_mutex);
+                auto it = obj_table.find(key);
+                if (it != obj_table.end()) {
                     free(it->second.data);
                     it->second = *o;
                 } else {
-                    mem_obj_table[key] = *o;
+                    obj_table[key] = *o;
                 }
 
                 mg_printf(conn, "HTTP/1.1 204 No Content\r\n"
@@ -251,14 +251,14 @@ class KVstoreHandler : public CivetHandler
         log_info("Recv DELETE: bucket {}, key {}", bucket, key);
 
         if (strcmp(req->request_method, "DELETE") == 0) {
-            TMP_KVOBJECT(o, key);
-            struct kvobject *obj = NULL;
+            TMP_OBJECT(o, key);
+            struct object *obj = NULL;
 
-            std::lock_guard<std::mutex> lock(mem_obj_table_mutex);
-            auto it = mem_obj_table.find(key);
-            if (it != mem_obj_table.end()) {
+            std::lock_guard<std::mutex> lock(obj_table_mutex);
+            auto it = obj_table.find(key);
+            if (it != obj_table.end()) {
                 obj = &(it->second);
-                mem_obj_table.erase(it);
+                obj_table.erase(it);
             }
 
             if (obj != NULL) {
