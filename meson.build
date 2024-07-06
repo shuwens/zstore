@@ -3,9 +3,14 @@ project(
 	'cpp',
 	version: '0.1',
 	default_options: [
-		'cpp_std=c++20',
+		# 'cpp_std=c++20',
+		'cpp_std=c++23',
 		'warning_level=2',
 		'b_colorout=always',
+		'b_sanitize=address,undefined',
+		'b_lto=true',
+		'b_thinlto_cache=true',
+
 	],
 )
 
@@ -44,21 +49,12 @@ libs = declare_dependency(
 )
 incdir = include_directories('civetweb-1.16/include')
 
-zstore_src = files(
-	'src/main.cc',
-)
+zstore_src = files('src/main.cc')
+kvstore_src = files('src/kvstore.cc')
 
-kvstore_src = files(
-	'src/kvstore.cc',
-)
-
-simple_src = files(
-	'src/simple_append.cc',
-)
-multi_src = files(
-	'src/multi_append.cc',
-)
-
+simple_src = files('src/simple_append.cc')
+multi_src = files('src/multi_append.cc')
+rw_src = files('src/rw_test.cc')
 
 executable(
 	'kvstore',
@@ -71,21 +67,22 @@ executable(
 	simple_src,
 	dependencies: [zstore_deps, libs],
 	include_directories: incdir,
-
 )
 executable(
 	'multi',
 	multi_src,
 	dependencies: [zstore_deps, libs],
 	include_directories: incdir,
-
 )
-
 executable(
-'zstore',
-zstore_src,
-dependencies: [zstore_deps, libs],
-include_directories: incdir,
+	'zstore',
+	zstore_src,
+	dependencies: [zstore_deps, libs],
+	include_directories: incdir,
 )
-
-
+executable(
+	'rw_test',
+	rw_src,
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	include_directories: incdir,
+)
