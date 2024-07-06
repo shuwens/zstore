@@ -8,14 +8,34 @@
 
 void Zstore::putObject(const std::string &key, const std::string &data)
 {
-
     log_info("PUT: key {}", key);
-
     ObjectMetadata metadata;
     metadata.key = key;
     metadata.size = data.size();
     metadata.creation_date = time(nullptr);
     metadata.modification_date = metadata.creation_date;
+
+    log_info("PUT: key {} in gateway map", key);
+    TargetLba target_lba1;
+    target_lba1.first = "tgt1";
+    target_lba1.second = get_lba();
+    TargetLba target_lba2;
+    target_lba2.first = "tgt2";
+    target_lba2.second = get_lba();
+    TargetLba target_lba3;
+    target_lba3.first = "tgt3";
+    target_lba3.second = get_lba();
+    std::vector<TargetLba> target_lbas = {target_lba1, target_lba2,
+                                          target_lba3};
+    gateway_map[key] = target_lbas;
+
+    log_info("PUT: key {} in target log", key);
+    LogEntry entry;
+    entry.key = key;
+    entry.seq = 0;
+    entry.chunk_seq = 0;
+    entry.lba = get_lba();
+    target_log.push_back(entry);
 
     // Write data to SSD
     writeData(data, metadata.data_offset);

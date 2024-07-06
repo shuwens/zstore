@@ -4,6 +4,7 @@
 #include "helper.h"
 #include "object.h"
 #include <CivetServer.h>
+#include <cstdint>
 #include <iostream>
 #include <unistd.h>
 #include <unordered_map>
@@ -14,6 +15,7 @@
 #define EXAMPLE_URI "/example"
 #define EXIT_URI "/exit"
 typedef mg_connection Zstore_Connection;
+typedef std::pair<std::string, int32_t> TargetLba;
 
 /* Exit flag for main loop */
 volatile bool exitNow = false;
@@ -45,6 +47,16 @@ class Zstore : public CivetHandler
     // Alternatively, use a B+ Tree for range queries
     // BPlusTree<std::string, ObjectMetadata> metadata_index;
 
+    // object tables, used only by zstore
+    // key -> tuple of <zns target, lba>
+    std::unordered_map<std::string, std::vector<TargetLba>> gateway_map;
+    // std::mutex obj_table_mutex;
+    std::vector<LogEntry> target_log;
+
+    // TODO: missing initialization to read lba for each target. Use the read
+    // write code.
+    int32_t start_lba = 0;
+
     // Functions for SSD I/O operations
     void writeMetadata(const ObjectMetadata &metadata, uint64_t &offset);
     void readMetadata(uint64_t offset, ObjectMetadata &metadata);
@@ -55,6 +67,13 @@ class Zstore : public CivetHandler
     void putObject(const std::string &key, const std::string &data);
     std::string getObject(const std::string &key);
     void deleteObject(const std::string &key);
+
+    constexpr int32_t get_lba() { return start_lba; };
+    bool set_lba(int32_t last_lba)
+    {
+        start_lba = last_lba;
+        return true;
+    };
 
     /**
      * @brief Constructs a Zstore object with the specified name.
