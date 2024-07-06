@@ -9,3 +9,5 @@ civetweb-v1.16.tar.gz
 lib/
 subprojects/spdk
 subprojects/xnvme
+rw_test
+builddir/

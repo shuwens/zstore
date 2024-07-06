@@ -10,7 +10,6 @@ project(
 		'b_sanitize=address,undefined',
 		'b_lto=true',
 		'b_thinlto_cache=true',
-
 	],
 )
 
@@ -20,7 +19,6 @@ add_project_arguments('-Wno-unused-parameter', language: 'cpp')
 if get_option('buildtype') == 'debug'
 	add_project_arguments('-fno-inline', language: 'cpp')
 	add_project_arguments('-DLOGLV=1', language: 'cpp')
-
 	# add sanitizers for debug builds
 	# add_project_arguments(
 	# 	'-fsanitize=address,undefined,nullability,implicit-conversion',
@@ -34,14 +32,12 @@ if get_option('buildtype') == 'debug'
 endif
 
 zstore_deps = [
-	# szd_proj.dependency('szd_extended'),
 	dependency('uuid'),
 	dependency('numa'),
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('xnvme'),
 ]
-
 libs = declare_dependency(
 	link_args: [
 		meson.current_source_dir() + '/lib/libcivetweb.a',
@@ -62,27 +58,17 @@ executable(
 	dependencies: [zstore_deps, libs],
 	include_directories: incdir,
 )
-executable(
-	'simple',
-	simple_src,
-	dependencies: [zstore_deps, libs],
-	include_directories: incdir,
-)
-executable(
-	'multi',
-	multi_src,
-	dependencies: [zstore_deps, libs],
-	include_directories: incdir,
-)
+executable('simple', simple_src, dependencies: [zstore_deps])
+executable('multi', multi_src, dependencies: [zstore_deps])
 executable(
 	'zstore',
 	zstore_src,
 	dependencies: [zstore_deps, libs],
 	include_directories: incdir,
 )
+# FIXME: This is currently broken
 executable(
 	'rw_test',
 	rw_src,
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	include_directories: incdir,
 )

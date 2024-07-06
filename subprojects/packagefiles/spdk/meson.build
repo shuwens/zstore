@@ -1,7 +1,6 @@
 # copied from xnvme's spdk subproject configuration and cleaned up a bit
 
-project('spdk', 'c', version: '24.01')
-
+project('spdk', 'c', version: '23.09')
 if host_machine.system() != 'linux'
   error('Unsupported system type "@0@"'.format(exec_env))
 endif
@@ -39,17 +38,17 @@ custom_libnames = [
   'spdk_event_bdev',
   'spdk_bdev',
   'spdk_notify',
-  # 'spdk_bdev_malloc',
-  # 'spdk_bdev_null',
-  # 'spdk_bdev_nvme',
-  # 'spdk_bdev_passthru',
-  # 'spdk_bdev_lvol',
-  # 'spdk_bdev_raid',
-  # 'spdk_bdev_error',
-  # 'spdk_bdev_gpt',
-  # 'spdk_bdev_split',
-  # 'spdk_bdev_delay',
-  # 'spdk_bdev_zone_block',
+  'spdk_bdev_malloc',
+  'spdk_bdev_null',
+  'spdk_bdev_nvme',
+  'spdk_bdev_passthru',
+  'spdk_bdev_lvol',
+  'spdk_bdev_raid',
+  'spdk_bdev_error',
+  'spdk_bdev_gpt',
+  'spdk_bdev_split',
+  'spdk_bdev_delay',
+  'spdk_bdev_zone_block',
   'spdk_blobfs_bdev',
   'spdk_blobfs',
   'spdk_blob_bdev',
@@ -57,7 +56,7 @@ custom_libnames = [
   'spdk_blob',
   'spdk_nvme',
   'spdk_nvmf',
-  # 'spdk_bdev_aio',
+  'spdk_bdev_aio',
   'spdk_bdev_ftl',
   'spdk_ftl',
   'spdk_bdev_virtio',
@@ -66,7 +65,7 @@ custom_libnames = [
   'spdk_event_accel',
   'spdk_accel',
   'spdk_dma',
-  'spdk_accel_error',
+  # 'spdk_accel_error',
   'spdk_accel_ioat',
   'spdk_ioat',
   'spdk_event_vmd',
@@ -101,9 +100,27 @@ custom_libnames = [
   'rte_dmadev',
   'rte_cryptodev',
   'rte_hash',
-  'rte_log',
   'isal',
   'isal_crypto',
+  # zns
+  # 'spdk_accel_modules',
+  'spdk_conf',
+  'spdk_lvol',
+  # 'spdk_dpdklibs',
+  'spdk_nbd',
+  'spdk_bdev_gpt',
+  'spdk_event_iscsi',
+  'spdk_event_nbd',
+  'spdk_scsi',
+  # 'spdk_bdev_modules',
+  # 'spdk_sock_modules',
+  'spdk_event_nvmf',
+  'spdk_bdev_nvme',
+  'spdk_event',
+  'spdk_event_scsi',
+  # 'spdk_syslibs',
+  'spdk_vhost',
+  'spdk_iscsi',
 ]
 
 spdk_deps = [

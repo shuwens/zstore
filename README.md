@@ -11,3 +11,6 @@ remote is server `gundyr` and gateway is `pjdrz`.
 
 ## Store on NVME
 https://news.ycombinator.com/item?id=37897921
+
+## TODO:
+- [ ] fix compile spdk demo with meson
