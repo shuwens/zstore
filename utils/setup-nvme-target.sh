@@ -26,8 +26,9 @@ sleep 3
 
 ctrl_nqn="nqn.2024-04.io.zstore:cnode1"
 
-pci1=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | head -1)
+# pci1=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | head -1)
 pci2=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | tail -1)
+pci1=05:00.0
 
 scripts/rpc.py bdev_nvme_attach_controller -b nvme0 -t PCIe -a $pci1
 scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
@@ -38,6 +39,6 @@ sleep 1
 
 scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
-scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 10.0.0.2 -s 23789
+scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.121 -s 4420
 
 wait

@@ -4,8 +4,8 @@
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
-#include "include/zns_device.h"
 #include "include/utils.hpp"
+#include "include/zns_device.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
@@ -19,18 +19,33 @@ void memset64(void *dest, u64 val, usize bytes)
 
 int main(int argc, char **argv)
 {
-    if (argc < 3) {
-        log_info("Usage: ./zstore <zone_num> <qd>");
+
+    if (argc < 4) {
+        log_info("Usage: ./zstore <node> <zone_num> <qd>");
         return 1;
     }
 
     u64 zone_dist = 0x80000;
-    u64 zone_num = std::stoull(argv[1]);
-    u16 qd = std::stoull(argv[2]);
+    u64 zone_num = std::stoull(argv[2]);
+    u16 qd = std::stoull(argv[3]);
+    u16 node = std::stoull(argv[1]);
 
-    auto host = "10.0.0.2:23789";
-    auto dev1 = ZNSDevice(host, 1);
-    auto dev2 = ZNSDevice(host, 2);
+    std::string host1;
+    std::string host2;
+    if (node == 1) {
+        host1 = "192.168.1.121:4420";
+        host2 = "192.168.1.121:5520";
+    } else if (node == 2) {
+        host1 = "192.168.1.121:6620";
+        host2 = "192.168.1.121:7720";
+    } else if (node == 4) {
+        host1 = "192.168.1.121:8820";
+        host2 = "192.168.1.121:9920";
+    } else
+        return 1;
+
+    auto dev1 = ZNSDevice(host1, 1);
+    auto dev2 = ZNSDevice(host2, 2);
 
     u64 zslba = zone_num * zone_dist;
 
@@ -49,8 +64,8 @@ int main(int argc, char **argv)
     // fill bufs with repeated numbers corresponding to lba
     u64 data_off = 0xdeadbeef;
     for (u64 i = 0; i < zcap; i++) {
-        memset64((char *)buf1.buf + 4096 * i, i + data_off, 4096);
-        memset64((char *)buf2.buf + 4096 * i, i + data_off, 4096);
+        memset64((char *)buf1.buf + 4096 * i, i + data_off + qd, 4096);
+        memset64((char *)buf2.buf + 4096 * i, i + data_off + qd, 4096);
     }
 
     // append one block at a time for max re-ordering chance

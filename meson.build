@@ -67,8 +67,8 @@ executable(
 	include_directories: incdir,
 )
 # FIXME: This is currently broken
-executable(
-	'rw_test',
-	rw_src,
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-)
+# executable(
+# 	'rw_test',
+# 	rw_src,
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# )

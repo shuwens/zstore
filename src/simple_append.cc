@@ -4,8 +4,8 @@
 #include <libxnvme.h>
 #include <libxnvme_znd.h>
 
-#include "include/zns_device.h"
 #include "include/utils.hpp"
+#include "include/zns_device.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     u64 zone_num = std::stoull(argv[1]);
     u16 qd = std::stoull(argv[2]);
 
-    auto host = "10.0.0.2:23789";
+    auto host = "192.168.1.121:4420";
     auto dev1 = ZNSDevice(host, 1);
     auto dev2 = ZNSDevice(host, 2);
 
