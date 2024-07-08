@@ -3,14 +3,12 @@
 # TODO: rdma
 debug() {
   echo '===Building SPDK in debug mode...'
-  ./configure --enable-debug --without-fuse --without-nvme-cuse \
-		--with-shared --without-xnvme
+  ./configure --enable-debug --with-shared 
 }
 
 release() {
   echo '===Building SPDK in release mode...'
-  ./configure --without-fuse --without-nvme-cuse \
-		--with-shared --without-xnvme
+  ./configure --with-shared 
 }
 
 if [ $# -lt 1 ]; then

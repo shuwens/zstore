@@ -69,8 +69,5 @@ spdk_blobfs_bdev       spdk_json           spdk_vmd	\
 spdk_thread
 SPDK_LIB := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags  --libs  $(ALL_SPDK_LIBS))
 
-
-
-rw_test: src/rw_test.cc
-	$(CC) src/rw_test.cc -pthread -g  -o rw_test  -Wl,--no-as-needed  $(SPDK_LIB)  -Wl,--as-needed
-
+rw_test: src/zns_bdev_test.cc
+	$(CC) src/zns_bdev_test.cc -pthread -g  -o rw_test  -Wl,--no-as-needed  $(SPDK_LIB)  -Wl,--as-needed
