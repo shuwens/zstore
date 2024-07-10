@@ -145,7 +145,7 @@ foreach libname : custom_libnames
       csd / 'isa-l' / '.libs',
       csd / 'isa-l-crypto' / '.libs',
     ],
-    static: true,
+    # static: true,
   )
 
   # Create a bunch of paths

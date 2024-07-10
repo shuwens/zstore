@@ -77,6 +77,7 @@ rw_src = files('src/zns_bdev_test.cc')
 executable(
 	'rw_test',
 	rw_src,
-	build_rpath: '/home/shwsun/dev/zstore/subprojects/spdk/dpdk/build/lib:/home/shwsun/dev/zstore/subprojects/spdk/build/lib',
+	# build_rpath: '/home/shwsun/dev/zstore/subprojects/spdk/dpdk/build/lib:/home/shwsun/dev/zstore/subprojects/spdk/build/lib',
+	# install_rpath: '/home/shwsun/dev/zstore/subprojects/spdk/dpdk/build/lib:/home/shwsun/dev/zstore/subprojects/spdk/build/lib',
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 )
