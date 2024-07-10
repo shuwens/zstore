@@ -3,11 +3,11 @@ project(
 	'cpp',
 	version: '0.1',
 	default_options: [
-		# 'cpp_std=c++20',
-		'cpp_std=c++23',
+		'cpp_std=c++20',
+		# 'cpp_std=c++23',
 		'warning_level=2',
 		'b_colorout=always',
-		'b_sanitize=address,undefined',
+		# 'b_sanitize=address,undefined',
 		'b_lto=true',
 		'b_thinlto_cache=true',
 	],
@@ -47,28 +47,28 @@ incdir = include_directories('civetweb-1.16/include')
 
 zstore_src = files('src/main.cc')
 kvstore_src = files('src/kvstore.cc')
-
 simple_src = files('src/simple_append.cc')
 multi_src = files('src/multi_append.cc')
-rw_src = files('src/rw_test.cc')
+rw_src = files('src/zns_bdev_test.cc')
 
-executable(
-	'kvstore',
-	kvstore_src,
-	dependencies: [zstore_deps, libs],
-	include_directories: incdir,
-)
-executable('simple', simple_src, dependencies: [zstore_deps])
-executable('multi', multi_src, dependencies: [zstore_deps])
-executable(
-	'zstore',
-	zstore_src,
-	dependencies: [zstore_deps, libs],
-	include_directories: incdir,
-)
-# FIXME: This is currently broken
 # executable(
-# 	'rw_test',
-# 	rw_src,
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	'kvstore',
+# 	kvstore_src,
+# 	dependencies: [zstore_deps, libs],
+# 	include_directories: incdir,
 # )
+# executable('simple', simple_src, dependencies: [zstore_deps])
+# executable('multi', multi_src, dependencies: [zstore_deps])
+# executable(
+# 	'zstore',
+# 	zstore_src,
+# 	dependencies: [zstore_deps, libs],
+# 	include_directories: incdir,
+# )
+
+# FIXME: This is currently broken
+executable(
+	'rw_test',
+	rw_src,
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+)

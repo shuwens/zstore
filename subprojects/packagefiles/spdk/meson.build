@@ -164,8 +164,7 @@ endforeach
 
 spdk_inc = get_option('build_subprojects') ? include_directories('dpdk' / 'build' / 'include', 'build' / 'include') : include_directories('.')
 # https://spdk.io/doc/pkgconfig.html
-spdk_link_args = ['-Wl,--whole-archive'] + spdk_paths + ['-Wl,--no-whole-archive']
-# spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
+spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
 # Construct link_args based on the above
 spdk_dep = declare_dependency(
