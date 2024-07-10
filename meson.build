@@ -66,9 +66,17 @@ rw_src = files('src/zns_bdev_test.cc')
 # 	include_directories: incdir,
 # )
 
+# local_env = environment()
+#
+# test_env = environment()
+# test_env.append('LD_LIBRARY_PATH',
+#     meson.project_build_root() / 'subprojects' / 'spdk'/'dpdk'/'build'/'lib',
+#     meson.project_build_root() / 'subprojects' / 'spdk'/'build'/'lib')
+
 # FIXME: This is currently broken
 executable(
 	'rw_test',
 	rw_src,
+	build_rpath: '/home/shwsun/dev/zstore/subprojects/spdk/dpdk/build/lib:/home/shwsun/dev/zstore/subprojects/spdk/build/lib',
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 )

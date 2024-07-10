@@ -11,3 +11,4 @@ subprojects/spdk*
 subprojects/xnvme
 rw_test
 builddir/
+builddir
