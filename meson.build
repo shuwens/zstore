@@ -3,11 +3,11 @@ project(
 	'cpp',
 	version: '0.1',
 	default_options: [
-		# 'cpp_std=c++20',
-		'cpp_std=c++23',
+		'cpp_std=c++20',
+		# 'cpp_std=c++23',
 		'warning_level=2',
 		'b_colorout=always',
-		'b_sanitize=address,undefined',
+		# 'b_sanitize=address,undefined',
 		'b_lto=true',
 		'b_thinlto_cache=true',
 	],
@@ -49,38 +49,9 @@ kvstore_src = files('src/kvstore.cc')
 
 simple_src = files('src/simple_append.cc')
 multi_src = files('src/multi_append.cc')
-rw_src = files('src/zns_bdev_test.cc')
-
-# executable(
-# 	'kvstore',
-# 	kvstore_src,
-# 	dependencies: [zstore_deps, libs],
-# 	include_directories: incdir,
-# )
-# executable('simple', simple_src, dependencies: [zstore_deps])
-# executable('multi', multi_src, dependencies: [zstore_deps])
-# executable(
-# 	'zstore',
-# 	zstore_src,
-# 	dependencies: [zstore_deps, libs],
-# 	include_directories: incdir,
-# )
-
-devenv = environment()
-# builddir = meson.project_build_root()
-# srcdir = meson.project_source_root()
-devenv.set('LD_LIBRARY_PATH', meson.current_source_dir())
-devenv.append(
-	'LD_LIBRARY_PATH',
-	meson.current_source_dir() / 'subprojects' / 'spdk' / 'dpdk' / 'build' / 'lib',
-)
-devenv.append(
-	'LD_LIBRARY_PATH',
-	meson.current_source_dir() / 'subprojects' / 'spdk' / 'build' / 'lib',
-)
-meson.add_devenv(devenv)
 
 # FIXME: This is currently broken
+rw_src = files('src/zns_bdev_test.cc')
 executable(
 	'rw_test',
 	rw_src,

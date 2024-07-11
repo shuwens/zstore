@@ -10,5 +10,8 @@ lib/
 subprojects/spdk*
 subprojects/xnvme
 rw_test
+bdev_test
+nvme_test
 builddir/
 builddir
+zstore

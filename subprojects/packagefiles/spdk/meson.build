@@ -1,6 +1,6 @@
 # copied from xnvme's spdk subproject configuration and cleaned up a bit
 
-project('spdk', 'c', version: '23.09')
+project('spdk', 'c', version: '23.05')
 if host_machine.system() != 'linux'
   error('Unsupported system type "@0@"'.format(exec_env))
 endif
@@ -162,17 +162,16 @@ foreach libname : custom_libnames
   endforeach
 endforeach
 
-devenv = environment()
-builddir = meson.project_build_root()
-srcdir = meson.project_source_root()
-devenv.set('LD_LIBRARY_PATH', meson.current_source_dir())
-devenv.append('LD_LIBRARY_PATH', meson.current_source_dir() / 'dpdk' / 'build' / 'lib')
-devenv.append('LD_LIBRARY_PATH', meson.current_source_dir() / 'build' / 'lib')
-meson.add_devenv(devenv)
+# devenv = environment()
+# builddir = meson.project_build_root()
+# srcdir = meson.project_source_root()
+# devenv.set('LD_LIBRARY_PATH', meson.current_source_dir())
+# devenv.append('LD_LIBRARY_PATH', meson.current_source_dir() / 'dpdk' / 'build' / 'lib')
+# devenv.append('LD_LIBRARY_PATH', meson.current_source_dir() / 'build' / 'lib')
+# meson.add_devenv(devenv)
 
 spdk_inc = get_option('build_subprojects') ? include_directories('dpdk' / 'build' / 'include', 'build' / 'include') : include_directories('.')
 # https://spdk.io/doc/pkgconfig.html
-# spdk_link_args = ['-Wl,--whole-archive'] + spdk_paths + ['-Wl,--no-whole-archive']
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
 # Construct link_args based on the above

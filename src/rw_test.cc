@@ -15,7 +15,7 @@
 
 #include <atomic>
 
-static const char *g_bdev_name = "Nvme1n2";
+static const char *g_bdev_name = "Nvme0n1";
 
 struct rwtest_context_t {
     struct spdk_bdev *bdev;

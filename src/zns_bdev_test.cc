@@ -1,9 +1,4 @@
-// rw_test.cc
-/*   SPDX-License-Identifier: BSD-3-Clause
- *   Copyright (C) 2018 Intel Corporation.
- *   All rights reserved.
- */
-
+#include "include/utils.hpp"
 #include "spdk/bdev.h"
 #include "spdk/bdev_zone.h"
 #include "spdk/env.h"
@@ -27,7 +22,7 @@ struct rwtest_context_t {
     char *bdev_name;
     struct spdk_bdev_io_wait_entry bdev_io_wait;
 
-    std::atomic<int> count; // 原子变量，避免并发修改冲突
+    std::atomic<int> count; // atomic count for currency
 };
 
 static void read_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
@@ -44,7 +39,7 @@ static void read_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
         spdk_app_stop(-1);
         return;
     }
-    // 比对读缓冲区与写缓冲区内容
+    // compare read and write
     int cmp_res = memcmp(test_context->write_buff, test_context->read_buff,
                          test_context->buff_size);
     if (cmp_res != 0) {
@@ -55,7 +50,7 @@ static void read_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
         return;
     }
     test_context->count.fetch_add(1);
-    if (test_context->count.load() == 4 * 0x100) { // 读取测试完成，结束测试
+    if (test_context->count.load() == 4 * 0x100) {
         SPDK_NOTICELOG("read zone complete.\n");
         spdk_put_io_channel(test_context->bdev_io_channel);
         spdk_bdev_close(test_context->bdev_desc);
@@ -64,10 +59,9 @@ static void read_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
     }
 
     memset(test_context->read_buff, 0x34, test_context->buff_size);
-    // 循环读取，直至读到最后一个测试LBA
     uint64_t lba = test_context->count.load() / 0x100 *
                        spdk_bdev_get_zone_size(test_context->bdev) +
-                   test_context->count.load() % 0x100; // 计算对应的LBA
+                   test_context->count.load() % 0x100;
 
     int rc = spdk_bdev_read_blocks(
         test_context->bdev_desc, test_context->bdev_io_channel,
@@ -89,8 +83,7 @@ static void read_zone(void *arg)
     struct rwtest_context_t *test_context =
         static_cast<struct rwtest_context_t *>(arg);
     test_context->count = 0;
-    memset(test_context->read_buff, 0x34,
-           test_context->buff_size); // 读取前缓冲区内容为0x34
+    memset(test_context->read_buff, 0x34, test_context->buff_size);
     rc = spdk_bdev_read_blocks(
         test_context->bdev_desc, test_context->bdev_io_channel,
         test_context->read_buff, 0, 1, read_zone_complete, test_context);
@@ -118,8 +111,8 @@ static void write_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
 {
     struct rwtest_context_t *test_context =
         static_cast<struct rwtest_context_t *>(cb_arg);
-    SPDK_NOTICELOG("append lba:0x%lx\n", spdk_bdev_io_get_append_location(
-                                             bdev_io)); // 打印成功append位置
+    SPDK_NOTICELOG("append lba:0x%lx\n",
+                   spdk_bdev_io_get_append_location(bdev_io));
     spdk_bdev_free_io(bdev_io);
 
     if (!success) {
@@ -130,7 +123,7 @@ static void write_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
         return;
     }
     test_context->count.fetch_sub(1);
-    if (test_context->count.load() == 0) { // zone写入完成，开始读取数据验证
+    if (test_context->count.load() == 0) {
         SPDK_NOTICELOG("write zone complete.\n");
         read_zone(test_context);
     }
@@ -141,7 +134,6 @@ static void write_zone(void *arg)
     struct rwtest_context_t *test_context =
         static_cast<struct rwtest_context_t *>(arg);
     uint64_t zone_size = spdk_bdev_get_zone_size(test_context->bdev);
-    // 往4个zone的前0x100个block李写入0x12
     int zone_num = 4;
     int append_times = 0x100;
     test_context->count = zone_num * append_times;
@@ -177,7 +169,7 @@ static void reset_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
         return;
     }
     test_context->count.fetch_sub(1);
-    if (test_context->count.load() == 0) { // zone重置完成，开始写入数据
+    if (test_context->count.load() == 0) {
         SPDK_NOTICELOG("reset zone complete.\n");
         write_zone(test_context);
     }
@@ -188,7 +180,6 @@ static void reset_zone(void *arg)
     struct rwtest_context_t *test_context =
         static_cast<struct rwtest_context_t *>(arg);
     int rc = 0;
-    // 重置前10个zone
     int zone_num = 10;
     test_context->count = zone_num;
     uint64_t zone_size = spdk_bdev_get_zone_size(test_context->bdev);
@@ -254,6 +245,8 @@ static void test_start(void *arg1)
     test_context->buff_size = spdk_bdev_get_block_size(test_context->bdev) *
                               spdk_bdev_get_write_unit_size(test_context->bdev);
     buf_align = spdk_bdev_get_buf_align(test_context->bdev);
+    // log_info("buffer size: %d", test_context->buff_size);
+    // log_info("buffer align: %lu", buf_align);
     test_context->write_buff = static_cast<char *>(
         spdk_dma_zmalloc(test_context->buff_size, buf_align, NULL));
     if (!test_context->write_buff) {
@@ -280,7 +273,6 @@ static void test_start(void *arg1)
         spdk_app_stop(-1);
         return;
     }
-    // 打印ZNS SSD一些信息
     SPDK_NOTICELOG("block size:%d write unit:%d zone size:%lx zone num:%ld max "
                    "append size:%d max open zone:%d max active "
                    "zone:%d\n",
