@@ -73,6 +73,8 @@ rw_src = files('src/zns_bdev_test.cc')
 #     meson.project_build_root() / 'subprojects' / 'spdk'/'dpdk'/'build'/'lib',
 #     meson.project_build_root() / 'subprojects' / 'spdk'/'build'/'lib')
 
+run_command('sh', '-c', 'LD_LIBRARY_PATH=/home/shwsun/dev/zstore/subprojects/spdk/dpdk/build/lib:/home/shwsun/dev/zstore/subprojects/spdk/build/lib')
+
 # FIXME: This is currently broken
 executable(
 	'rw_test',

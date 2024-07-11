@@ -162,6 +162,14 @@ foreach libname : custom_libnames
   endforeach
 endforeach
 
+devenv = environment()
+builddir = meson.project_build_root()
+srcdir = meson.project_source_root()
+devenv.set('LD_LIBRARY_PATH', meson.current_source_dir())
+devenv.append('LD_LIBRARY_PATH', meson.current_source_dir() / 'dpdk' / 'build' / 'lib')
+devenv.append('LD_LIBRARY_PATH', meson.current_source_dir() / 'build' / 'lib')
+meson.add_devenv(devenv)
+
 spdk_inc = get_option('build_subprojects') ? include_directories('dpdk' / 'build' / 'include', 'build' / 'include') : include_directories('.')
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
