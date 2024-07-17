@@ -10,10 +10,10 @@
 #include "utils.hpp"
 #include "zstore.h"
 #include <atomic>
-#include <spdk/env.h>
-#include <spdk/nvme.h>
-#include <spdk/nvme_tcp.h>
-#include <spdk/nvme_zns.h>
+// #include <spdk/env.h>
+// #include <spdk/nvme.h>
+// #include <spdk/nvme_tcp.h>
+// #include <spdk/nvme_zns.h>
 
 static const char *g_bdev_name = "Nvme1n2";
 
