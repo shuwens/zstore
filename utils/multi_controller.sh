@@ -61,7 +61,8 @@ if [[ $3 == "target" ]]; then
     # TODO: FC transport support?
 
     # Configuring the SPDK NVMe over Fabrics Target
-    ./build/bin/nvmf_tgt -m '[0,1,2,3]' &
+    # ./build/bin/nvmf_tgt -m '[0,1,2,3]' &
+    ./build/bin/nvmf_tgt -m '[1,2,3,4]' &
     # ./build/bin/nvmf_tgt -m 0x3 &
 
     sleep 3

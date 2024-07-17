@@ -1,3 +1,4 @@
+#include "include/utils.hpp"
 #include "spdk/endian.h"
 #include "spdk/env.h"
 #include "spdk/event.h"
@@ -15,13 +16,11 @@
 #include "spdk/uuid.h"
 #include "spdk/vmd.h"
 #include <atomic>
-// #include <spdk/env.h>
-// #include <spdk/nvme.h>
-#include "spdk/nvme_tcp.h"
 
 static const char *g_bdev_name = "Nvme1n2";
 
-struct ZstoreContext {
+// struct ZstoreContext {
+struct rwtest_context_t {
     struct spdk_nvme_ctrlr *ctrlr = nullptr;
     struct spdk_nvme_ns *ns = nullptr;
     struct spdk_nvme_qpair *qpair = nullptr;
@@ -179,41 +178,43 @@ static void reset_zone(void *arg)
     }
 }
 
-// static auto probe_cb =
-//     [](void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-//        struct spdk_nvme_ctrlr_opts *opts) -> bool { return true; };
-//
-// static auto attach_cb = [](void *arg, const struct spdk_nvme_transport_id
-// *trid,
-//                            struct spdk_nvme_ctrlr *ctrlr,
-//                            const struct spdk_nvme_ctrlr_opts *opts) -> void {
-//     struct rwtest_context_t *test_context =
-//         static_cast<struct rwtest_context_t *>(arg);
-//
-//     if ((strcmp(trid->traddr, "0000:05:00.0") == 0 ||
-//          strcmp(trid->traddr, "0000:06:00.0") == 0) &&
-//         test_context->ctrlr == nullptr) {
-//         test_context->ctrlr = ctrlr;
-//     }
-//     return;
-// };
-
 static void test_start(void *arg1)
 {
+    log_info("test start");
     struct rwtest_context_t *test_context =
         static_cast<struct rwtest_context_t *>(arg1);
     uint32_t buf_align;
     int rc = 0;
 
+    struct spdk_nvme_transport_id trid = {};
+    int nsid = 0;
+
+    snprintf(trid.traddr, sizeof(trid.traddr), "%s", "192.168.1.121");
+    snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", "4420");
+    snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", SPDK_NVMF_DISCOVERY_NQN);
+    trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid.trtype = SPDK_NVME_TRANSPORT_TCP;
+    log_info("nvme connect");
+    test_context->ctrlr = spdk_nvme_connect(&trid, NULL, 0);
+    if (test_context->ctrlr == NULL) {
+        fprintf(stderr,
+                "spdk_nvme_connect() failed for transport address '%s'\n",
+                trid.traddr);
+        spdk_app_stop(-1);
+        // pthread_kill(g_fuzz_td, SIGSEGV);
+        // return NULL;
+        // return rc;
+    }
+
     SPDK_NOTICELOG("Successfully started the application\n");
     SPDK_NOTICELOG("Initializing NVMe controller\n");
-    const char *traddr = "0000:05:00.0";
-    rc = spdk_nvme_probe(traddr, test_context, probe_cb, attach_cb, NULL);
-    if (rc) {
-        SPDK_ERRLOG("Could not initialize NVMe controller\n");
-        spdk_app_stop(-1);
-        return;
-    }
+    // const char *traddr = "0000:05:00.0";
+    // rc = spdk_nvme_probe(traddr, test_context, probe_cb, attach_cb, NULL);
+    // if (rc) {
+    //     SPDK_ERRLOG("Could not initialize NVMe controller\n");
+    //     spdk_app_stop(-1);
+    //     return;
+    // }
 
     // test_context->ctrlr = spdk_nvme_ctrlr_get_first();
     // if (test_context->ctrlr == NULL) {
@@ -222,151 +223,121 @@ static void test_start(void *arg1)
     //     return;
     // }
 
-    test_context->ns = spdk_nvme_ctrlr_get_ns(test_context->ctrlr, 1);
-    if (test_context->ns == NULL) {
-        SPDK_ERRLOG("Could not get NVMe namespace\n");
-        spdk_app_stop(-1);
-        return;
-    }
+    //     test_context->ns = spdk_nvme_ctrlr_get_ns(test_context->ctrlr, 1);
+    //     if (test_context->ns == NULL) {
+    //         SPDK_ERRLOG("Could not get NVMe namespace\n");
+    //         spdk_app_stop(-1);
+    //         return;
+    //     }
 
-    test_context->qpair =
-        spdk_nvme_ctrlr_alloc_io_qpair(test_context->ctrlr, NULL, 0);
-    if (test_context->qpair == NULL) {
-        SPDK_ERRLOG("Could not allocate IO queue pair\n");
-        spdk_app_stop(-1);
-        return;
-    }
+    //     test_context->qpair =
+    //         spdk_nvme_ctrlr_alloc_io_qpair(test_context->ctrlr, NULL, 0);
+    //     if (test_context->qpair == NULL) {
+    //         SPDK_ERRLOG("Could not allocate IO queue pair\n");
+    //         spdk_app_stop(-1);
+    //         return;
+    //     }
 
-    test_context->buff_size = spdk_nvme_ns_get_sector_size(test_context->ns) *
-                              spdk_nvme_ns_get_md_size(test_context->ns);
-    buf_align = spdk_nvme_ns_get_optimal_io_boundary(test_context->ns);
+    //     test_context->buff_size =
+    //     spdk_nvme_ns_get_sector_size(test_context->ns) *
+    //                               spdk_nvme_ns_get_md_size(test_context->ns);
+    //     buf_align = spdk_nvme_ns_get_optimal_io_boundary(test_context->ns);
 
-    // test_context->write_buff = static_cast<char *>(
-    //     spdk_dma_zmalloc(test_context->buff_size, buf_align, NULL));
-    test_context->write_buff = static_cast<char *>(
-        spdk_zmalloc(test_context->buff_size, buf_align, NULL,
-                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA));
+    //     // test_context->write_buff = static_cast<char *>(
+    //     //     spdk_dma_zmalloc(test_context->buff_size, buf_align, NULL));
+    //     test_context->write_buff = static_cast<char *>(
+    //         spdk_zmalloc(test_context->buff_size, buf_align, NULL,
+    //                      SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA));
 
-    if (!test_context->write_buff) {
-        SPDK_ERRLOG("Failed to allocate buffer\n");
-        spdk_nvme_ctrlr_free_io_qpair(test_context->qpair);
-        spdk_app_stop(-1);
-        return;
-    }
-    test_context->read_buff = static_cast<char *>(
-        spdk_zmalloc(test_context->buff_size, buf_align, NULL,
-                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA));
-    if (!test_context->read_buff) {
-        SPDK_ERRLOG("Failed to allocate buffer\n");
-        spdk_nvme_ctrlr_free_io_qpair(test_context->qpair);
-        spdk_app_stop(-1);
-        return;
-    }
+    //     if (!test_context->write_buff) {
+    //         SPDK_ERRLOG("Failed to allocate buffer\n");
+    //         spdk_nvme_ctrlr_free_io_qpair(test_context->qpair);
+    //         spdk_app_stop(-1);
+    //         return;
+    //     }
+    //     test_context->read_buff = static_cast<char *>(
+    //         spdk_zmalloc(test_context->buff_size, buf_align, NULL,
+    //                      SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA));
+    //     if (!test_context->read_buff) {
+    //         SPDK_ERRLOG("Failed to allocate buffer\n");
+    //         spdk_nvme_ctrlr_free_io_qpair(test_context->qpair);
+    //         spdk_app_stop(-1);
+    //         return;
+    //     }
 
-    SPDK_NOTICELOG(
-        "block size: %d, md size: %d, zone size: %lx, max open zone: %d, max "
-        "active zone: %d\n",
-        spdk_nvme_ns_get_sector_size(test_context->ns),
-        spdk_nvme_ns_get_md_size(test_context->ns),
-        spdk_nvme_ns_get_num_sectors(test_context->ns),
-        spdk_nvme_zns_ns_get_max_open_zones(test_context->ns),
-        spdk_nvme_zns_ns_get_max_active_zones(test_context->ns));
+    //     SPDK_NOTICELOG(
+    //         "block size: %d, md size: %d, zone size: %lx, max open zone: %d,
+    //         max " "active zone: %d\n",
+    //         spdk_nvme_ns_get_sector_size(test_context->ns),
+    //         spdk_nvme_ns_get_md_size(test_context->ns),
+    //         spdk_nvme_ns_get_num_sectors(test_context->ns),
+    //         spdk_nvme_zns_ns_get_max_open_zones(test_context->ns),
+    //         spdk_nvme_zns_ns_get_max_active_zones(test_context->ns));
 
-    reset_zone(test_context);
-}
-
-static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                     struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Probing device at %s\n", trid->traddr);
-    return true; // Return true to continue probing
-}
-
-static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                      struct spdk_nvme_ctrlr *ctrlr,
-                      const struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Attached to device at %s\n", trid->traddr);
-    // You can save the controller handle for future use
-    *(struct spdk_nvme_ctrlr **)cb_ctx = ctrlr;
+    //     reset_zone(test_context);
 }
 
 int main(int argc, char **argv)
 {
+    struct spdk_app_opts opts = {};
     int rc = 0;
-    struct ZstoreContect ctx = {};
+    // struct ZstoreContect ctx = {};
+    struct rwtest_context_t test_context = {};
 
-    struct spdk_nvme_transport_id trid = {};
-    spdk_nvme_transport_id_parse(
-        &trid, "trtype:TCP adrfam:IPv4 traddr:<target_ip> trsvcid:<port>");
+    spdk_app_opts_init(&opts, sizeof(opts));
+    opts.name = "test_nvme";
 
-    struct spdk_env_opts opts;
-
-    spdk_env_opts_init(&opts);
-    spdk_env_init(&opts);
-
-    // Probe and attach to the NVMe over TCP target
-    if (spdk_nvme_probe(&trid, &ctx->ctrlr, probe_cb, attach_cb, NULL)) {
-        fprintf(stderr, "spdk_nvme_probe() failed\n");
-        spdk_env_fini();
-        return 1;
+    if ((rc = spdk_app_parse_args(argc, argv, &opts, NULL, NULL, NULL, NULL)) !=
+        SPDK_APP_PARSE_ARGS_SUCCESS) {
+        exit(rc);
+    }
+    // test_context.bdev_name = const_cast<char *>(g_bdev_name);
+    log_info("HERE");
+    rc = spdk_app_start(&opts, test_start, &test_context);
+    if (rc) {
+        SPDK_ERRLOG("ERROR starting application\n");
     }
 
-    // Check if the controller is attached
-    if (ctx->ctrlr == NULL) {
-        fprintf(stderr, "No NVMe controller found\n");
-        spdk_env_fini();
-        return 1;
-    }
+    spdk_dma_free(test_context.write_buff);
+    spdk_dma_free(test_context.read_buff);
 
-    // Get the first active namespace
-    ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
-    if (ctx->ns == NULL || !spdk_nvme_ns_is_active(ctx->ns)) {
-        fprintf(stderr, "No active namespace found\n");
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_env_fini();
-        return 1;
-    }
+    spdk_app_fini();
 
-    // Allocate an I/O queue pair
-    ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, NULL, 0);
-    if (ctx->qpair == NULL) {
-        fprintf(stderr, "Failed to allocate I/O queue pair\n");
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_env_fini();
-        return 1;
-    }
+    //     // Example buffer to write
+    //     char write_buffer[4096];
+    //     memset(write_buffer, 0x5A, sizeof(write_buffer)); // Fill buffer
+    //     with data
 
-    // Example buffer to write
-    char write_buffer[4096];
-    memset(write_buffer, 0x5A, sizeof(write_buffer)); // Fill buffer with data
+    //     // Zone append example
+    //     uint64_t zslba = 0; // Starting LBA of the zone (adjust as
+    //     needed) if (spdk_nvme_zns_zone_append(ctx->ns, ctx->qpair,
+    //     write_buffer, zslba,
+    //                                   sizeof(write_buffer) / 512, NULL,
+    //                                   NULL)) {
+    //         fprintf(stderr, "Zone append command failed\n");
+    //         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+    //         spdk_nvme_detach(ctx->ctrlr);
+    //         spdk_env_fini();
+    //         return 1;
+    //     }
 
-    // Zone append example
-    uint64_t zslba = 0; // Starting LBA of the zone (adjust as needed)
-    if (spdk_nvme_zns_zone_append(ctx->ns, ctx->qpair, write_buffer, zslba,
-                                  sizeof(write_buffer) / 512, NULL, NULL)) {
-        fprintf(stderr, "Zone append command failed\n");
-        spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_env_fini();
-        return 1;
-    }
+    //     // Wait for completion (you might want to implement a proper
+    //     completion
+    //     // callback)
+    //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
 
-    // Wait for completion (you might want to implement a proper completion
-    // callback)
-    spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-
-    // Clean up
-    spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-    spdk_nvme_detach(ctx->ctrlr);
-    spdk_env_fini();
+    //     // Clean up
+    //     spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+    //     spdk_nvme_detach(ctx->ctrlr);
+    //     spdk_env_fini();
 
     // if (spdk_nvme_probe(&trid, NULL, probe_cb, attach_cb, NULL)) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
     //     return 1;
     // }
 
-    // if ((rc = spdk_app_parse_args(argc, argv, &opts, NULL, NULL, NULL, NULL))
+    // if ((rc = spdk_app_parse_args(argc, argv, &opts, NULL, NULL, NULL,
+    // NULL))
     // !=
     //     SPDK_APP_PARSE_ARGS_SUCCESS) {
     //     exit(rc);
