@@ -174,7 +174,6 @@ endforeach
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
 kvstore_src = files('src/kvstore.cc')
-
 simple_src = files('src/simple_append.cc')
 multi_src = files('src/multi_append.cc')
 

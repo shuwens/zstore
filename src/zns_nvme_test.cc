@@ -19,6 +19,7 @@
 #include <atomic>
 
 static const char *g_bdev_name = "Nvme1n2";
+static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
 // struct ZstoreContext {
 struct rwtest_context_t {
@@ -183,11 +184,20 @@ static void test_start(void *arg1)
 
     snprintf(trid.traddr, sizeof(trid.traddr), "%s", "192.168.1.121");
     snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", "4420");
-    snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", SPDK_NVMF_DISCOVERY_NQN);
+    // snprintf(trid.subnqn, sizeof(trid.subnqn), "%s",
+    // SPDK_NVMF_DISCOVERY_NQN);
+    snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
     trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
     trid.trtype = SPDK_NVME_TRANSPORT_TCP;
     log_info("nvme connect");
-    ctx->ctrlr = spdk_nvme_connect(&trid, NULL, 0);
+
+    struct spdk_nvme_ctrlr_opts opts;
+
+    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
+    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+    ctx->ctrlr = spdk_nvme_connect(&trid, &opts, sizeof(opts));
+    // ctx->ctrlr = spdk_nvme_connect(&trid, NULL, 0);
+
     if (ctx->ctrlr == NULL) {
         fprintf(stderr,
                 "spdk_nvme_connect() failed for transport address '%s'\n",
@@ -217,7 +227,7 @@ static void test_start(void *arg1)
         print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
     }
 
-    ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 0);
+    ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
     if (ctx->ns == NULL) {
         SPDK_ERRLOG("Could not get NVMe namespace\n");
         spdk_app_stop(-1);
