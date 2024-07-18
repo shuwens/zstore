@@ -31,6 +31,7 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "spdk/nvme_spec.h"
 #include "spdk/stdinc.h"
 
 #include "spdk/endian.h"
@@ -155,20 +156,20 @@ static void hex_dump(const void *data, size_t size)
     }
 }
 
-static void get_feature_completion(void *cb_arg,
-                                   const struct spdk_nvme_cpl *cpl)
-{
-    struct feature *feature = (struct feature *)cb_arg;
-    int fid = feature - features;
-
-    if (spdk_nvme_cpl_is_error(cpl)) {
-        printf("get_feature(0x%02X) failed\n", fid);
-    } else {
-        feature->result = cpl->cdw0;
-        feature->valid = true;
-    }
-    outstanding_commands--;
-}
+// static void get_feature_completion(void *cb_arg,
+//                                    const struct spdk_nvme_cpl *cpl)
+// {
+//     struct feature *feature = cb_arg;
+//     int fid = feature - features;
+//
+//     if (spdk_nvme_cpl_is_error(cpl)) {
+//         printf("get_feature(0x%02X) failed\n", fid);
+//     } else {
+//         feature->result = cpl->cdw0;
+//         feature->valid = true;
+//     }
+//     outstanding_commands--;
+// }
 
 static void get_log_page_completion(void *cb_arg,
                                     const struct spdk_nvme_cpl *cpl)
@@ -208,49 +209,49 @@ static void get_zns_zone_report_completion(void *cb_arg,
     outstanding_commands--;
 }
 
-static int get_feature(struct spdk_nvme_ctrlr *ctrlr, uint8_t fid)
-{
-    struct spdk_nvme_cmd cmd = {};
-    struct feature *feature = &features[fid];
+// static int get_feature(struct spdk_nvme_ctrlr *ctrlr, uint8_t fid)
+// {
+//     struct spdk_nvme_cmd cmd = {};
+//     struct feature *feature = &features[fid];
+//
+//     feature->valid = false;
+//
+//     cmd.opc = SPDK_NVME_OPC_GET_FEATURES;
+//     cmd.cdw10_bits.get_features.fid = fid;
+//
+//     return spdk_nvme_ctrlr_cmd_admin_raw(ctrlr, &cmd, NULL, 0,
+//                                          get_feature_completion, feature);
+// }
 
-    feature->valid = false;
-
-    cmd.opc = SPDK_NVME_OPC_GET_FEATURES;
-    cmd.cdw10_bits.get_features.fid = fid;
-
-    return spdk_nvme_ctrlr_cmd_admin_raw(ctrlr, &cmd, NULL, 0,
-                                         get_feature_completion, feature);
-}
-
-static void get_features(struct spdk_nvme_ctrlr *ctrlr)
-{
-    size_t i;
-
-    uint8_t features_to_get[] = {
-        SPDK_NVME_FEAT_ARBITRATION,           SPDK_NVME_FEAT_POWER_MANAGEMENT,
-        SPDK_NVME_FEAT_TEMPERATURE_THRESHOLD, SPDK_NVME_FEAT_ERROR_RECOVERY,
-        SPDK_NVME_FEAT_NUMBER_OF_QUEUES,      SPDK_OCSSD_FEAT_MEDIA_FEEDBACK,
-    };
-
-    /* Submit several GET FEATURES commands and wait for them to complete */
-    outstanding_commands = 0;
-    for (i = 0; i < SPDK_COUNTOF(features_to_get); i++) {
-        if (!spdk_nvme_ctrlr_is_ocssd_supported(ctrlr) &&
-            features_to_get[i] == SPDK_OCSSD_FEAT_MEDIA_FEEDBACK) {
-            continue;
-        }
-        if (get_feature(ctrlr, features_to_get[i]) == 0) {
-            outstanding_commands++;
-        } else {
-            printf("get_feature(0x%02X) failed to submit command\n",
-                   features_to_get[i]);
-        }
-    }
-
-    while (outstanding_commands) {
-        spdk_nvme_ctrlr_process_admin_completions(ctrlr);
-    }
-}
+// static void get_features(struct spdk_nvme_ctrlr *ctrlr)
+// {
+//     size_t i;
+//
+//     uint8_t features_to_get[] = {
+//         SPDK_NVME_FEAT_ARBITRATION, SPDK_NVME_FEAT_POWER_MANAGEMENT,
+//         SPDK_NVME_FEAT_TEMPERATURE_THRESHOLD, SPDK_NVME_FEAT_ERROR_RECOVERY,
+//         SPDK_NVME_FEAT_NUMBER_OF_QUEUES,      SPDK_OCSSD_FEAT_MEDIA_FEEDBACK,
+//     };
+//
+//     /* Submit several GET FEATURES commands and wait for them to complete */
+//     outstanding_commands = 0;
+//     for (i = 0; i < SPDK_COUNTOF(features_to_get); i++) {
+//         if (!spdk_nvme_ctrlr_is_ocssd_supported(ctrlr) &&
+//             features_to_get[i] == SPDK_OCSSD_FEAT_MEDIA_FEEDBACK) {
+//             continue;
+//         }
+//         if (get_feature(ctrlr, features_to_get[i]) == 0) {
+//             outstanding_commands++;
+//         } else {
+//             printf("get_feature(0x%02X) failed to submit command\n",
+//                    features_to_get[i]);
+//         }
+//     }
+//
+//     while (outstanding_commands) {
+//         spdk_nvme_ctrlr_process_admin_completions(ctrlr);
+//     }
+// }
 
 static int get_error_log_page(struct spdk_nvme_ctrlr *ctrlr)
 {
@@ -358,202 +359,206 @@ static int get_intel_md_log_page(struct spdk_nvme_ctrlr *ctrlr)
     return 0;
 }
 
-static void
-get_discovery_log_page_header_completion(void *cb_arg,
-                                         const struct spdk_nvme_cpl *cpl)
-{
-    struct spdk_nvmf_discovery_log_page *new_discovery_page;
-    struct spdk_nvme_ctrlr *ctrlr = cb_arg;
-    uint16_t recfmt;
-    uint64_t remaining;
-    uint64_t offset;
+// static void
+// get_discovery_log_page_header_completion(void *cb_arg,
+//                                          const struct spdk_nvme_cpl *cpl)
+// {
+//     struct spdk_nvmf_discovery_log_page *new_discovery_page;
+//     struct spdk_nvme_ctrlr *ctrlr = cb_arg;
+//     uint16_t recfmt;
+//     uint64_t remaining;
+//     uint64_t offset;
+//
+//     outstanding_commands--;
+//     if (spdk_nvme_cpl_is_error(cpl)) {
+//         /* Return without printing anything - this may not be a discovery
+//          * controller */
+//         free(g_discovery_page);
+//         g_discovery_page = NULL;
+//         return;
+//     }
+//
+//     /* Got the first 4K of the discovery log page */
+//     recfmt = from_le16(&g_discovery_page->recfmt);
+//     if (recfmt != 0) {
+//         printf("Unrecognized discovery log record format %" PRIu16 "\n",
+//                recfmt);
+//         return;
+//     }
+//
+//     g_discovery_page_numrec = from_le64(&g_discovery_page->numrec);
+//
+//     /* Pick an arbitrary limit to avoid ridiculously large buffer size. */
+//     if (g_discovery_page_numrec > MAX_DISCOVERY_LOG_ENTRIES) {
+//         printf("Discovery log has %" PRIu64 " entries - limiting to %" PRIu64
+//                ".\n",
+//                g_discovery_page_numrec, MAX_DISCOVERY_LOG_ENTRIES);
+//         g_discovery_page_numrec = MAX_DISCOVERY_LOG_ENTRIES;
+//     }
+//
+//     /*
+//      * Now that we now how many entries should be in the log page, we can
+//      * allocate the full log page buffer.
+//      */
+//     g_discovery_page_size += g_discovery_page_numrec *
+//                              sizeof(struct
+//                              spdk_nvmf_discovery_log_page_entry);
+//     new_discovery_page = realloc(g_discovery_page, g_discovery_page_size);
+//     if (new_discovery_page == NULL) {
+//         free(g_discovery_page);
+//         printf("Discovery page allocation failed!\n");
+//         return;
+//     }
+//
+//     g_discovery_page = new_discovery_page;
+//
+//     /* Retrieve the rest of the discovery log page */
+//     offset = offsetof(struct spdk_nvmf_discovery_log_page, entries);
+//     remaining = g_discovery_page_size - offset;
+//     while (remaining) {
+//         uint32_t size;
+//
+//         /* Retrieve up to 4 KB at a time */
+//         size = spdk_min(remaining, 4096);
+//
+//         if (spdk_nvme_ctrlr_cmd_get_log_page(ctrlr, SPDK_NVME_LOG_DISCOVERY,
+//         0,
+//                                              (char *)g_discovery_page +
+//                                              offset, size, offset,
+//                                              get_log_page_completion, NULL))
+//                                              {
+//             printf("spdk_nvme_ctrlr_cmd_get_log_page() failed\n");
+//             exit(1);
+//         }
+//
+//         offset += size;
+//         remaining -= size;
+//         outstanding_commands++;
+//     }
+// }
 
-    outstanding_commands--;
-    if (spdk_nvme_cpl_is_error(cpl)) {
-        /* Return without printing anything - this may not be a discovery
-         * controller */
-        free(g_discovery_page);
-        g_discovery_page = NULL;
-        return;
-    }
+// static int get_discovery_log_page(struct spdk_nvme_ctrlr *ctrlr)
+// {
+//     g_discovery_page_size = sizeof(*g_discovery_page);
+//     g_discovery_page = calloc(1, g_discovery_page_size);
+//     if (g_discovery_page == NULL) {
+//         printf("Discovery log page allocation failed!\n");
+//         exit(1);
+//     }
+//
+//     if (spdk_nvme_ctrlr_cmd_get_log_page(
+//             ctrlr, SPDK_NVME_LOG_DISCOVERY, 0, g_discovery_page,
+//             g_discovery_page_size, 0,
+//             get_discovery_log_page_header_completion, ctrlr)) {
+//         printf("spdk_nvme_ctrlr_cmd_get_log_page() failed\n");
+//         exit(1);
+//     }
+//
+//     return 0;
+// }
 
-    /* Got the first 4K of the discovery log page */
-    recfmt = from_le16(&g_discovery_page->recfmt);
-    if (recfmt != 0) {
-        printf("Unrecognized discovery log record format %" PRIu16 "\n",
-               recfmt);
-        return;
-    }
-
-    g_discovery_page_numrec = from_le64(&g_discovery_page->numrec);
-
-    /* Pick an arbitrary limit to avoid ridiculously large buffer size. */
-    if (g_discovery_page_numrec > MAX_DISCOVERY_LOG_ENTRIES) {
-        printf("Discovery log has %" PRIu64 " entries - limiting to %" PRIu64
-               ".\n",
-               g_discovery_page_numrec, MAX_DISCOVERY_LOG_ENTRIES);
-        g_discovery_page_numrec = MAX_DISCOVERY_LOG_ENTRIES;
-    }
-
-    /*
-     * Now that we now how many entries should be in the log page, we can
-     * allocate the full log page buffer.
-     */
-    g_discovery_page_size += g_discovery_page_numrec *
-                             sizeof(struct spdk_nvmf_discovery_log_page_entry);
-    new_discovery_page = (struct spdk_nvmf_discovery_log_page *)realloc(g_discovery_page, g_discovery_page_size);
-    if (new_discovery_page == NULL) {
-        free(g_discovery_page);
-        printf("Discovery page allocation failed!\n");
-        return;
-    }
-
-    g_discovery_page = new_discovery_page;
-
-    /* Retrieve the rest of the discovery log page */
-    offset = offsetof(struct spdk_nvmf_discovery_log_page, entries);
-    remaining = g_discovery_page_size - offset;
-    while (remaining) {
-        uint32_t size;
-
-        /* Retrieve up to 4 KB at a time */
-        size = spdk_min(remaining, 4096);
-
-        if (spdk_nvme_ctrlr_cmd_get_log_page(ctrlr, SPDK_NVME_LOG_DISCOVERY, 0,
-                                             (char *)g_discovery_page + offset,
-                                             size, offset,
-                                             get_log_page_completion, NULL)) {
-            printf("spdk_nvme_ctrlr_cmd_get_log_page() failed\n");
-            exit(1);
-        }
-
-        offset += size;
-        remaining -= size;
-        outstanding_commands++;
-    }
-}
-
-static int get_discovery_log_page(struct spdk_nvme_ctrlr *ctrlr)
-{
-    /* Allocate the initial discovery log page buffer - this will be resized
-     * later. */
-    g_discovery_page_size = sizeof(*g_discovery_page);
-    g_discovery_page = calloc(1, g_discovery_page_size);
-    if (g_discovery_page == NULL) {
-        printf("Discovery log page allocation failed!\n");
-        exit(1);
-    }
-
-    if (spdk_nvme_ctrlr_cmd_get_log_page(
-            ctrlr, SPDK_NVME_LOG_DISCOVERY, 0, g_discovery_page,
-            g_discovery_page_size, 0, get_discovery_log_page_header_completion,
-            ctrlr)) {
-        printf("spdk_nvme_ctrlr_cmd_get_log_page() failed\n");
-        exit(1);
-    }
-
-    return 0;
-}
-
-static void get_log_pages(struct spdk_nvme_ctrlr *ctrlr)
-{
-    const struct spdk_nvme_ctrlr_data *cdata;
-    outstanding_commands = 0;
-    bool is_discovery = spdk_nvme_ctrlr_is_discovery(ctrlr);
-
-    cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-
-    if (!is_discovery) {
-        /*
-         * Only attempt to retrieve the following log pages
-         * when the NVM subsystem that's being targeted is
-         * NOT the Discovery Controller which only fields
-         * a Discovery Log Page.
-         */
-        if (get_error_log_page(ctrlr) == 0) {
-            outstanding_commands++;
-        } else {
-            printf("Get Error Log Page failed\n");
-        }
-
-        if (get_health_log_page(ctrlr) == 0) {
-            outstanding_commands++;
-        } else {
-            printf("Get Log Page (SMART/health) failed\n");
-        }
-
-        if (get_firmware_log_page(ctrlr) == 0) {
-            outstanding_commands++;
-        } else {
-            printf("Get Log Page (Firmware Slot Information) failed\n");
-        }
-    }
-
-    if (spdk_nvme_ctrlr_is_log_page_supported(
-            ctrlr, SPDK_NVME_LOG_ASYMMETRIC_NAMESPACE_ACCESS)) {
-        /* We always set RGO (Return Groups Only) to 0 in this tool, an ANA
-         * group descriptor is returned only if that ANA group contains
-         * namespaces that are attached to the controller processing the
-         * command, and namespaces attached to the controller shall be members
-         * of an ANA group. Hence the following size should be enough.
-         */
-        g_ana_log_page_size =
-            sizeof(struct spdk_nvme_ana_page) +
-            cdata->nanagrpid * sizeof(struct spdk_nvme_ana_group_descriptor) +
-            cdata->nn * sizeof(uint32_t);
-        g_ana_log_page = calloc(1, g_ana_log_page_size);
-        if (g_ana_log_page == NULL) {
-            exit(1);
-        }
-        if (get_ana_log_page(ctrlr) == 0) {
-            outstanding_commands++;
-        } else {
-            printf("Get Log Page (Asymmetric Namespace Access) failed\n");
-        }
-    }
-    if (cdata->lpa.celp) {
-        if (get_cmd_effects_log_page(ctrlr) == 0) {
-            outstanding_commands++;
-        } else {
-            printf("Get Log Page (Commands Supported and Effects) failed\n");
-        }
-    }
-
-    if (cdata->vid == SPDK_PCI_VID_INTEL) {
-        if (spdk_nvme_ctrlr_is_log_page_supported(ctrlr,
-                                                  SPDK_NVME_INTEL_LOG_SMART)) {
-            if (get_intel_smart_log_page(ctrlr) == 0) {
-                outstanding_commands++;
-            } else {
-                printf("Get Log Page (Intel SMART/health) failed\n");
-            }
-        }
-        if (spdk_nvme_ctrlr_is_log_page_supported(
-                ctrlr, SPDK_NVME_INTEL_LOG_TEMPERATURE)) {
-            if (get_intel_temperature_log_page(ctrlr) == 0) {
-                outstanding_commands++;
-            } else {
-                printf("Get Log Page (Intel temperature) failed\n");
-            }
-        }
-        if (spdk_nvme_ctrlr_is_log_page_supported(
-                ctrlr, SPDK_NVME_INTEL_MARKETING_DESCRIPTION)) {
-            if (get_intel_md_log_page(ctrlr) == 0) {
-                outstanding_commands++;
-            } else {
-                printf("Get Log Page (Intel Marketing Description) failed\n");
-            }
-        }
-    }
-
-    if (is_discovery && (get_discovery_log_page(ctrlr) == 0)) {
-        outstanding_commands++;
-    }
-
-    while (outstanding_commands) {
-        spdk_nvme_ctrlr_process_admin_completions(ctrlr);
-    }
-}
+// static void get_log_pages(struct spdk_nvme_ctrlr *ctrlr)
+// {
+//     const struct spdk_nvme_ctrlr_data *cdata;
+//     outstanding_commands = 0;
+//     bool is_discovery = spdk_nvme_ctrlr_is_discovery(ctrlr);
+//
+//     cdata = spdk_nvme_ctrlr_get_data(ctrlr);
+//
+//     if (!is_discovery) {
+//         /*
+//          * Only attempt to retrieve the following log pages
+//          * when the NVM subsystem that's being targeted is
+//          * NOT the Discovery Controller which only fields
+//          * a Discovery Log Page.
+//          */
+//         if (get_error_log_page(ctrlr) == 0) {
+//             outstanding_commands++;
+//         } else {
+//             printf("Get Error Log Page failed\n");
+//         }
+//
+//         if (get_health_log_page(ctrlr) == 0) {
+//             outstanding_commands++;
+//         } else {
+//             printf("Get Log Page (SMART/health) failed\n");
+//         }
+//
+//         if (get_firmware_log_page(ctrlr) == 0) {
+//             outstanding_commands++;
+//         } else {
+//             printf("Get Log Page (Firmware Slot Information) failed\n");
+//         }
+//     }
+//
+//     if (spdk_nvme_ctrlr_is_log_page_supported(
+//             ctrlr, SPDK_NVME_LOG_ASYMMETRIC_NAMESPACE_ACCESS)) {
+//         /* We always set RGO (Return Groups Only) to 0 in this tool, an ANA
+//          * group descriptor is returned only if that ANA group contains
+//          * namespaces that are attached to the controller processing the
+//          * command, and namespaces attached to the controller shall be
+//          members
+//          * of an ANA group. Hence the following size should be enough.
+//          */
+//         g_ana_log_page_size =
+//             sizeof(struct spdk_nvme_ana_page) +
+//             cdata->nanagrpid * sizeof(struct spdk_nvme_ana_group_descriptor)
+//             + cdata->nn * sizeof(uint32_t);
+//         g_ana_log_page = calloc(1, g_ana_log_page_size);
+//         if (g_ana_log_page == NULL) {
+//             exit(1);
+//         }
+//         if (get_ana_log_page(ctrlr) == 0) {
+//             outstanding_commands++;
+//         } else {
+//             printf("Get Log Page (Asymmetric Namespace Access) failed\n");
+//         }
+//     }
+//     if (cdata->lpa.celp) {
+//         if (get_cmd_effects_log_page(ctrlr) == 0) {
+//             outstanding_commands++;
+//         } else {
+//             printf("Get Log Page (Commands Supported and Effects) failed\n");
+//         }
+//     }
+//
+//     if (cdata->vid == SPDK_PCI_VID_INTEL) {
+//         if (spdk_nvme_ctrlr_is_log_page_supported(ctrlr,
+//                                                   SPDK_NVME_INTEL_LOG_SMART))
+//                                                   {
+//             if (get_intel_smart_log_page(ctrlr) == 0) {
+//                 outstanding_commands++;
+//             } else {
+//                 printf("Get Log Page (Intel SMART/health) failed\n");
+//             }
+//         }
+//         if (spdk_nvme_ctrlr_is_log_page_supported(
+//                 ctrlr, SPDK_NVME_INTEL_LOG_TEMPERATURE)) {
+//             if (get_intel_temperature_log_page(ctrlr) == 0) {
+//                 outstanding_commands++;
+//             } else {
+//                 printf("Get Log Page (Intel temperature) failed\n");
+//             }
+//         }
+//         if (spdk_nvme_ctrlr_is_log_page_supported(
+//                 ctrlr, SPDK_NVME_INTEL_MARKETING_DESCRIPTION)) {
+//             if (get_intel_md_log_page(ctrlr) == 0) {
+//                 outstanding_commands++;
+//             } else {
+//                 printf("Get Log Page (Intel Marketing Description)
+//                 failed\n");
+//             }
+//         }
+//     }
+//
+//     if (is_discovery && (get_discovery_log_page(ctrlr) == 0)) {
+//         outstanding_commands++;
+//     }
+//
+//     while (outstanding_commands) {
+//         spdk_nvme_ctrlr_process_admin_completions(ctrlr);
+//     }
+// }
 
 static int get_ocssd_chunk_info_log_page(struct spdk_nvme_ns *ns)
 {
@@ -615,7 +620,8 @@ static void get_zns_zone_report(struct spdk_nvme_ns *ns,
     g_zone_report_size =
         sizeof(struct spdk_nvme_zns_zone_report) +
         g_nr_zones_requested * sizeof(struct spdk_nvme_zns_zone_desc);
-    g_zone_report = calloc(1, g_zone_report_size);
+    g_zone_report =
+        (struct spdk_nvme_zns_zone_report *)calloc(1, g_zone_report_size);
     if (g_zone_report == NULL) {
         printf("Zone report allocation failed!\n");
         exit(1);
@@ -637,8 +643,7 @@ static void get_zns_zone_report(struct spdk_nvme_ns *ns,
 
 static void print_hex_be(const void *v, size_t size)
 {
-    const uint8_t *buf = v;
-
+    const uint8_t *buf = (const uint8_t *)v;
     while (size--) {
         printf("%02X", *buf++);
     }
@@ -680,97 +685,24 @@ static void print_uint_var_dec(uint8_t *array, unsigned int len)
 }
 
 /* Print ASCII string as defined by the NVMe spec */
-static void print_ascii_string(const void *buf, size_t size)
-{
-    const uint8_t *str = buf;
-
-    /* Trim trailing spaces */
-    while (size > 0 && str[size - 1] == ' ') {
-        size--;
-    }
-
-    while (size--) {
-        if (*str >= 0x20 && *str <= 0x7E) {
-            printf("%c", *str);
-        } else {
-            printf(".");
-        }
-        str++;
-    }
-}
-
-static void
-print_ocssd_chunk_info(struct spdk_ocssd_chunk_information_entry *chk_info,
-                       int chk_num)
-{
-    int i;
-    char *cs_str, *ct_str;
-
-    printf("OCSSD Chunk Info Glance\n");
-    printf("======================\n");
-
-    for (i = 0; i < chk_num; i++) {
-        cs_str = chk_info[i].cs.free      ? "Free"
-                 : chk_info[i].cs.closed  ? "Closed"
-                 : chk_info[i].cs.open    ? "Open"
-                 : chk_info[i].cs.offline ? "Offline"
-                                          : "Unknown";
-        ct_str = chk_info[i].ct.seq_write   ? "Sequential Write"
-                 : chk_info[i].ct.rnd_write ? "Random Write"
-                                            : "Unknown";
-
-        printf("------------\n");
-        printf("Chunk index:                    %d\n", i);
-        printf("Chunk state:                    %s(0x%x)\n", cs_str,
-               *(uint8_t *)&(chk_info[i].cs));
-        printf("Chunk type (write mode):        %s\n", ct_str);
-        printf("Chunk type (size_deviate):      %s\n",
-               chk_info[i].ct.size_deviate ? "Yes" : "No");
-        printf("Wear-level Index:               %d\n", chk_info[i].wli);
-        printf("Starting LBA:                   %ld\n", chk_info[i].slba);
-        printf("Number of blocks in chunk:      %ld\n", chk_info[i].cnlb);
-        printf("Write Pointer:                  %ld\n", chk_info[i].wp);
-    }
-}
-
-static void print_ocssd_geometry(struct spdk_ocssd_geometry_data *geometry_data)
-{
-    printf("Namespace OCSSD Geometry\n");
-    printf("=======================\n");
-
-    if (geometry_data->mjr < 2) {
-        printf("Open-Channel Spec version is less than 2.0\n");
-        printf("OC version:             maj:%d\n", geometry_data->mjr);
-        return;
-    }
-
-    printf("OC version:                     maj:%d min:%d\n",
-           geometry_data->mjr, geometry_data->mnr);
-    printf("LBA format:\n");
-    printf("  Group bits:                   %d\n", geometry_data->lbaf.grp_len);
-    printf("  PU bits:                      %d\n", geometry_data->lbaf.pu_len);
-    printf("  Chunk bits:                   %d\n", geometry_data->lbaf.chk_len);
-    printf("  Logical block bits:           %d\n", geometry_data->lbaf.lbk_len);
-
-    printf("Media and Controller Capabilities:\n");
-    printf("  Namespace supports Vector Chunk Copy:                 %s\n",
-           geometry_data->mccap.vec_chk_cpy ? "Supported" : "Not Supported");
-    printf("  Namespace supports multiple resets a free chunk:      %s\n",
-           geometry_data->mccap.multi_reset ? "Supported" : "Not Supported");
-
-    printf("Wear-level Index Delta Threshold:                       %d\n",
-           geometry_data->wit);
-    printf("Groups (channels):              %d\n", geometry_data->num_grp);
-    printf("PUs (LUNs) per group:           %d\n", geometry_data->num_pu);
-    printf("Chunks per LUN:                 %d\n", geometry_data->num_chk);
-    printf("Logical blks per chunk:         %d\n", geometry_data->clba);
-    printf("MIN write size:                 %d\n", geometry_data->ws_min);
-    printf("OPT write size:                 %d\n", geometry_data->ws_opt);
-    printf("Cache min write size:           %d\n", geometry_data->mw_cunits);
-    printf("Max open chunks:                %d\n", geometry_data->maxoc);
-    printf("Max open chunks per PU:         %d\n", geometry_data->maxocpu);
-    printf("\n");
-}
+// static void print_ascii_string(const void *buf, size_t size)
+// {
+//     const uint8_t *str = buf;
+//
+//     /* Trim trailing spaces */
+//     while (size > 0 && str[size - 1] == ' ') {
+//         size--;
+//     }
+//
+//     while (size--) {
+//         if (*str >= 0x20 && *str <= 0x7E) {
+//             printf("%c", *str);
+//         } else {
+//             printf(".");
+//         }
+//         str++;
+//     }
+// }
 
 static void print_zns_zone_report(void)
 {
@@ -969,9 +901,10 @@ static void print_namespace(struct spdk_nvme_ctrlr *ctrlr,
 
     if (spdk_nvme_ctrlr_is_ocssd_supported(ctrlr)) {
         get_ocssd_geometry(ns, &geometry_data);
-        print_ocssd_geometry(&geometry_data);
+        // print_ocssd_geometry(&geometry_data);
         get_ocssd_chunk_info_log_page(ns);
-        print_ocssd_chunk_info(g_ocssd_chunk_info_page, NUM_CHUNK_INFO_ENTRIES);
+        // print_ocssd_chunk_info(g_ocssd_chunk_info_page,
+        // NUM_CHUNK_INFO_ENTRIES);
     } else if (spdk_nvme_ns_get_csi(ns) == SPDK_NVME_CSI_ZNS) {
         struct spdk_nvme_qpair *qpair =
             spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, NULL, 0);
