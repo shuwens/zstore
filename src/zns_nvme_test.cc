@@ -1,28 +1,27 @@
 #include "include/utils.hpp"
 #include "include/zns_device.h"
-#include "spdk/endian.h"
+// #include "spdk/endian.h"
 #include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
-#include "spdk/nvme_intel.h"
-#include "spdk/nvme_ocssd.h"
 #include "spdk/nvme_zns.h"
 #include "spdk/nvmf_spec.h"
-#include "spdk/pci_ids.h"
-#include "spdk/stdinc.h"
-#include "spdk/string.h"
-#include "spdk/thread.h"
-#include "spdk/util.h"
-#include "spdk/uuid.h"
-#include "spdk/vmd.h"
+// #include "spdk/pci_ids.h"
+// #include "spdk/stdinc.h"
+// #include "spdk/string.h"
+// #include "spdk/thread.h"
+// #include "spdk/util.h"
+// #include "spdk/uuid.h"
+// #include "spdk/vmd.h"
 #include <atomic>
 
-static const char *g_bdev_name = "Nvme1n2";
+// static const char *g_bdev_name = "Nvme1n2";
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
 // struct ZstoreContext {
-struct rwtest_context_t {
+struct ZstoreContext {
+    // spdk things
     struct spdk_nvme_ctrlr *ctrlr = nullptr;
     struct spdk_nvme_ns *ns = nullptr;
     struct spdk_nvme_qpair *qpair = nullptr;
@@ -31,16 +30,31 @@ struct rwtest_context_t {
     uint32_t buff_size;
     // char *bdev_name;
 
+    bool done = false;
+    u64 num_queued = 0;
+    u64 num_completed = 0;
+    u64 num_success = 0;
+    u64 num_fail = 0;
+
+    u64 total_us = 0;
+
     std::atomic<int> count; // atomic count for concurrency
 };
 
-static void read_zone_complete(void *arg,
-                               const struct spdk_nvme_cpl *completion)
+inline void spin_complete(struct ZstoreContext *ctx)
 {
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg);
+    while (spdk_nvme_qpair_process_completions(ctx->qpair, 0) == 0) {
+        ;
+    }
+}
+
+static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
 
     if (spdk_nvme_cpl_is_error(completion)) {
-        SPDK_ERRLOG("bdev io read zone error\n");
+        SPDK_ERRLOG("nvme io read error: %s\n",
+                    spdk_nvme_cpl_get_status_string(&completion->status));
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_app_stop(-1);
         return;
@@ -63,12 +77,13 @@ static void read_zone_complete(void *arg,
     }
 
     memset(ctx->read_buff, 0x34, ctx->buff_size);
+    // uint64_t lba = ctx->count.load();
     uint64_t lba =
         ctx->count.load() / 0x100 * spdk_nvme_ns_get_num_sectors(ctx->ns) +
         ctx->count.load() % 0x100;
 
     int rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, lba, 1,
-                                   read_zone_complete, ctx, 0);
+                                   read_complete, ctx, 0);
     SPDK_NOTICELOG("read lba:0x%lx\n", lba);
     if (rc != 0) {
         SPDK_ERRLOG("error while reading from bdev: %d\n", rc);
@@ -80,11 +95,11 @@ static void read_zone_complete(void *arg,
 
 static void read_zone(void *arg)
 {
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg);
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     ctx->count = 0;
     memset(ctx->read_buff, 0x34, ctx->buff_size);
     int rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, 0, 1,
-                                   read_zone_complete, ctx, 0);
+                                   read_complete, ctx, 0);
     SPDK_NOTICELOG("read lba:0x%x\n", 0x0);
     if (rc) {
         SPDK_ERRLOG("error while reading from bdev: %d\n", rc);
@@ -96,10 +111,11 @@ static void read_zone(void *arg)
 static void write_zone_complete(void *arg,
                                 const struct spdk_nvme_cpl *completion)
 {
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg);
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
 
     if (spdk_nvme_cpl_is_error(completion)) {
-        SPDK_ERRLOG("bdev io write zone error\n");
+        SPDK_ERRLOG("nvme io write error: %s\n",
+                    spdk_nvme_cpl_get_status_string(&completion->status));
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_app_stop(-1);
         return;
@@ -113,10 +129,11 @@ static void write_zone_complete(void *arg,
 
 static void write_zone(void *arg)
 {
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg);
-    uint64_t zone_size = spdk_nvme_ns_get_num_sectors(ctx->ns);
-    int zone_num = 4;
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    uint64_t zone_size = spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns);
     int append_times = 0x100;
+    // ctx->count = append_times;
+    int zone_num = 4;
     ctx->count = zone_num * append_times;
     memset(ctx->write_buff, 0x12, ctx->buff_size);
     for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
@@ -134,18 +151,33 @@ static void write_zone(void *arg)
     }
 }
 
-static void reset_zone_complete(void *arg,
-                                const struct spdk_nvme_cpl *completion)
+static void reset_zone_complete(void *arg, const struct spdk_nvme_cpl *cpl)
 {
-    log_info("reset zone complete");
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg);
+    log_info("Entered reset zone complete");
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
 
-    if (spdk_nvme_cpl_is_error(completion)) {
-        SPDK_ERRLOG("bdev io reset zone error\n");
-        spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_app_stop(-1);
+    ctx->num_completed += 1;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        spdk_nvme_qpair_print_completion(ctx->qpair,
+                                         (struct spdk_nvme_cpl *)cpl);
+        fprintf(stderr, "Reset all zone error - status = %s\n",
+                spdk_nvme_cpl_get_status_string(&cpl->status));
+        ctx->num_fail += 1;
+        ctx->num_queued -= 1;
         return;
+        // SPDK_ERRLOG("nvme io reset error: %s\n",
+        //             spdk_nvme_cpl_get_status_string(&completion->status));
+        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        // spdk_app_stop(-1);
+        // return;
     }
+    ctx->num_success += 1;
+    ctx->num_queued -= 1;
+
+    log_debug("reset zone complete: queued {} completed {} success {} fail {}",
+              ctx->num_queued, ctx->num_completed, ctx->num_success,
+              ctx->num_fail);
+    // when all reset is done, do writes
     ctx->count.fetch_sub(1);
     if (ctx->count.load() == 0) {
         SPDK_NOTICELOG("reset zone complete.\n");
@@ -156,28 +188,54 @@ static void reset_zone_complete(void *arg,
 static void reset_zone(void *arg)
 {
     log_info("reset zone");
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg);
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     int zone_num = 10;
     ctx->count = zone_num;
-    uint64_t zone_size = spdk_nvme_ns_get_num_sectors(ctx->ns);
+    uint64_t zone_size = spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns);
+    log_debug("Reset zone: num {}, size {}, loop {}", zone_num, zone_size,
+              zone_num * zone_size);
+    ctx->num_queued++;
     for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
+        // log_debug("Reset zone: slba {}", slba);
         int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, slba, true,
                                           reset_zone_complete, ctx);
-        if (rc != 0) {
+        log_debug("Reset zone: slba {}: {}", slba, rc);
+        // int rc = spdk_nvme_ns_cmd_zone_management(
+        //             ctx->ns, ctx->qpair,
+        //             SPDK_NVME_ZONE_MANAGEMENT_SEND, SPDK_NVME_ZONE_RESET, i,
+        //          if (rc == -ENOMEM) {
+        if (rc == -ENOMEM) {
+            log_debug("Queueing io");
+        } else if (rc) {
             SPDK_ERRLOG("error while resetting zone: %d\n", rc);
             spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
             spdk_app_stop(-1);
             return;
         }
     }
+    while (ctx->num_queued) {
+        // log_debug("reached here: queued {}", ctx->num_queued);
+        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    }
+    log_info("reset zone done");
+}
+
+static void test_nvme_event_cb(void *arg, const struct spdk_nvme_cpl *cpl)
+{
+    SPDK_NOTICELOG("Unsupported nvme event: %s\n",
+                   spdk_nvme_cpl_get_status_string(&cpl->status));
 }
 
 static void test_start(void *arg1)
 {
     log_info("test start");
-    struct rwtest_context_t *ctx = static_cast<struct rwtest_context_t *>(arg1);
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg1);
     uint32_t buf_align;
     int rc = 0;
+    ctx->ctrlr = NULL;
+    ctx->ns = NULL;
+
+    SPDK_NOTICELOG("Successfully started the application\n");
 
     struct spdk_nvme_transport_id trid = {};
     int nsid = 0;
@@ -189,7 +247,6 @@ static void test_start(void *arg1)
     snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
     trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
     trid.trtype = SPDK_NVME_TRANSPORT_TCP;
-    log_info("nvme connect");
 
     struct spdk_nvme_ctrlr_opts opts;
 
@@ -241,28 +298,43 @@ static void test_start(void *arg1)
         return;
     }
 
-    ctx->buff_size = spdk_nvme_ns_get_sector_size(ctx->ns) *
-                     spdk_nvme_ns_get_md_size(ctx->ns);
-    buf_align = spdk_nvme_ns_get_optimal_io_boundary(ctx->ns);
+    ctx->buff_size = spdk_nvme_ns_get_sector_size(ctx->ns);
+    // buf_align = spdk_nvme_ns_get_sector_size(ctx->ns);
+    buf_align = 1;
+    // ctx->buff_size = spdk_nvme_ns_get_sector_size(ctx->ns) *
+    //                  spdk_nvme_ns_get_md_size(ctx->ns);
+    // buf_align = spdk_nvme_ns_get_optimal_io_boundary(ctx->ns);
+
+    // 4096
+    log_info("buffer size: {}", ctx->buff_size);
+    // 1
+    log_info("buffer align: {}", buf_align);
 
     ctx->write_buff =
         static_cast<char *>(spdk_dma_zmalloc(ctx->buff_size, buf_align, NULL));
-    ctx->write_buff = static_cast<char *>(
-        spdk_zmalloc(ctx->buff_size, buf_align, NULL, SPDK_ENV_SOCKET_ID_ANY,
-                     SPDK_MALLOC_DMA));
+    // ctx->write_buff = static_cast<char *>(
+    //     spdk_zmalloc(ctx->buff_size, buf_align, NULL,
+    //     SPDK_ENV_SOCKET_ID_ANY,
+    //                  SPDK_MALLOC_DMA));
 
     if (!ctx->write_buff) {
         SPDK_ERRLOG("Failed to allocate buffer\n");
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        spdk_nvme_detach(ctx->ctrlr);
         spdk_app_stop(-1);
         return;
     }
-    ctx->read_buff = static_cast<char *>(
-        spdk_zmalloc(ctx->buff_size, buf_align, NULL, SPDK_ENV_SOCKET_ID_ANY,
-                     SPDK_MALLOC_DMA));
+    // ctx->read_buff = static_cast<char *>(
+    //     spdk_zmalloc(ctx->buff_size, buf_align, NULL,
+    //     SPDK_ENV_SOCKET_ID_ANY,
+    //                  SPDK_MALLOC_DMA));
+    ctx->read_buff =
+        static_cast<char *>(spdk_dma_zmalloc(ctx->buff_size, buf_align, NULL));
+
     if (!ctx->read_buff) {
         SPDK_ERRLOG("Failed to allocate buffer\n");
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        spdk_nvme_detach(ctx->ctrlr);
         spdk_app_stop(-1);
         return;
     }
@@ -274,6 +346,9 @@ static void test_start(void *arg1)
                    spdk_nvme_ns_get_num_sectors(ctx->ns),
                    spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
                    spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
+    SPDK_NOTICELOG("sector size:%d zone size:%lx\n",
+                   spdk_nvme_ns_get_sector_size(ctx->ns),
+                   spdk_nvme_ns_get_size(ctx->ns));
 
     reset_zone(ctx);
 }
@@ -282,8 +357,7 @@ int main(int argc, char **argv)
 {
     struct spdk_app_opts opts = {};
     int rc = 0;
-    // struct ZstoreContect ctx = {};
-    struct rwtest_context_t ctx = {};
+    struct ZstoreContext ctx = {};
 
     spdk_app_opts_init(&opts, sizeof(opts));
     opts.name = "test_nvme";

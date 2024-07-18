@@ -182,8 +182,11 @@ static void reset_zone(void *arg)
     int rc = 0;
     int zone_num = 10;
     test_context->count = zone_num;
+    // 524288
     uint64_t zone_size = spdk_bdev_get_zone_size(test_context->bdev);
+    log_debug("Reset zone: num {}, size {}", zone_num, zone_size);
     for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
+        log_debug("Reset zone: slba {}", slba);
         rc = spdk_bdev_zone_management(
             test_context->bdev_desc, test_context->bdev_io_channel, slba,
             SPDK_BDEV_ZONE_RESET, reset_zone_complete, test_context);
@@ -245,8 +248,10 @@ static void test_start(void *arg1)
     test_context->buff_size = spdk_bdev_get_block_size(test_context->bdev) *
                               spdk_bdev_get_write_unit_size(test_context->bdev);
     buf_align = spdk_bdev_get_buf_align(test_context->bdev);
-    // log_info("buffer size: %d", test_context->buff_size);
-    // log_info("buffer align: %lu", buf_align);
+
+    log_info("buffer size: {}", test_context->buff_size);
+    log_info("buffer align: {}", buf_align);
+
     test_context->write_buff = static_cast<char *>(
         spdk_dma_zmalloc(test_context->buff_size, buf_align, NULL));
     if (!test_context->write_buff) {
@@ -284,6 +289,8 @@ static void test_start(void *arg1)
                    spdk_bdev_get_max_open_zones(test_context->bdev),
                    spdk_bdev_get_max_active_zones(test_context->bdev));
     reset_zone(test_context);
+    write_zone(test_context);
+    read_zone(test_context);
 }
 
 int main(int argc, char **argv)
