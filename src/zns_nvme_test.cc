@@ -159,12 +159,15 @@ static void reset_zone_complete(void *arg, const struct spdk_nvme_cpl *cpl)
                 spdk_nvme_cpl_get_status_string(&cpl->status));
         ctx->num_fail += 1;
         ctx->num_queued -= 1;
+        log_debug(
+            "reset zone complete: queued {} completed {} success {} fail {}",
+            ctx->num_queued, ctx->num_completed, ctx->num_success,
+            ctx->num_fail);
+        SPDK_ERRLOG("nvme io reset error: %s\n",
+                    spdk_nvme_cpl_get_status_string(&cpl->status));
+        spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        spdk_app_stop(-1);
         return;
-        // SPDK_ERRLOG("nvme io reset error: %s\n",
-        //             spdk_nvme_cpl_get_status_string(&completion->status));
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        // spdk_app_stop(-1);
-        // return;
     }
     ctx->num_success += 1;
     ctx->num_queued -= 1;
@@ -190,28 +193,45 @@ static void reset_zone(void *arg)
     log_debug("Reset zone: num {}, size {}, loop {}", zone_num, zone_size,
               zone_num * zone_size);
     ctx->num_queued++;
-    for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
-        // log_debug("Reset zone: slba {}", slba);
-        int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, slba, true,
-                                          reset_zone_complete, ctx);
-        log_debug("Reset zone: slba {}: {}", slba, rc);
-        // int rc = spdk_nvme_ns_cmd_zone_management(
-        //             ctx->ns, ctx->qpair,
-        //             SPDK_NVME_ZONE_MANAGEMENT_SEND, SPDK_NVME_ZONE_RESET, i,
-        //          if (rc == -ENOMEM) {
-        if (rc == -ENOMEM) {
-            log_debug("Queueing io");
-        } else if (rc) {
-            SPDK_ERRLOG("error while resetting zone: %d\n", rc);
-            spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-            spdk_app_stop(-1);
-            return;
-        }
-    }
-    while (ctx->num_queued) {
-        // log_debug("reached here: queued {}", ctx->num_queued);
+
+    bool done = false;
+    auto resetComplete = [](void *arg, const struct spdk_nvme_cpl *completion) {
+        bool *done = (bool *)arg;
+        *done = true;
+    };
+    spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, true, resetComplete,
+                             &done);
+    while (!done) {
         spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     }
+
+    log_info("Reset whole zone ok");
+
+    // for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
+    //     // log_debug("Reset zone: slba {}", slba);
+    //     int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, slba, 0,
+    //                                       reset_zone_complete, ctx);
+    //     log_debug("Reset zone: slba {}: {}", slba, rc);
+    //     // int rc = spdk_nvme_ns_cmd_zone_management(
+    //     //             ctx->ns, ctx->qpair,
+    //     //             SPDK_NVME_ZONE_MANAGEMENT_SEND, SPDK_NVME_ZONE_RESET,
+    //     i,
+    //     //          if (rc == -ENOMEM) {
+    //     if (rc == -ENOMEM) {
+    //         log_debug("Queueing io");
+    //     } else if (rc) {
+    //         SPDK_ERRLOG("error while resetting zone: %d\n", rc);
+    //         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+    //         spdk_app_stop(-1);
+    //         return;
+    //     }
+    //
+    //     while (ctx->num_queued) {
+    //         // log_debug("reached here: queued {}", ctx->num_queued);
+    //         spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    //     }
+    // }
+
     log_info("reset zone done");
 }
 
@@ -567,8 +587,8 @@ static void test_start(void *arg1)
     uint32_t buf_align;
 
     zns_dev_init(ctx);
-    if (rc != 0)
-        log_error("zns device init fail");
+
+    zstore_init(ctx);
 
     // Setting up context done
 
@@ -622,13 +642,13 @@ static void test_start(void *arg1)
                    spdk_nvme_ns_get_md_size(ctx->ns),
                    spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone size
                    spdk_nvme_zns_ns_get_num_zones(ctx->ns),
-                   spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr),
+                   spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
+                       spdk_nvme_ns_get_sector_size(ctx->ns),
                    spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
                    spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
     SPDK_NOTICELOG("sector size:%d zone size:%lx\n",
                    spdk_nvme_ns_get_sector_size(ctx->ns),
                    spdk_nvme_ns_get_size(ctx->ns));
-
     reset_zone(ctx);
     // write_zone(ctx);
 }

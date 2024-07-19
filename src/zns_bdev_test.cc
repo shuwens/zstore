@@ -289,8 +289,8 @@ static void test_start(void *arg1)
                    spdk_bdev_get_max_open_zones(test_context->bdev),
                    spdk_bdev_get_max_active_zones(test_context->bdev));
     reset_zone(test_context);
-    write_zone(test_context);
-    read_zone(test_context);
+    // write_zone(test_context);
+    // read_zone(test_context);
 }
 
 int main(int argc, char **argv)

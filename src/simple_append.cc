@@ -24,7 +24,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    u64 zone_dist = 0x80000;
+    u64 zone_dist = 0x80000; // zone size
     u64 zone_num = std::stoull(argv[1]);
     u16 qd = std::stoull(argv[2]);
 
