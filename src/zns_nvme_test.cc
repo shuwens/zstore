@@ -308,8 +308,10 @@ static void test_start(void *arg1)
                    spdk_nvme_ns_get_size(ctx->ns));
 
     reset_zone(ctx);
+
     // write_zone(ctx);
-    read_zone(ctx);
+
+    // read_zone(ctx);
 
     log_info("read zone finishe");
     return;

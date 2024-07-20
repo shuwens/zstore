@@ -136,12 +136,28 @@ static void zns_dev_init(void *arg)
 
     printf("Active Namespaces\n");
     printf("=================\n");
-    for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
+    // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
+    //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
+    //     print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr,
+    //     nsid));
+    // }
+    // ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
+
+    // NOTE: must find zns ns
+    // take any ZNS namespace, we do not care which.
+    for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
-        print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
+        struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid);
+        if (ns == NULL) {
+            continue;
+        }
+        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+            continue;
+        }
+        ctx->ns = ns;
+        break;
     }
 
-    ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
     if (ctx->ns == NULL) {
         SPDK_ERRLOG("Could not get NVMe namespace\n");
         spdk_app_stop(-1);
@@ -149,13 +165,16 @@ static void zns_dev_init(void *arg)
     }
 
     // 2. creating qpairs
-    struct spdk_nvme_io_qpair_opts qpair_opts;
-    spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->ctrlr, &qpair_opts,
-                                              sizeof(qpair_opts));
-    qpair_opts.delay_cmd_submit = true;
-    qpair_opts.create_only = true;
-    ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, &qpair_opts,
-                                                sizeof(qpair_opts));
+    // struct spdk_nvme_io_qpair_opts qpair_opts;
+    // spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->ctrlr, &qpair_opts,
+    //                                           sizeof(qpair_opts));
+    // qpair_opts.delay_cmd_submit = true;
+    // qpair_opts.create_only = true;
+    // ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, &qpair_opts,
+    //                                             sizeof(qpair_opts));
+
+    ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, NULL, 0);
+
     if (ctx->qpair == NULL) {
         SPDK_ERRLOG("Could not allocate IO queue pair\n");
         spdk_app_stop(-1);
@@ -163,12 +182,12 @@ static void zns_dev_init(void *arg)
     }
 
     // 3. connect qpair
-    rc = spdk_nvme_ctrlr_connect_io_qpair(ctx->ctrlr, ctx->qpair);
-    if (rc) {
-        log_error("Could not connect IO queue pair\n");
-        spdk_app_stop(-1);
-        return;
-    }
+    // rc = spdk_nvme_ctrlr_connect_io_qpair(ctx->ctrlr, ctx->qpair);
+    // if (rc) {
+    //     log_error("Could not connect IO queue pair\n");
+    //     spdk_app_stop(-1);
+    //     return;
+    // }
 }
 
 // TODO: make ZNS device class and put this in Init() or ctor
@@ -286,10 +305,10 @@ int z_reset(void *arg)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     ERROR_ON_NULL(ctx->qpair, 1);
     Completion completion = {.done = false};
-    int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair,
-                                      0x0, /* starting LBA of the zone to reset */
-                                      true, /* don't reset all zones */
-                                      __reset_zone_complete, &completion);
+    int rc = spdk_nvme_zns_reset_zone(
+        ctx->ns, ctx->qpair, 0x0, /* starting LBA of the zone to reset */
+        true,                     /* don't reset all zones */
+        __reset_zone_complete, &completion);
     if (rc != 0)
         return rc;
     POLL_QPAIR(ctx->qpair, completion.done);
