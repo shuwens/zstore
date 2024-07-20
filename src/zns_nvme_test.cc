@@ -195,16 +195,19 @@ static void reset_zone(void *arg)
         *done = true;
     };
 
-    spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, 0, resetComplete, &done);
+    z_reset(ctx);
+
+    // spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, 0, resetComplete,
+    // &done);
 
     uint8_t *buffer = (uint8_t *)spdk_zmalloc(
         4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
 
     // spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, buffer, 0, 1, resetComplete,
     //                       &done, 0);
-    while (!done) {
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    }
+    // while (!done) {
+    //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    // }
 
     // for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
     //     // log_debug("Reset zone: slba {}", slba);
@@ -304,7 +307,7 @@ static void test_start(void *arg1)
                    spdk_nvme_ns_get_sector_size(ctx->ns),
                    spdk_nvme_ns_get_size(ctx->ns));
 
-    // reset_zone(ctx);
+    reset_zone(ctx);
     // write_zone(ctx);
     read_zone(ctx);
 

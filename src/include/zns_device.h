@@ -199,3 +199,99 @@ static void zstore_init(void *arg)
     uint64_t storageSpace = 1024 * 1024 * 1024 * 1024ull;
     auto mMappingBlockUnitSize = blockSize * blockSize / 4;
 }
+
+// TropoDB
+
+#include "spdk/endian.h"
+#include "spdk/env.h"
+#include "spdk/log.h"
+#include "spdk/nvme.h"
+#include "spdk/nvme_intel.h"
+#include "spdk/nvme_ocssd.h"
+#include "spdk/nvme_zns.h"
+#include "spdk/nvmf_spec.h"
+#include "spdk/pci_ids.h"
+#include "spdk/stdinc.h"
+#include "spdk/string.h"
+#include "spdk/util.h"
+#include "spdk/uuid.h"
+#include "spdk/vmd.h"
+
+extern "C" {
+#define ERROR_ON_NULL(x, err)                                                  \
+    do {                                                                       \
+        if ((x) == nullptr) {                                                  \
+            return (err);                                                      \
+        }                                                                      \
+    } while (0)
+
+#define POLL_QPAIR(qpair, target)                                              \
+    do {                                                                       \
+        while (!(target)) {                                                    \
+            spdk_nvme_qpair_process_completions((qpair), 0);                   \
+        }                                                                      \
+    } while (0)
+}
+
+typedef struct {
+    bool done = false;
+    int err = 0;
+} Completion;
+
+typedef struct {
+    uint64_t lba_size;
+    uint64_t zone_size;
+    uint64_t mdts;
+    uint64_t zasl;
+    uint64_t lba_cap;
+} DeviceInfo;
+
+static void __operation_complete(void *arg,
+                                 const struct spdk_nvme_cpl *completion)
+{
+    Completion *completed = (Completion *)arg;
+    completed->done = true;
+    if (spdk_nvme_cpl_is_error(completion)) {
+        completed->err = 1;
+        return;
+    }
+}
+
+static void __append_complete(void *arg, const struct spdk_nvme_cpl *completion)
+{
+    __operation_complete(arg, completion);
+}
+
+static void __read_complete(void *arg, const struct spdk_nvme_cpl *completion)
+{
+    __operation_complete(arg, completion);
+}
+
+static void __reset_zone_complete(void *arg,
+                                  const struct spdk_nvme_cpl *completion)
+{
+    __operation_complete(arg, completion);
+}
+
+static void __get_zone_head_complete(void *arg,
+                                     const struct spdk_nvme_cpl *completion)
+{
+    __operation_complete(arg, completion);
+}
+
+// int z_reset(QPair *qpair, uint64_t slba, bool all)
+int z_reset(void *arg)
+{
+    log_info("z_reset");
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    ERROR_ON_NULL(ctx->qpair, 1);
+    Completion completion = {.done = false};
+    int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair,
+                                      0x0, /* starting LBA of the zone to reset */
+                                      true, /* don't reset all zones */
+                                      __reset_zone_complete, &completion);
+    if (rc != 0)
+        return rc;
+    POLL_QPAIR(ctx->qpair, completion.done);
+    return rc;
+}
