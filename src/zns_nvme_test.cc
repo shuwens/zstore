@@ -205,6 +205,9 @@ static void reset_zone(void *arg)
 
     // spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, buffer, 0, 1, resetComplete,
     //                       &done, 0);
+    spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, 0, 4096,
+                          reset_zone_complete, ctx, 0);
+
     // while (!done) {
     //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     // }
@@ -228,10 +231,10 @@ static void reset_zone(void *arg)
     //         return;
     //     }
     //
-    //     while (ctx->num_queued) {
-    //         // log_debug("reached here: queued {}", ctx->num_queued);
-    //         spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    //     }
+    while (ctx->num_queued) {
+        // log_debug("reached here: queued {}", ctx->num_queued);
+        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    }
     // }
 
     log_info("reset zone done");
