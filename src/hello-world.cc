@@ -31,6 +31,7 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "include/zns_utils.h"
 #include "spdk/stdinc.h"
 
 #include "spdk/env.h"
@@ -55,8 +56,6 @@ static TAILQ_HEAD(, ctrlr_entry)
     g_controllers = TAILQ_HEAD_INITIALIZER(g_controllers);
 static TAILQ_HEAD(,
                   ns_entry) g_namespaces = TAILQ_HEAD_INITIALIZER(g_namespaces);
-
-static bool g_vmd = false;
 
 static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 {
@@ -249,6 +248,8 @@ static void hello_world(void)
         }
         sequence.is_completed = 0;
         sequence.ns_entry = ns_entry;
+
+        print_namespace(ns_entry->ctrlr, ns_entry->ns);
 
         /*
          * If the namespace is a Zoned Namespace, rather than a regular

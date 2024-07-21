@@ -346,10 +346,10 @@ int z_reset(void *arg)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     ERROR_ON_NULL(ctx->qpair, 1);
     Completion completion = {.done = false};
-    int rc = spdk_nvme_zns_reset_zone(
-        ctx->ns, ctx->qpair, 0x0, /* starting LBA of the zone to reset */
-        true,                     /* don't reset all zones */
-        __reset_zone_complete, &completion);
+    int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair,
+                                      0, /* starting LBA of the zone to reset */
+                                      true, /* don't reset all zones */
+                                      __reset_zone_complete, &completion);
     if (rc != 0)
         return rc;
     POLL_QPAIR(ctx->qpair, completion.done);

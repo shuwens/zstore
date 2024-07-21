@@ -188,6 +188,8 @@ static void reset_zone(void *arg)
               zone_num * zone_size);
     ctx->num_queued++;
 
+    // z_reset(ctx);
+
     log_info("Reset whole zone ");
     bool done = false;
     auto resetComplete = [](void *arg, const struct spdk_nvme_cpl *completion) {
@@ -195,22 +197,19 @@ static void reset_zone(void *arg)
         *done = true;
     };
 
-    z_reset(ctx);
+    spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, true, resetComplete,
+                             &done);
 
-    // spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, 0, resetComplete,
-    // &done);
-
-    uint8_t *buffer = (uint8_t *)spdk_zmalloc(
-        4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-
+    // uint8_t *buffer = (uint8_t *)spdk_zmalloc(
+    //     4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     // spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, buffer, 0, 1, resetComplete,
     //                       &done, 0);
-    spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, 0, 4096,
-                          reset_zone_complete, ctx, 0);
+    // spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, 0, 4096,
+    //                       reset_zone_complete, ctx, 0);
 
-    // while (!done) {
-    //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    // }
+    while (!done) {
+        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    }
 
     // for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
     //     // log_debug("Reset zone: slba {}", slba);
@@ -231,10 +230,10 @@ static void reset_zone(void *arg)
     //         return;
     //     }
     //
-    while (ctx->num_queued) {
-        // log_debug("reached here: queued {}", ctx->num_queued);
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    }
+    // while (ctx->num_queued) {
+    //     // log_debug("reached here: queued {}", ctx->num_queued);
+    //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    // }
     // }
 
     log_info("reset zone done");
