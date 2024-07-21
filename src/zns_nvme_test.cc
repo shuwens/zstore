@@ -292,20 +292,31 @@ static void test_start(void *arg1)
     // block size:4096 write unit:1 zone size:80000 zone num:406 max append
     // size:503 max open zone:14 max active zone:14
 
-    SPDK_NOTICELOG("block size: %d, write unit: %d, zone size: %lx, zone num: "
-                   "%lu, max append size: %d,  max open "
-                   "zone: %d,max active zone: %d\n ",
-                   spdk_nvme_ns_get_sector_size(ctx->ns),
-                   spdk_nvme_ns_get_md_size(ctx->ns),
-                   spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone size
-                   spdk_nvme_zns_ns_get_num_zones(ctx->ns),
-                   spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
-                       spdk_nvme_ns_get_sector_size(ctx->ns),
-                   spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
-                   spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
-    SPDK_NOTICELOG("sector size:%d zone size:%lx\n",
-                   spdk_nvme_ns_get_sector_size(ctx->ns),
-                   spdk_nvme_ns_get_size(ctx->ns));
+    // SPDK_NOTICELOG("block size: %d, write unit: %d, zone size: %lx, zone num:
+    // "
+    //                "%lu, max append size: %d,  max open "
+    //                "zone: %d,max active zone: %d\n ",
+    //                spdk_nvme_ns_get_sector_size(ctx->ns),
+    //                spdk_nvme_ns_get_md_size(ctx->ns),
+    //                spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone
+    //                size spdk_nvme_zns_ns_get_num_zones(ctx->ns),
+    //                spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
+    //                    spdk_nvme_ns_get_sector_size(ctx->ns),
+    //                spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
+    //                spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
+    log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
+             "{}, max append size: {},  max open "
+             "zone: {}, max active zone: {}\n ",
+             spdk_nvme_ns_get_sector_size(ctx->ns),
+             spdk_nvme_ns_get_md_size(ctx->ns),
+             spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone size
+             spdk_nvme_zns_ns_get_num_zones(ctx->ns),
+             spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
+                 spdk_nvme_ns_get_sector_size(ctx->ns),
+             spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
+             spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
+
+    z_get_device_info(ctx);
 
     reset_zone(ctx);
 

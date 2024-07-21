@@ -35,6 +35,43 @@ struct ZstoreContext {
     std::atomic<int> count; // atomic count for concurrency
 };
 
+typedef struct {
+} Zone;
+
+typedef struct {
+    bool done = false;
+    int err = 0;
+} Completion;
+
+typedef struct {
+    uint64_t lba_size;
+    uint64_t zone_size;
+    uint64_t mdts;
+    uint64_t zasl;
+    uint64_t lba_cap;
+} DeviceInfo;
+
+typedef struct {
+    struct spdk_nvme_transport_id g_trid = {};
+    struct spdk_nvme_ctrlr *ctrlr;
+    spdk_nvme_ns *ns;
+    DeviceInfo info = {};
+} DeviceManager;
+
+typedef struct {
+    // DeviceManager *manager;
+    // DeviceManager *manager;
+    const char *traddr;
+    const u_int8_t traddr_len;
+    bool found;
+} DeviceProber;
+
+// Create 1 QPair for each thread that uses I/O.
+// typedef struct {
+//     spdk_nvme_qpair *qpair;
+//     DeviceManager *man;
+// } QPair;
+
 inline void spin_complete(struct ZstoreContext *ctx)
 {
     while (spdk_nvme_qpair_process_completions(ctx->qpair, 0) == 0) {
@@ -147,6 +184,8 @@ static void zns_dev_init(void *arg)
     // take any ZNS namespace, we do not care which.
     for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
+        log_info("ns id: {}", nsid);
+
         struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid);
         if (ns == NULL) {
             continue;
@@ -155,6 +194,8 @@ static void zns_dev_init(void *arg)
             continue;
         }
         ctx->ns = ns;
+        print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
+
         break;
     }
 
@@ -252,18 +293,18 @@ extern "C" {
     } while (0)
 }
 
-typedef struct {
-    bool done = false;
-    int err = 0;
-} Completion;
-
-typedef struct {
-    uint64_t lba_size;
-    uint64_t zone_size;
-    uint64_t mdts;
-    uint64_t zasl;
-    uint64_t lba_cap;
-} DeviceInfo;
+// typedef struct {
+//     bool done = false;
+//     int err = 0;
+// } Completion;
+//
+// typedef struct {
+//     uint64_t lba_size;
+//     uint64_t zone_size;
+//     uint64_t mdts;
+//     uint64_t zasl;
+//     uint64_t lba_cap;
+// } DeviceInfo;
 
 static void __operation_complete(void *arg,
                                  const struct spdk_nvme_cpl *completion)
@@ -313,4 +354,31 @@ int z_reset(void *arg)
         return rc;
     POLL_QPAIR(ctx->qpair, completion.done);
     return rc;
+}
+
+int z_get_device_info(void *arg)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    // ERROR_ON_NULL(info, 1);
+    // ERROR_ON_NULL(manager, 1);
+    ERROR_ON_NULL(ctx->ctrlr, 1);
+    ERROR_ON_NULL(ctx->ns, 1);
+    const struct spdk_nvme_ns_data *ns_data = spdk_nvme_ns_get_data(ctx->ns);
+    const struct spdk_nvme_zns_ns_data *ns_data_zns =
+        spdk_nvme_zns_ns_get_data(ctx->ns);
+    const struct spdk_nvme_ctrlr_data *ctrlr_data =
+        spdk_nvme_ctrlr_get_data(ctx->ctrlr);
+    const spdk_nvme_zns_ctrlr_data *ctrlr_data_zns =
+        spdk_nvme_zns_ctrlr_get_data(ctx->ctrlr);
+    union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctx->ctrlr);
+    auto lba_size = 1 << ns_data->lbaf[ns_data->flbas.format].lbads;
+    auto zone_size = ns_data_zns->lbafe[ns_data->flbas.format].zsze;
+    auto mdts = (uint64_t)1 << (12 + cap.bits.mpsmin + ctrlr_data->mdts);
+    auto zasl = ctrlr_data_zns->zasl;
+    zasl = zasl == 0 ? mdts : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
+    auto lba_cap = ns_data->ncap;
+    log_info("Z Get Device Info: lbs size {}, zone size {}, mdts {}, zasl {}, "
+             "lba cap {}",
+             lba_size, zone_size, mdts, zasl, lba_cap);
+    return 0;
 }
