@@ -24,24 +24,24 @@ static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
         return;
     }
 
-    // compare read and write
-    // int cmp_res = memcmp(ctx->write_buff, ctx->read_buff, ctx->buff_size);
-    // if (cmp_res != 0) {
-    //     SPDK_ERRLOG("read zone data error.\n");
-    //     ctx->num_fail += 1;
-    //     ctx->num_queued -= 1;
-
-    //     spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-    //     spdk_app_stop(-1);
-    //     return;
-    // }
+    // compare read and write buffer
+    int cmp_res = memcmp(ctx->write_buff, ctx->read_buff, ctx->buff_size);
+    if (cmp_res != 0) {
+        log_error("read and write buffer are not the same!");
+        spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        spdk_app_stop(-1);
+        return;
+    } else {
+        log_info("read and write buffer are the same. load {}",
+                 ctx->count.load());
+    }
 
     ctx->count.fetch_add(1);
     ctx->num_success += 1;
     ctx->num_queued -= 1;
 
     if (ctx->count.load() == 4 * 0x100) {
-        SPDK_NOTICELOG("read zone complete.\n");
+        log_info("read zone complete.\n");
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_app_stop(0);
         return;
@@ -49,15 +49,16 @@ static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     memset(ctx->read_buff, 0x34, ctx->buff_size);
     // uint64_t lba = ctx->count.load();
-    uint64_t lba =
-        ctx->count.load() / 0x100 * spdk_nvme_ns_get_num_sectors(ctx->ns) +
-        ctx->count.load() % 0x100;
+    uint64_t lba = ctx->count.load() / 0x100 *
+                       spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns) +
+                   ctx->count.load() % 0x100;
 
     int rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, lba, 1,
                                    read_complete, ctx, 0);
     SPDK_NOTICELOG("read lba:0x%lx\n", lba);
     if (rc != 0) {
-        SPDK_ERRLOG("error while reading from bdev: %d\n", rc);
+        SPDK_ERRLOG("%s error while reading from nvme: %d\n",
+                    spdk_strerror(-rc), rc);
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_app_stop(-1);
         return;
@@ -73,9 +74,10 @@ static void read_zone(void *arg)
     memset(ctx->read_buff, 0x34, ctx->buff_size);
     int rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, 0, 1,
                                    read_complete, ctx, 0);
-    SPDK_NOTICELOG("read lba:0x%x\n", 0x0);
+    SPDK_NOTICELOG("read lba:0x%x to read buffer\n", 0x0);
     if (rc) {
-        SPDK_ERRLOG("error while reading from bdev: %d\n", rc);
+        log_error("{} error while reading from bdev: {} \n", spdk_strerror(-rc),
+                  rc);
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_app_stop(-1);
     }
@@ -92,8 +94,8 @@ static void write_zone_complete(void *arg,
     ctx->num_completed += 1;
 
     if (spdk_nvme_cpl_is_error(completion)) {
-        SPDK_ERRLOG("nvme io write error: %s\n",
-                    spdk_nvme_cpl_get_status_string(&completion->status));
+        log_error("nvme io write error: {}\n",
+                  spdk_nvme_cpl_get_status_string(&completion->status));
         ctx->num_fail += 1;
         ctx->num_queued -= 1;
 
@@ -101,12 +103,15 @@ static void write_zone_complete(void *arg,
         spdk_app_stop(-1);
         return;
     }
+
+    SPDK_NOTICELOG("append lba:0x%lx\n", completion->cdw0);
+
     ctx->count.fetch_sub(1);
     ctx->num_success += 1;
     ctx->num_queued -= 1;
 
     if (ctx->count.load() == 0) {
-        SPDK_NOTICELOG("write zone complete.\n");
+        log_info("write zone complete.\n");
         read_zone(ctx);
     }
 }
@@ -116,27 +121,30 @@ static void write_zone(void *arg)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     uint64_t zone_size = spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns);
     int append_times = 0x100;
-    // ctx->count = append_times;
     int zone_num = 4;
     ctx->count = zone_num * append_times;
     memset(ctx->write_buff, 0x12, ctx->buff_size);
     for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
         for (int i = 0; i < append_times; i++) {
             ctx->num_queued++;
+            // FIXME:
+            // 1. check error code
+            // 2. set up buffer? step size?
             int rc =
                 spdk_nvme_zns_zone_append(ctx->ns, ctx->qpair, ctx->write_buff,
                                           slba, 1, write_zone_complete, ctx, 0);
             if (rc != 0) {
-                SPDK_ERRLOG("error while write_zone: %d\n", rc);
+                log_error("{} error while write_zone: {}\n", spdk_strerror(-rc),
+                          rc);
                 spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
                 spdk_app_stop(-1);
                 return;
             }
+            while (ctx->num_queued) {
+                // log_debug("reached here: queued {}", ctx->num_queued);
+                spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+            }
         }
-    }
-    while (ctx->num_queued) {
-        // log_debug("reached here: queued {}", ctx->num_queued);
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     }
 }
 
@@ -172,7 +180,7 @@ static void reset_zone_complete(void *arg, const struct spdk_nvme_cpl *cpl)
     // when all reset is done, do writes
     ctx->count.fetch_sub(1);
     if (ctx->count.load() == 0) {
-        SPDK_NOTICELOG("reset zone complete.\n");
+        log_info("reset zone complete.\n");
         write_zone(ctx);
     }
 }
@@ -190,15 +198,17 @@ static void reset_zone(void *arg)
 
     // z_reset(ctx);
 
-    log_info("Reset whole zone ");
-    bool done = false;
-    auto resetComplete = [](void *arg, const struct spdk_nvme_cpl *completion) {
-        bool *done = (bool *)arg;
-        *done = true;
-    };
+    // log_info("Reset whole zone ");
+    // bool done = false;
+    // auto resetComplete = [](void *arg, const struct spdk_nvme_cpl
+    // *completion) {
+    //     bool *done = (bool *)arg;
+    //     *done = true;
+    // };
 
-    spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, true, resetComplete,
-                             &done);
+    // spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, 0, true,
+    // reset_zone_complete,
+    //                          ctx);
 
     // uint8_t *buffer = (uint8_t *)spdk_zmalloc(
     //     4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
@@ -207,35 +217,35 @@ static void reset_zone(void *arg)
     // spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair, ctx->read_buff, 0, 4096,
     //                       reset_zone_complete, ctx, 0);
 
-    while (!done) {
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    }
-
-    // for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
-    //     // log_debug("Reset zone: slba {}", slba);
-    //     int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, slba, 0,
-    //                                       reset_zone_complete, ctx);
-    //     log_debug("Reset zone: slba {}: {}", slba, rc);
-    //     // int rc = spdk_nvme_ns_cmd_zone_management(
-    //     //             ctx->ns, ctx->qpair,
-    //     //             SPDK_NVME_ZONE_MANAGEMENT_SEND, SPDK_NVME_ZONE_RESET,
-    //     i,
-    //     //          if (rc == -ENOMEM) {
-    //     if (rc == -ENOMEM) {
-    //         log_debug("Queueing io");
-    //     } else if (rc) {
-    //         SPDK_ERRLOG("error while resetting zone: %d\n", rc);
-    //         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-    //         spdk_app_stop(-1);
-    //         return;
-    //     }
-    //
-    // while (ctx->num_queued) {
-    //     // log_debug("reached here: queued {}", ctx->num_queued);
+    // while (!done) {
     //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     // }
-    // }
 
+    for (uint64_t slba = 0; slba < zone_num * zone_size; slba += zone_size) {
+        // log_debug("Reset zone: slba {}", slba);
+        int rc = spdk_nvme_zns_reset_zone(ctx->ns, ctx->qpair, slba, 0,
+                                          reset_zone_complete, ctx);
+        log_debug("Reset zone: slba {}: {}", slba, rc);
+        // int rc = spdk_nvme_ns_cmd_zone_management(
+        //             ctx->ns, ctx->qpair,
+        //             SPDK_NVME_ZONE_MANAGEMENT_SEND, SPDK_NVME_ZONE_RESET,
+        // i,
+        //          if (rc == -ENOMEM) {
+        if (rc == -ENOMEM) {
+            log_debug("Queueing io: {}, {}", rc, spdk_strerror(-rc));
+        } else if (rc) {
+            log_error("{} error while resetting zone: {}\n", spdk_strerror(-rc),
+                      rc);
+            spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+            spdk_app_stop(-1);
+            return;
+        }
+    }
+
+    while (ctx->num_queued) {
+        // log_debug("reached here: queued {}", ctx->num_queued);
+        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+    }
     log_info("reset zone done");
 }
 
@@ -320,9 +330,10 @@ static void test_start(void *arg1)
 
     z_get_device_info(ctx);
 
-    reset_zone(ctx);
+    // working
+    // reset_zone(ctx);
 
-    // write_zone(ctx);
+    write_zone(ctx);
 
     // read_zone(ctx);
 
