@@ -48,6 +48,8 @@ struct ZstoreContext {
     // device related
     bool device_support_meta = true;
     DeviceInfo info;
+    u64 current_zone;
+    u64 zslba;
 
     bool done = false;
     u64 num_queued = 0;
@@ -367,6 +369,10 @@ int z_get_device_info(void *arg)
     // ERROR_ON_NULL(manager, 1);
     ERROR_ON_NULL(ctx->ctrlr, 1);
     ERROR_ON_NULL(ctx->ns, 1);
+
+    u64 zone_dist = 0x80000; // zone size
+    ctx->zslba = zone_dist * ctx->current_zone;
+
     const struct spdk_nvme_ns_data *ns_data = spdk_nvme_ns_get_data(ctx->ns);
     const struct spdk_nvme_zns_ns_data *ns_data_zns =
         spdk_nvme_zns_ns_get_data(ctx->ns);
@@ -383,9 +389,10 @@ int z_get_device_info(void *arg)
                                : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
     ctx->info.lba_cap = ns_data->ncap;
     log_info("Z Get Device Info: lbs size {}, zone size {}, mdts {}, zasl {}, "
-             "lba cap {}",
+             "lba cap {}, current zone {}, current zslba {}",
              ctx->info.lba_size, ctx->info.zone_size, ctx->info.mdts,
-             ctx->info.zasl, ctx->info.lba_cap);
+             ctx->info.zasl, ctx->info.lba_cap, ctx->current_zone, ctx->zslba);
+
     return 0;
 }
 
