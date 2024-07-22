@@ -14,6 +14,7 @@ static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 typedef struct {
     uint64_t lba_size;
     uint64_t zone_size;
+    uint64_t zone_cap;
     uint64_t mdts;
     uint64_t zasl;
     uint64_t lba_cap;
@@ -252,12 +253,15 @@ static void zstore_init(void *arg)
     } else {
         zone_capacity = zone_size;
     }
+    ctx->info.zone_cap = zone_capacity;
     log_info("Zone size: {}, zone cap: {}, num of zones: {}\n", zone_size,
              zone_capacity, num_zones);
 
     uint32_t blockSize = 4096;
     uint64_t storageSpace = 1024 * 1024 * 1024 * 1024ull;
     auto mMappingBlockUnitSize = blockSize * blockSize / 4;
+    log_info("block size: {}, storage space: {}, mapping block unit size: {}\n",
+             blockSize, storageSpace, mMappingBlockUnitSize);
 }
 
 // TropoDB
