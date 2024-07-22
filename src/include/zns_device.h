@@ -11,38 +11,6 @@
 // static const char *g_bdev_name = "Nvme1n2";
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
-struct ZstoreContext {
-    // spdk things
-    struct spdk_nvme_ctrlr *ctrlr = nullptr;
-    struct spdk_nvme_ns *ns = nullptr;
-    struct spdk_nvme_qpair *qpair = nullptr;
-    char *write_buff = nullptr;
-    char *read_buff = nullptr;
-    uint32_t buff_size;
-    // char *bdev_name;
-
-    // device related
-    bool device_support_meta = true;
-
-    bool done = false;
-    u64 num_queued = 0;
-    u64 num_completed = 0;
-    u64 num_success = 0;
-    u64 num_fail = 0;
-
-    u64 total_us = 0;
-
-    std::atomic<int> count; // atomic count for concurrency
-};
-
-typedef struct {
-} Zone;
-
-typedef struct {
-    bool done = false;
-    int err = 0;
-} Completion;
-
 typedef struct {
     uint64_t lba_size;
     uint64_t zone_size;
@@ -66,6 +34,38 @@ typedef struct {
     bool found;
 } DeviceProber;
 
+struct ZstoreContext {
+    // spdk things
+    struct spdk_nvme_ctrlr *ctrlr = nullptr;
+    struct spdk_nvme_ns *ns = nullptr;
+    struct spdk_nvme_qpair *qpair = nullptr;
+    char *write_buff = nullptr;
+    char *read_buff = nullptr;
+    uint32_t buff_size;
+    // char *bdev_name;
+
+    // device related
+    bool device_support_meta = true;
+    DeviceInfo info;
+
+    bool done = false;
+    u64 num_queued = 0;
+    u64 num_completed = 0;
+    u64 num_success = 0;
+    u64 num_fail = 0;
+
+    u64 total_us = 0;
+
+    std::atomic<int> count; // atomic count for concurrency
+};
+
+typedef struct {
+} Zone;
+
+typedef struct {
+    bool done = false;
+    int err = 0;
+} Completion;
 // Create 1 QPair for each thread that uses I/O.
 // typedef struct {
 //     spdk_nvme_qpair *qpair;
@@ -371,14 +371,31 @@ int z_get_device_info(void *arg)
     const spdk_nvme_zns_ctrlr_data *ctrlr_data_zns =
         spdk_nvme_zns_ctrlr_get_data(ctx->ctrlr);
     union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctx->ctrlr);
-    auto lba_size = 1 << ns_data->lbaf[ns_data->flbas.format].lbads;
-    auto zone_size = ns_data_zns->lbafe[ns_data->flbas.format].zsze;
-    auto mdts = (uint64_t)1 << (12 + cap.bits.mpsmin + ctrlr_data->mdts);
+    ctx->info.lba_size = 1 << ns_data->lbaf[ns_data->flbas.format].lbads;
+    ctx->info.zone_size = ns_data_zns->lbafe[ns_data->flbas.format].zsze;
+    ctx->info.mdts = (uint64_t)1 << (12 + cap.bits.mpsmin + ctrlr_data->mdts);
     auto zasl = ctrlr_data_zns->zasl;
-    zasl = zasl == 0 ? mdts : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
-    auto lba_cap = ns_data->ncap;
+    ctx->info.zasl = zasl == 0 ? ctx->info.mdts
+                               : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
+    ctx->info.lba_cap = ns_data->ncap;
     log_info("Z Get Device Info: lbs size {}, zone size {}, mdts {}, zasl {}, "
              "lba cap {}",
-             lba_size, zone_size, mdts, zasl, lba_cap);
+             ctx->info.lba_size, ctx->info.zone_size, ctx->info.mdts,
+             ctx->info.zasl, ctx->info.lba_cap);
     return 0;
+}
+
+void *z_calloc(void *arg, int nr, int size)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    uint32_t alligned_size = ctx->info.lba_size;
+    uint32_t true_size = nr * size;
+    if (true_size % alligned_size != 0) {
+        return NULL;
+    }
+    void *temp_buffer =
+        (char *)spdk_zmalloc(true_size, alligned_size, NULL,
+                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+    (void)ctx->qpair;
+    return temp_buffer;
 }
