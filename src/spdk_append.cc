@@ -16,7 +16,7 @@ static void zstore_exit(void *arg)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     // Increment the parameter
-    // current_zone++;
+    ctx->current_zone++;
     // Write the new value back to the file
     std::ofstream outputFile("../current_zone");
     if (outputFile.is_open()) {
@@ -70,6 +70,7 @@ static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
         spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         zstore_exit(ctx);
         spdk_app_stop(0);
+        log_info("app stop \n");
         return;
     }
 
@@ -354,6 +355,7 @@ int main(int argc, char **argv)
         SPDK_ERRLOG("ERROR starting application\n");
     }
 
+    log_info("freee dma");
     spdk_dma_free(ctx.write_buff);
     spdk_dma_free(ctx.read_buff);
 

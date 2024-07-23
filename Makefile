@@ -5,6 +5,7 @@ setup: install-libs
 	meson setup --native-file meson.ini build-rel --buildtype=release -Db_sanitize=none
 	meson setup --native-file meson.ini build-dbg --buildtype=debug
 	ln -s build-dbg build
+	ln -s ~/.current_zone current_zone
 
 debug: #setup
 	# cd build-dbg; meson compile
