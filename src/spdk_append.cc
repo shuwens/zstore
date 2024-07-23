@@ -71,7 +71,7 @@ static void close_zone(void *arg)
     for (uint64_t slba = 0; slba < zone_num * ctx->info.zone_size;
          slba += ctx->info.zone_size) {
         ctx->num_queued++;
-        int rc = spdk_nvme_zns_close_zone(
+        int rc = spdk_nvme_zns_finish_zone(
             ctx->ns, ctx->qpair, ctx->zslba + slba + ctx->info.zone_size, 0,
             close_complete, ctx);
         if (rc == -ENOMEM) {
@@ -135,11 +135,10 @@ static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
         log_info("read and write buffer are the same. load {}",
                  ctx->count.load());
 
-        std::vector<u64> data1;
-        data1.push_back(*(u64 *)ctx->read_buff);
-        std::ofstream of1("data1.txt");
-        for (auto d : data1)
-            of1 << d << " ";
+        int *intPtr = reinterpret_cast<int *>(ctx->write_buff);
+        std::cout << "write " << *intPtr << " ";
+        intPtr = reinterpret_cast<int *>(ctx->read_buff);
+        std::cout << "read " << *intPtr << " ";
     }
 
     ctx->count.fetch_add(1);
@@ -254,7 +253,10 @@ static void write_zone(void *arg)
     // 1'000'000'000: 3B9ACA00
     // 2'000'000'000: 77359400
     // 3'000'000'000: B2D05E00
-    memset(ctx->write_buff, 0x3B9ACA00, ctx->buff_size);
+    // memset(ctx->write_buff, 0x3B9ACA00, ctx->buff_size);
+    // memset(ctx->write_buff, 0x12, ctx->buff_size);
+    memset(ctx->write_buff, 0, ctx->buff_size);
+    int value = 10000000; // Integer value to set in the buffer
     // std::cout << "Write buffer" << std::string(ctx->write_buff, 4096)
     //           << std::endl;
 
@@ -263,6 +265,7 @@ static void write_zone(void *arg)
         for (int i = 0; i < append_times; i++) {
             // log_info("slba {}, i {}", slba, i);
             ctx->num_queued++;
+            std::memcpy(ctx->write_buff, &value + i, sizeof(int));
             int rc = spdk_nvme_zns_zone_append(
                 ctx->ns, ctx->qpair, ctx->write_buff, ctx->zslba + slba, 1,
                 write_zone_complete, ctx, 0);
@@ -374,7 +377,8 @@ static void test_start(void *arg1)
     log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
              ctx->info.lba_size);
     // ctx->buff_size = ctx->info.zone_cap * ctx->info.lba_size;
-    ctx->buff_size = ctx->info.lba_size;
+    // ctx->buff_size = ctx->info.lba_size;
+    ctx->buff_size = 4096;
     uint32_t buf_align = ctx->info.lba_size;
     log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
 
