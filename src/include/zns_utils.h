@@ -31,22 +31,22 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "spdk/nvme_spec.h"
-#include "spdk/stdinc.h"
-
 #include "spdk/endian.h"
 #include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
 #include "spdk/nvme_ocssd.h"
+#include "spdk/nvme_spec.h"
 #include "spdk/nvme_zns.h"
 #include "spdk/nvmf_spec.h"
 #include "spdk/pci_ids.h"
+#include "spdk/stdinc.h"
 #include "spdk/string.h"
 #include "spdk/util.h"
 #include "spdk/uuid.h"
 #include "spdk/vmd.h"
+#include "utils.hpp"
 
 #define MAX_DISCOVERY_LOG_ENTRIES ((uint64_t)1000)
 
@@ -627,6 +627,7 @@ static void get_zns_zone_report(struct spdk_nvme_ns *ns,
         exit(1);
     }
 
+    log_info("debug: zone report size {}", g_zone_report->nr_zones);
     if (spdk_nvme_zns_report_zones(ns, qpair, g_zone_report, g_zone_report_size,
                                    0, SPDK_NVME_ZRA_LIST_ALL, true,
                                    get_zns_zone_report_completion, NULL)) {
@@ -711,6 +712,7 @@ static void print_zns_zone_report(void)
     printf("NVMe ZNS Zone Report Glance\n");
     printf("===========================\n");
 
+    log_info("debug: nr zones {}", g_zone_report->nr_zones);
     for (i = 0; i < g_zone_report->nr_zones; i++) {
         struct spdk_nvme_zns_zone_desc *desc = &g_zone_report->descs[i];
         printf("Zone: %" PRIu64 " ZSLBA: 0x%016" PRIx64 " ZCAP: 0x%016" PRIx64
@@ -718,6 +720,23 @@ static void print_zns_zone_report(void)
                i, desc->zslba, desc->zcap, desc->wp, desc->zs, desc->zt,
                desc->za.raw);
     }
+    free(g_zone_report);
+    g_zone_report = NULL;
+}
+
+static void print_zns_current_zone_report(uint64_t current_zone)
+{
+
+    printf("NVMe ZNS Zone Report Glance\n");
+    printf("===========================\n");
+
+    // log_info("debug: nr zones {}", g_zone_report->nr_zones);
+    log_info("debug: current zone {}", current_zone);
+    struct spdk_nvme_zns_zone_desc *desc = &g_zone_report->descs[current_zone];
+    printf("Zone: %" PRIu64 " ZSLBA: 0x%016" PRIx64 " ZCAP: 0x%016" PRIx64
+           " WP: 0x%016" PRIx64 " ZS: %x ZT: %x ZA: %x\n",
+           current_zone, desc->zslba, desc->zcap, desc->wp, desc->zs, desc->zt,
+           desc->za.raw);
     free(g_zone_report);
     g_zone_report = NULL;
 }
@@ -760,7 +779,7 @@ static void print_zns_ns_data(const struct spdk_nvme_zns_ns_data *nsdata_zns)
 }
 
 static void print_namespace(struct spdk_nvme_ctrlr *ctrlr,
-                            struct spdk_nvme_ns *ns)
+                            struct spdk_nvme_ns *ns, uint64_t current_zone)
 {
     const struct spdk_nvme_ctrlr_data *cdata;
     const struct spdk_nvme_ns_data *nsdata;
@@ -914,7 +933,10 @@ static void print_namespace(struct spdk_nvme_ctrlr *ctrlr,
         }
         print_zns_ns_data(nsdata_zns);
         get_zns_zone_report(ns, qpair);
+
         print_zns_zone_report();
+        // print_zns_current_zone_report(current_zone);
+
         spdk_nvme_ctrlr_free_io_qpair(qpair);
     }
 }

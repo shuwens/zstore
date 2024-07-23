@@ -197,7 +197,9 @@ static void zns_dev_init(void *arg)
             continue;
         }
         ctx->ns = ns;
-        print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
+
+        print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid),
+                        ctx->current_zone);
 
         break;
     }

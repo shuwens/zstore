@@ -249,7 +249,7 @@ static void hello_world(void)
         sequence.is_completed = 0;
         sequence.ns_entry = ns_entry;
 
-        print_namespace(ns_entry->ctrlr, ns_entry->ns);
+        print_namespace(ns_entry->ctrlr, ns_entry->ns, 0);
 
         /*
          * If the namespace is a Zoned Namespace, rather than a regular
