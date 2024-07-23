@@ -67,7 +67,6 @@ static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
     ctx->count.fetch_add(1);
     if (ctx->count.load() == 2 * 0x1) {
         log_info("read zone complete. load {}\n", ctx->count.load());
-        spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         zstore_exit(ctx);
         spdk_app_stop(0);
         log_info("app stop \n");
@@ -325,7 +324,6 @@ static void test_start(void *arg1)
     // write_zone(ctx);
 
     log_info("Test start finish");
-    return;
 }
 
 int main(int argc, char **argv)
@@ -356,6 +354,7 @@ int main(int argc, char **argv)
     }
 
     log_info("freee dma");
+    spdk_nvme_ctrlr_free_io_qpair(ctx.qpair);
     spdk_dma_free(ctx.write_buff);
     spdk_dma_free(ctx.read_buff);
 
