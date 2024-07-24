@@ -59,6 +59,8 @@ struct ZstoreContext {
 
     u64 total_us = 0;
 
+    bool zstore_open = false;
+
     std::atomic<int> count; // atomic count for concurrency
 };
 

@@ -1,0 +1,152 @@
+[18:35] zstore1:build (spdk *) | meson compile && sudo  ./zstore -c ../zstore2.json
+INFO: autodetecting backend as ninja
+INFO: calculating backend command to run: /usr/local/bin/ninja
+ninja: no work to do.
+[INFO ../src/spdk_append.cc:440 main] Zstore start with current zone: 61
+[2024-07-24 18:35:39.859204] Starting SPDK v24.05 git sha1 40a5c21 / DPDK 24.03.0 initialization...
+[2024-07-24 18:35:39.859227] [ DPDK EAL parameters: test_nvme --no-shconf -c 0x1 --huge-unlink --no-telemetry --log-level=lib.eal:6 --log-level=lib.cryptodev:5 --log-level=user1:6 --iova-mode=pa --base-virtaddr=0x200000000000 --match-allocations --file-prefix=spdk_pid170100 ]
+[2024-07-24 18:35:39.991757] app.c: 909:spdk_app_start: *NOTICE*: Total cores available: 1
+[2024-07-24 18:35:40.026148] reactor.c: 937:reactor_run: *NOTICE*: Reactor started on core 0
+[INFO ../src/spdk_append.cc:372 test_start] test start
+
+[2024-07-24 18:35:40.195165] ../src/include/zns_device.h: 137:zns_dev_init: *NOTICE*: Successfully started the application
+[2024-07-24 18:35:40.195197] ../src/include/zns_device.h: 167:zns_dev_init: *NOTICE*: Successfully started the application
+[2024-07-24 18:35:40.195203] ../src/include/zns_device.h: 168:zns_dev_init: *NOTICE*: Initializing NVMe controller
+ZNS Specific Controller Data
+============================
+Zone Append Size Limit:      8
+
+
+Active Namespaces
+=================
+[INFO ../src/include/zns_device.h:192 zns_dev_init] ns id: 1
+Namespace ID:1
+Deallocate:                            Supported
+Deallocated/Unwritten Error:           Not Supported
+Deallocated Read Value:                Unknown
+Deallocate in Write Zeroes:            Not Supported
+Deallocated Guard Field:               0xFFFF
+Flush:                                 Supported
+Reservation:                           Supported
+Namespace Sharing Capabilities:        Multiple Controllers
+Size (in LBAs):                        212860928 (812GiB)
+Capacity (in LBAs):                    212860928 (812GiB)
+Utilization (in LBAs):                 212860928 (812GiB)
+NGUID:                                 12000000000000000014EE8303A64601
+UUID:                                  12000000-0000-0000-0014-ee8303a64601
+Thin Provisioning:                     Not Supported
+Per-NS Atomic Units:                   Yes
+  Atomic Boundary Size (Normal):       0
+  Atomic Boundary Size (PFail):        0
+  Atomic Boundary Offset:              0
+NGUID/EUI64 Never Reused:              No
+Number of LBA Formats:                 1
+Current LBA Format:                    LBA Format #00
+LBA Format #00: Data Size:  4096  Metadata Size:     0
+LBA Format Extension #00: Zone Size (in LBAs): 0x80000 Zone Descriptor Extension Size: 0 bytes
+
+ZNS Specific Namespace Data
+===========================
+Variable Zone Capacity:                No
+Zone Active Excursions:                No
+Read Across Zone Boundaries:           Yes
+Max Active Resources:                  14
+Max Open Resources:                    14
+Reset Recommended Limit:               Not Reported
+Finish Recommended Limit:              Not Reported
+
+[INFO ../src/include/zns_utils.h:630 get_zns_zone_report] debug: zone report size 0
+NVMe ZNS Zone Report Glance
+===========================
+[INFO ../src/include/zns_utils.h:715 print_zns_zone_report] debug: nr zones 8
+Zone: 0 ZSLBA: 0x0000000000000000 ZCAP: 0x0000000000043500 WP: 0x0000000000000000 ZS: 1 ZT: 2 ZA: 0
+Zone: 1 ZSLBA: 0x0000000000080000 ZCAP: 0x0000000000043500 WP: 0x0000000000080000 ZS: 1 ZT: 2 ZA: 0
+Zone: 2 ZSLBA: 0x0000000000100000 ZCAP: 0x0000000000043500 WP: 0x0000000000100000 ZS: 1 ZT: 2 ZA: 0
+Zone: 3 ZSLBA: 0x0000000000180000 ZCAP: 0x0000000000043500 WP: 0x0000000000180000 ZS: 1 ZT: 2 ZA: 0
+Zone: 4 ZSLBA: 0x0000000000200000 ZCAP: 0x0000000000043500 WP: 0x0000000000200000 ZS: 1 ZT: 2 ZA: 0
+Zone: 5 ZSLBA: 0x0000000000280000 ZCAP: 0x0000000000043500 WP: 0x0000000000280000 ZS: 1 ZT: 2 ZA: 0
+Zone: 6 ZSLBA: 0x0000000000300000 ZCAP: 0x0000000000043500 WP: 0x0000000000300000 ZS: 1 ZT: 2 ZA: 0
+Zone: 7 ZSLBA: 0x0000000000380000 ZCAP: 0x0000000000043500 WP: 0x0000000000380000 ZS: 1 ZT: 2 ZA: 0
+[INFO ../src/include/zns_device.h:264 zstore_init] Zone size: 524288, zone cap: 275712, num of zones: 406
+
+[INFO ../src/include/zns_device.h:270 zstore_init] block size: 4096, storage space: 1099511627776, mapping block unit size: 4194304
+
+[INFO ../src/include/zns_device.h:398 z_get_device_info] Z Get Device Info: lbs size 4096, zone size 524288, mdts 131072, zasl 1048576, lba cap 212860928, current zone 61, current zslba 31981568
+[INFO ../src/spdk_append.cc:385 test_start] zone cap: 275712, lba bytes 4096
+[INFO ../src/spdk_append.cc:390 test_start] buffer size: 4096, align 4096
+[INFO ../src/spdk_append.cc:421 test_start] block size: 4096, write unit: 0, zone size: 524288, zone num: 406, max append size: 32,  max open zone: 14, max active zone: 14
+
+[INFO ../src/spdk_append.cc:331 reset_zone] reset_zone
+
+[DBG ../src/spdk_append.cc:336 reset_zone] Reset zone: current zone 61, num 1, size 524288, load 1
+[DBG ../src/spdk_append.cc:357 reset_zone] Reset zone: slba 31981568: load 1, queued 1
+[DBG ../src/spdk_append.cc:360 reset_zone] 1: queued: 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 1
+[DBG ../src/spdk_append.cc:362 reset_zone] 2 1
+[INFO ../src/spdk_append.cc:292 reset_zone_complete] reset_zone_complete: load 1
+[DBG ../src/spdk_append.cc:319 reset_zone_complete] reset zone complete: queued 0 completed 1 success 1 fail 0, load 1
+[INFO ../src/spdk_append.cc:324 reset_zone_complete] reset zone complete. load 0
+
+[INFO ../src/spdk_append.cc:248 write_zone] write_zone
+[INFO ../src/spdk_append.cc:220 write_zone_complete] write_zone_complete: load 1
+[2024-07-24 18:35:40.211107] ../src/spdk_append.cc: 237:write_zone_complete: *NOTICE*: append lba:0x1e80000
+[INFO ../src/spdk_append.cc:241 write_zone_complete] write zone complete. load 0
+
+[INFO ../src/spdk_append.cc:177 read_zone] read_zone
+[ERR ../src/spdk_append.cc:189 read_zone] EXPECTED: read and write buffer are not the same!
+[2024-07-24 18:35:40.211128] ../src/spdk_append.cc: 201:read_zone: *NOTICE*: read lba:0x1e80000 to read buffer
+[INFO ../src/spdk_append.cc:101 read_complete] read_complete: load 0
+[INFO ../src/spdk_append.cc:138 read_complete] read and write buffer are the same. load 0
+[INFO ../src/spdk_append.cc:148 read_complete] read zone complete. load 1
+
+[INFO ../src/spdk_append.cc:69 close_zone] close_zone
+[DBG ../src/spdk_append.cc:90 close_zone] Close zone: slba 31981568: load 1
+[INFO ../src/spdk_append.cc:34 close_complete] close_complete: load 1
+[INFO ../src/spdk_append.cc:56 close_complete] close zone complete. load 0, queued 0
+
+[INFO ../src/spdk_append.cc:60 close_complete] app stop 0
+
+[2024-07-24 18:35:40.211501] nvme_tcp.c:1644:nvme_tcp_capsule_resp_hdr_handle: *ERROR*: no tcp_req is found with cid=0 for tqpair=0x5e66a4e065c0
+[2024-07-24 18:35:40.211528] nvme_qpair.c: 804:spdk_nvme_qpair_process_completions: *ERROR*: CQ transport error -6 (No such device or address) on qpair id 1
+[2024-07-24 18:35:40.211537] /home/shwsun/dev/zstore/subprojects/spdk/include/spdk_internal/nvme_tcp.h: 428:nvme_tcp_read_data: *ERROR*: spdk_sock_recv() failed, errno 9: Bad file descriptor
+[2024-07-24 18:35:40.211547] nvme_qpair.c: 804:spdk_nvme_qpair_process_completions: *ERROR*: CQ transport error -6 (No such device or address) on qpair id 1
+[2024-07-24 18:35:40.211554] nvme_qpair.c: 804:spdk_nvme_qpair_process_completions: *ERROR*: CQ transport error -6 (No such device or address) on qpair id 1
+[2024-07-24 18:35:40.211562] nvme_qpair.c: 804:spdk_nvme_qpair_process_completions: *ERROR*: CQ transport error -6 (No such device or address) on qpair id 1
+[DBG ../src/spdk_append.cc:364 reset_zone] 3 0
+[INFO ../src/spdk_append.cc:367 reset_zone] reset_zone end, load 0, stupid 1
+[INFO ../src/spdk_append.cc:428 test_start] Test start finish
+[INFO ../src/spdk_append.cc:458 main] freee dma
+[INFO ../src/spdk_append.cc:465 main] zstore exits gracefully
+write 10000000 read 10000000 ⏎
+[18:35] zstore1:build (spdk *) |
