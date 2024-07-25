@@ -26,6 +26,101 @@ void memset64(void *dest, u64 val, usize bytes)
         cdest[i] = val;
 }
 
+int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    ERROR_ON_NULL(ctx->qpair, 1);
+    ERROR_ON_NULL(buffer, 1);
+    int rc = 0;
+
+    int lbas = (size + ctx->info.lba_size - 1) / ctx->info.lba_size;
+    int lbas_processed = 0;
+    int step_size = (ctx->info.mdts / ctx->info.lba_size);
+    int current_step_size = step_size;
+    int slba_start = slba;
+
+    while (lbas_processed < lbas) {
+        Completion completion = {.done = false, .err = 0};
+        if ((slba + lbas_processed + step_size) / ctx->info.zone_size >
+            (slba + lbas_processed) / ctx->info.zone_size) {
+            current_step_size =
+                ((slba + lbas_processed + step_size) / ctx->info.zone_size) *
+                    ctx->info.zone_size -
+                lbas_processed - slba;
+        } else {
+            current_step_size = step_size;
+        }
+        current_step_size = lbas - lbas_processed > current_step_size
+                                ? current_step_size
+                                : lbas - lbas_processed;
+        // printf("%d step %d  \n", slba_start, current_step_size);
+        rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair,
+                                   (char *)buffer +
+                                       lbas_processed * ctx->info.lba_size,
+                                   slba_start,        /* LBA start */
+                                   current_step_size, /* number of LBAs */
+                                   __read_complete2, &completion, 0);
+        if (rc != 0) {
+            return 1;
+        }
+        POLL_QPAIR(ctx->qpair, completion.done);
+        if (completion.err != 0) {
+            return completion.err;
+        }
+        lbas_processed += current_step_size;
+        slba_start = slba + lbas_processed;
+    }
+    return rc;
+}
+
+int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    ERROR_ON_NULL(ctx->qpair, 1);
+    ERROR_ON_NULL(buffer, 1);
+
+    int rc = 0;
+
+    int lbas = (size + ctx->info.lba_size - 1) / ctx->info.lba_size;
+    int lbas_processed = 0;
+    int step_size = (ctx->info.zasl / ctx->info.lba_size);
+    int current_step_size = step_size;
+    int slba_start = (slba / ctx->info.zone_size) * ctx->info.zone_size;
+
+    while (lbas_processed < lbas) {
+        Completion completion = {.done = false, .err = 0};
+        if ((slba + lbas_processed + step_size) / ctx->info.zone_size >
+            (slba + lbas_processed) / ctx->info.zone_size) {
+            current_step_size =
+                ((slba + lbas_processed + step_size) / ctx->info.zone_size) *
+                    ctx->info.zone_size -
+                lbas_processed - slba;
+        } else {
+            current_step_size = step_size;
+        }
+        current_step_size = lbas - lbas_processed > current_step_size
+                                ? current_step_size
+                                : lbas - lbas_processed;
+        rc = spdk_nvme_zns_zone_append(ctx->ns, ctx->qpair,
+                                       (char *)buffer +
+                                           lbas_processed * ctx->info.lba_size,
+                                       slba_start,        /* LBA start */
+                                       current_step_size, /* number of LBAs */
+                                       __append_complete2, &completion, 0);
+        if (rc != 0) {
+            break;
+        }
+        POLL_QPAIR(ctx->qpair, completion.done);
+        if (completion.err != 0) {
+            return completion.err;
+        }
+        lbas_processed += current_step_size;
+        slba_start = ((slba + lbas_processed) / ctx->info.zone_size) *
+                     ctx->info.zone_size;
+    }
+    return rc;
+}
+
 static void zstore_exit(void *arg)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
@@ -397,49 +492,81 @@ static void test_start(void *arg1)
              spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
              spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
 
-    memset(ctx->write_buff, 0, ctx->buff_size);
-    memset(ctx->read_buff, 0, ctx->buff_size);
-    for (int i = 0; i < append_times; i++) {
-        log_info("memset buffer in before write:");
-        // std::memcpy(ctx->write_buff + 4096 * i, &value + i, 4096);
-        memset64((char *)ctx->write_buff + 4096 * i, i + value, 4096);
-        // memset64((char *)ctx->write_buff + 4096 * i, i + value, 4096);
-
-        u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-        u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-        printf("write: %d\n", dw);
-        printf("read: %d\n", dr);
-    }
+    // memset(ctx->write_buff, 0, ctx->buff_size);
+    // memset(ctx->read_buff, 0, ctx->buff_size);
+    // for (int i = 0; i < append_times; i++) {
+    //     log_info("memset buffer in before write:");
+    //     // std::memcpy(ctx->write_buff + 4096 * i, &value + i, 4096);
+    //     memset64((char *)ctx->write_buff + 4096 * i, i + value, 4096);
+    //     // memset64((char *)ctx->write_buff + 4096 * i, i + value, 4096);
+    //
+    //     u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
+    //     u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
+    //     printf("write: %d\n", dw);
+    //     printf("read: %d\n", dr);
+    // }
 
     // working
     // reset_zone(ctx);
 
-    write_zone(ctx);
-
+    // write_zone(ctx);
     for (int i = 0; i < append_times; i++) {
-        log_info("buffer after write:");
-        u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-        u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-        printf("write: %d\n", dw);
-        printf("read: %d\n", dr);
-    }
+        log_info("writing with z_append:");
+        char *valpt = (char *)z_calloc(ctx, 4096, sizeof(char));
+        // snprintf(valpt, 4096, "%s:%s", key.data(), val.data());
+        // snprintf(valpt, 4096, "%d:%d", value +i, val.data());
+        snprintf(valpt, 4096, "zstore:%d", value + i);
+        printf("write: %d\n", value + i);
+        int rc = z_append(ctx, ctx->zslba, valpt, 4096);
 
-    read_zone(ctx);
-
-    std::vector<u64> d;
-    for (int i = 0; i < append_times; i++) {
-        log_info("buffer after read:");
-        u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-        u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-        printf("write: %d\n", dw);
-        printf("read: %d\n", dr);
-
-        d.push_back(*(u64 *)(ctx->read_buff + i * 4096));
-        // u64 dw = *(u64 *)ctx->write_buff;
-        u64 dr2 = *(u64 *)(ctx->read_buff + i * 4096);
+        // u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
+        // u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
         // printf("write: %d\n", dw);
-        printf("read: addr %d, value %d\n", ctx->read_buff + i * 4096, dr2);
+        // printf("read: %d\n", dr);
     }
+
+    ctx->current_lba = 0x57800ae;
+
+    for (int i = 0; i < append_times; i++) {
+        log_info("read with z_append:");
+        char *valpt = (char *)z_calloc(ctx, 4096, sizeof(char));
+        // snprintf(valpt, 4096, "%s:%s", key.data(), val.data());
+        // snprintf(valpt, 4096, "%d:%d", value +i, val.data());
+        printf("read: %d\n", value + i);
+        int rc = z_read(ctx, ctx->current_lba + i * 4096, valpt, 4096);
+        std::cout << static_cast<const void *>(valpt);
+        // std::cout << valpt << '\n';
+        // u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
+        // u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
+        // printf("write: %d\n", dw);
+        std::string myString(valpt, 4096);
+        printf("\nTEST: %s\n", &valpt);
+        std::cout << myString;
+    }
+
+    // for (int i = 0; i < append_times; i++) {
+    //     log_info("buffer after write:");
+    //     u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
+    //     u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
+    //     printf("write: %d\n", dw);
+    //     printf("read: %d\n", dr);
+    // }
+    // read_zone(ctx);
+
+    // std::vector<u64> d;
+    // for (int i = 0; i < append_times; i++) {
+    //     log_info("buffer after read:");
+    //     // u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
+    //     u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
+    //     // printf("write: %d\n", dw);
+    //     printf("read: %d\n", dr);
+    //
+    //     d.push_back(*(u64 *)(ctx->read_buff + i * 4096));
+    //     // u64 dw = *(u64 *)ctx->write_buff;
+    //     u64 dr2 = *(u64 *)(ctx->read_buff + i * 4096);
+    //     // printf("write: %d\n", dw);
+    //     printf("read: addr %d, value %d\n", ctx->read_buff + i * 4096, dr2);
+    // }
 
     // close_zone(ctx);
 

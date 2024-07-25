@@ -318,6 +318,29 @@ extern "C" {
 //     uint64_t lba_cap;
 // } DeviceInfo;
 
+static void __operation_complete2(void *arg,
+                                  const struct spdk_nvme_cpl *completion)
+{
+    Completion *completed = (Completion *)arg;
+    completed->done = true;
+    if (spdk_nvme_cpl_is_error(completion)) {
+        completed->err = 1;
+        return;
+    }
+    SPDK_NOTICELOG("append slba:0x%016x\n", completion->cdw0);
+}
+
+static void __append_complete2(void *arg,
+                               const struct spdk_nvme_cpl *completion)
+{
+    __operation_complete2(arg, completion);
+}
+
+static void __read_complete2(void *arg, const struct spdk_nvme_cpl *completion)
+{
+    __operation_complete2(arg, completion);
+}
+
 static void __operation_complete(void *arg,
                                  const struct spdk_nvme_cpl *completion)
 {
