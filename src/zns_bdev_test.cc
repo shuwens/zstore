@@ -171,11 +171,11 @@ static void reset_zone_complete(struct spdk_bdev_io *bdev_io, bool success,
     test_context->count.fetch_sub(1);
     if (test_context->count.load() == 0) {
         SPDK_NOTICELOG("reset zone complete.\n");
-        // write_zone(test_context);
-        spdk_put_io_channel(test_context->bdev_io_channel);
-        spdk_bdev_close(test_context->bdev_desc);
-        spdk_app_stop(0);
-        return;
+        write_zone(test_context);
+        // spdk_put_io_channel(test_context->bdev_io_channel);
+        // spdk_bdev_close(test_context->bdev_desc);
+        // spdk_app_stop(0);
+        // return;
     }
 }
 

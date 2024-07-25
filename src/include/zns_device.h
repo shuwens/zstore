@@ -62,6 +62,8 @@ struct ZstoreContext {
     bool zstore_open = false;
 
     std::atomic<int> count; // atomic count for concurrency
+    // tmo
+    u64 current_lba = 0;
 };
 
 typedef struct {
