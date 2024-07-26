@@ -5,6 +5,7 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
+#include <cstdint>
 #include <fstream>
 #include <stdio.h>
 // #include "spdk/nvmf_spec.h"
@@ -15,7 +16,7 @@
 #include <string>
 
 const int zone_num = 1;
-const int append_times = 10;
+const int append_times = 100;
 const int value = 10000000; // Integer value to set in the buffer
 
 void memset64(void *dest, u64 val, usize bytes)
@@ -317,7 +318,11 @@ static void write_zone_complete(void *arg,
         ctx->num_queued -= 1;
     }
 
+    // log_info("append slba:0x%016x\n", completion->cdw0);
     SPDK_NOTICELOG("append slba:0x%016x\n", completion->cdw0);
+
+    ctx->append_lbas.push_back(completion->cdw0);
+
     if (ctx->current_lba == 0) {
         ctx->current_lba = completion->cdw0;
     }
@@ -510,65 +515,69 @@ static void test_start(void *arg1)
     // reset_zone(ctx);
 
     // write_zone(ctx);
+    log_info("writing with z_append:");
     for (int i = 0; i < append_times; i++) {
-        log_info("writing with z_append:");
-        char *valpt = (char *)z_calloc(ctx, 4096, sizeof(char));
-        // snprintf(valpt, 4096, "%s:%s", key.data(), val.data());
-        // snprintf(valpt, 4096, "%d:%d", value +i, val.data());
-        snprintf(valpt, 4096, "zstore:%d", value + i);
-        printf("write: %d\n", value + i);
-        int rc = z_append(ctx, ctx->zslba, valpt, 4096);
+        char *wbuf = (char *)z_calloc(ctx, 4096, sizeof(char));
 
-        // u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-        // u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-        // printf("write: %d\n", dw);
-        // printf("read: %d\n", dr);
+        // const std::string data = "zstore:test:42";
+        // memcpy(valpt, data.c_str(), data.size());
+        snprintf(wbuf, 4096, "zstore:%d", value + i);
+
+        // printf("write: %d\n", value + i);
+        int rc = z_append(ctx, ctx->zslba, wbuf, 4096);
     }
 
-    ctx->current_lba = 0x57800ae;
-
-    for (int i = 0; i < append_times; i++) {
-        log_info("read with z_append:");
-        char *valpt = (char *)z_calloc(ctx, 4096, sizeof(char));
-        // snprintf(valpt, 4096, "%s:%s", key.data(), val.data());
-        // snprintf(valpt, 4096, "%d:%d", value +i, val.data());
-        printf("read: %d\n", value + i);
-        int rc = z_read(ctx, ctx->current_lba + i * 4096, valpt, 4096);
-        std::cout << static_cast<const void *>(valpt);
-        // std::cout << valpt << '\n';
-        // u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-        // u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-        // printf("write: %d\n", dw);
-        std::string myString(valpt, 4096);
-        printf("\nTEST: %s\n", &valpt);
-        std::cout << myString;
+    log_info("append lbs for loop");
+    for (auto &i : ctx->append_lbas) {
+        log_info("append lbs: {}", i);
     }
 
-    // for (int i = 0; i < append_times; i++) {
-    //     log_info("buffer after write:");
-    //     u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-    //     u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-    //     printf("write: %d\n", dw);
-    //     printf("read: %d\n", dr);
-    // }
+    ctx->current_lba = 0x5780342;
+
+    // char **rbuf = new char *[append_times];
+    auto rbuf1 = new char *[4096 * append_times];
+    std::vector<u64> data1;
+
+    log_info("read with z_append:");
+    for (int i = 0; i < append_times; i++) {
+        rbuf1[i] = (char *)z_calloc(ctx, 4096, sizeof(char));
+
+        int rc = z_read(ctx, ctx->current_lba + i * 4096, rbuf1[i], 4096);
+
+        // fprintf(stderr, "read [%lx] [%lx] [%lx]", *((uint64_t *)(buffer)),
+        //         *((uint64_t *)(buffer + 512)), *((uint64_t *)(buffer +
+        //         1024)));
+
+        // u64 data;
+        // data = *(u64 *)rbuf;
+        // log_info("{}", data);
+
+        // std::string myString = std::string((char *)valpt);
+        // log_info("fuck{}", myString);
+        //
+        // std::string string1;
+        // string1 = valpt;
+        // log_info("fuck{}", string1);
+        //
+        // std::string s1;
+        // s1.assign(valpt, valpt + 4096);
+        // log_info("fuck{}", s1);
+    }
+
+    for (int i = 0; i < append_times; i++) {
+        data1.push_back(*(u64 *)rbuf1[i]);
+    }
+    delete[] rbuf1;
+    std::ofstream of1("data1.txt");
+    for (auto d : data1)
+        of1 << d << " ";
+
     // read_zone(ctx);
 
-    // std::vector<u64> d;
-    // for (int i = 0; i < append_times; i++) {
-    //     log_info("buffer after read:");
-    //     // u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-    //     u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-    //     // printf("write: %d\n", dw);
-    //     printf("read: %d\n", dr);
-    //
-    //     d.push_back(*(u64 *)(ctx->read_buff + i * 4096));
-    //     // u64 dw = *(u64 *)ctx->write_buff;
-    //     u64 dr2 = *(u64 *)(ctx->read_buff + i * 4096);
-    //     // printf("write: %d\n", dw);
-    //     printf("read: addr %d, value %d\n", ctx->read_buff + i * 4096, dr2);
-    // }
-
     // close_zone(ctx);
+
+    // for (const uint32_t &i : ctx.append_lbas)
+    //     std::cout << "append lbs: " << i << std::endl;
 
     log_info("Test start finish");
 }

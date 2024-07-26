@@ -62,8 +62,9 @@ struct ZstoreContext {
     bool zstore_open = false;
 
     std::atomic<int> count; // atomic count for concurrency
-    // tmo
+    // tmp
     u64 current_lba = 0;
+    std::vector<uint32_t> append_lbas;
 };
 
 typedef struct {
@@ -333,12 +334,23 @@ static void __operation_complete2(void *arg,
 static void __append_complete2(void *arg,
                                const struct spdk_nvme_cpl *completion)
 {
-    __operation_complete2(arg, completion);
+    Completion *completed = (Completion *)arg;
+    completed->done = true;
+    if (spdk_nvme_cpl_is_error(completion)) {
+        completed->err = 1;
+        return;
+    }
+    SPDK_NOTICELOG("append slba:0x%lx\n", completion->cdw0);
 }
 
 static void __read_complete2(void *arg, const struct spdk_nvme_cpl *completion)
 {
-    __operation_complete2(arg, completion);
+    Completion *completed = (Completion *)arg;
+    completed->done = true;
+    if (spdk_nvme_cpl_is_error(completion)) {
+        completed->err = 1;
+        return;
+    }
 }
 
 static void __operation_complete(void *arg,
