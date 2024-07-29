@@ -5,7 +5,9 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
+#include <chrono>
 #include <cstdint>
+#include <fmt/core.h>
 #include <fstream>
 #include <stdio.h>
 // #include "spdk/nvmf_spec.h"
@@ -14,436 +16,6 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-
-const int zone_num = 1;
-// const int append_times = 10000;
-const int append_times = 10;
-const int value = 10000000; // Integer value to set in the buffer
-
-void memset64(void *dest, u64 val, usize bytes)
-{
-    assert(bytes % 8 == 0);
-    u64 *cdest = (u64 *)dest;
-    for (usize i = 0; i < bytes / 8; i++)
-        cdest[i] = val;
-}
-
-int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    ERROR_ON_NULL(ctx->qpair, 1);
-    ERROR_ON_NULL(buffer, 1);
-    int rc = 0;
-
-    int lbas = (size + ctx->info.lba_size - 1) / ctx->info.lba_size;
-    int lbas_processed = 0;
-    int step_size = (ctx->info.mdts / ctx->info.lba_size);
-    int current_step_size = step_size;
-    int slba_start = slba;
-
-    while (lbas_processed < lbas) {
-        Completion completion = {.done = false, .err = 0};
-        if ((slba + lbas_processed + step_size) / ctx->info.zone_size >
-            (slba + lbas_processed) / ctx->info.zone_size) {
-            current_step_size =
-                ((slba + lbas_processed + step_size) / ctx->info.zone_size) *
-                    ctx->info.zone_size -
-                lbas_processed - slba;
-        } else {
-            current_step_size = step_size;
-        }
-        current_step_size = lbas - lbas_processed > current_step_size
-                                ? current_step_size
-                                : lbas - lbas_processed;
-        // printf("%d step %d  \n", slba_start, current_step_size);
-        rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair,
-                                   (char *)buffer +
-                                       lbas_processed * ctx->info.lba_size,
-                                   slba_start,        /* LBA start */
-                                   current_step_size, /* number of LBAs */
-                                   __read_complete2, &completion, 0);
-        if (rc != 0) {
-            return 1;
-        }
-        POLL_QPAIR(ctx->qpair, completion.done);
-        if (completion.err != 0) {
-            return completion.err;
-        }
-        lbas_processed += current_step_size;
-        slba_start = slba + lbas_processed;
-    }
-    return rc;
-}
-
-int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    ERROR_ON_NULL(ctx->qpair, 1);
-    ERROR_ON_NULL(buffer, 1);
-
-    int rc = 0;
-
-    int lbas = (size + ctx->info.lba_size - 1) / ctx->info.lba_size;
-    int lbas_processed = 0;
-    int step_size = (ctx->info.zasl / ctx->info.lba_size);
-    int current_step_size = step_size;
-    int slba_start = (slba / ctx->info.zone_size) * ctx->info.zone_size;
-
-    while (lbas_processed < lbas) {
-        Completion completion = {.done = false, .err = 0};
-        if ((slba + lbas_processed + step_size) / ctx->info.zone_size >
-            (slba + lbas_processed) / ctx->info.zone_size) {
-            current_step_size =
-                ((slba + lbas_processed + step_size) / ctx->info.zone_size) *
-                    ctx->info.zone_size -
-                lbas_processed - slba;
-        } else {
-            current_step_size = step_size;
-        }
-        current_step_size = lbas - lbas_processed > current_step_size
-                                ? current_step_size
-                                : lbas - lbas_processed;
-        rc = spdk_nvme_zns_zone_append(ctx->ns, ctx->qpair,
-                                       (char *)buffer +
-                                           lbas_processed * ctx->info.lba_size,
-                                       slba_start,        /* LBA start */
-                                       current_step_size, /* number of LBAs */
-                                       __append_complete2, &completion, 0);
-        if (rc != 0) {
-            break;
-        }
-        POLL_QPAIR(ctx->qpair, completion.done);
-        if (completion.err != 0) {
-            return completion.err;
-        }
-        lbas_processed += current_step_size;
-        slba_start = ((slba + lbas_processed) / ctx->info.zone_size) *
-                     ctx->info.zone_size;
-    }
-    return rc;
-}
-
-static void zstore_exit(void *arg)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    // Increment the parameter
-    // ctx->current_zone++;
-    // Write the new value back to the file
-    std::ofstream outputFile("../current_zone");
-    if (outputFile.is_open()) {
-        outputFile << ctx->current_zone;
-        outputFile.close();
-    }
-}
-
-static void close_complete(void *arg, const struct spdk_nvme_cpl *completion)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    log_info("close_complete: load {}", ctx->count.load());
-
-    ctx->num_completed += 1;
-    if (spdk_nvme_cpl_is_error(completion)) {
-        SPDK_ERRLOG("nvme close zone error: %s\n",
-                    spdk_nvme_cpl_get_status_string(&completion->status));
-        ctx->num_fail += 1;
-        ctx->num_queued -= 1;
-
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        zstore_exit(ctx);
-        spdk_app_stop(-1);
-        return;
-    } else {
-        ctx->num_success += 1;
-        ctx->num_queued -= 1;
-    }
-
-    // TODO: same as reset
-    ctx->count.fetch_sub(1);
-    if (ctx->count.load() == 0) {
-        log_info("close zone complete. load {}, queued {}\n", ctx->count.load(),
-                 ctx->num_queued);
-        zstore_exit(ctx);
-        ctx->zstore_open = false;
-        spdk_app_stop(0);
-        log_info("app stop {}\n", ctx->num_queued);
-        return;
-    }
-}
-
-static void close_zone(void *arg)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-
-    log_info("close_zone");
-
-    ctx->count = zone_num;
-
-    for (uint64_t slba = 0; slba < zone_num * ctx->info.zone_size;
-         slba += ctx->info.zone_size) {
-        ctx->num_queued++;
-        int rc = spdk_nvme_zns_finish_zone(
-            ctx->ns, ctx->qpair, ctx->zslba + slba + ctx->info.zone_size, 0,
-            close_complete, ctx);
-        if (rc == -ENOMEM) {
-            log_debug("Queueing io: {}, {}", rc, spdk_strerror(-rc));
-        } else if (rc) {
-            log_error("{} error while closing zone: {}\n", spdk_strerror(-rc),
-                      rc);
-            // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-            spdk_app_stop(-1);
-            return;
-        }
-
-        log_debug("Close zone: slba {}: load {}", ctx->zslba + slba,
-                  ctx->count.load());
-    }
-
-    while (ctx->num_queued && ctx->zstore_open) {
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    }
-}
-
-static void read_complete(void *arg, const struct spdk_nvme_cpl *completion)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    log_info("read_complete: load {}", ctx->count.load());
-
-    ctx->num_completed += 1;
-    if (spdk_nvme_cpl_is_error(completion)) {
-        SPDK_ERRLOG("nvme io read error: %s\n",
-                    spdk_nvme_cpl_get_status_string(&completion->status));
-        ctx->num_fail += 1;
-        ctx->num_queued -= 1;
-
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        zstore_exit(ctx);
-        spdk_app_stop(-1);
-        return;
-    } else {
-        ctx->num_success += 1;
-        ctx->num_queued -= 1;
-    }
-
-    // compare read and write buffer
-    int cmp_res = memcmp(ctx->write_buff, ctx->read_buff, ctx->buff_size);
-    if (cmp_res != 0) {
-        log_error("read and write buffer are not the same!");
-        // u64 dw = *(u64 *)ctx->write_buff;
-        // u64 dr = *(u64 *)ctx->read_buff;
-        // printf("write: %d\n", dw);
-        // printf("read: %d\n", dr);
-    } else {
-        log_info("read and write buffer are the same. load {}",
-                 ctx->count.load());
-        // u64 dw = *(u64 *)ctx->write_buff;
-        // u64 dr = *(u64 *)ctx->read_buff;
-        // printf("write: %d\n", dw);
-        // printf("read: %d\n", dr);
-    }
-
-    ctx->count.fetch_add(1);
-    if (ctx->count.load() == zone_num * append_times) {
-        log_info("read zone complete. load {}\n", ctx->count.load());
-
-        return;
-        // zstore_exit(ctx);
-        // spdk_app_stop(0);
-        // log_info("app stop \n");
-        // return;
-        // close_zone(ctx);
-    }
-}
-
-static void read_zone(void *arg)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-
-    log_info("read_zone");
-    ctx->count = 0;
-    memset(ctx->read_buff, 0x34, ctx->buff_size);
-    // std::cout << "Read buffer" << std::string(ctx->read_buff, 4096)
-    //           << std::endl;
-
-    int cmp_res = memcmp(ctx->write_buff, ctx->read_buff, ctx->buff_size);
-    if (cmp_res != 0) {
-        log_error("EXPECTED: read and write buffer are not the same!");
-    }
-
-    for (uint64_t slba = 0; slba < zone_num * ctx->info.zone_size;
-         slba += ctx->info.zone_size) {
-        for (int i = 0; i < append_times; i++) {
-            ctx->num_queued++;
-            // TODO: fix it
-            // int rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair,
-            // ctx->read_buff,
-            //                                ctx->zslba + slba + i, 1,
-            //                                read_complete, ctx, 0);
-
-            int rc = spdk_nvme_ns_cmd_read(
-                ctx->ns, ctx->qpair, (ctx->read_buff + i * 4096),
-                ctx->current_lba + i, 1, read_complete, ctx, 0);
-            SPDK_NOTICELOG("read lba:0x%x to read buffer\n",
-                           ctx->current_lba + i);
-            if (rc) {
-                log_error("{} error while reading from nvme: {} \n",
-                          spdk_strerror(-rc), rc);
-                // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-                spdk_app_stop(-1);
-                return;
-            }
-        }
-    }
-    while (ctx->num_queued && ctx->zstore_open) {
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    }
-}
-
-static void write_zone_complete(void *arg,
-                                const struct spdk_nvme_cpl *completion)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    log_info("write_zone_complete: load {}", ctx->count.load());
-    ctx->num_completed += 1;
-
-    if (spdk_nvme_cpl_is_error(completion)) {
-        log_error("nvme io write error: {}\n",
-                  spdk_nvme_cpl_get_status_string(&completion->status));
-        ctx->num_fail += 1;
-        ctx->num_queued -= 1;
-
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_app_stop(-1);
-        return;
-    } else {
-        ctx->num_success += 1;
-        ctx->num_queued -= 1;
-    }
-
-    // log_info("append slba:0x%016x\n", completion->cdw0);
-    SPDK_NOTICELOG("append slba:0x%016x\n", completion->cdw0);
-
-    ctx->append_lbas.push_back(completion->cdw0);
-
-    if (ctx->current_lba == 0) {
-        ctx->current_lba = completion->cdw0;
-    }
-
-    ctx->count.fetch_sub(1);
-    if (ctx->count.load() == 0) {
-        log_info("write zone complete. load {}\n", ctx->count.load());
-        return;
-        // read_zone(ctx);
-    }
-}
-
-static void write_zone(void *arg)
-{
-    log_info("write_zone");
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    ctx->count = zone_num * append_times;
-
-    // std::cout << "Write buffer" << std::string(ctx->write_buff, 4096)
-    //           << std::endl;
-    for (uint64_t slba = 0; slba < zone_num * ctx->info.zone_size;
-         slba += ctx->info.zone_size) {
-        for (int i = 0; i < append_times; i++) {
-            // log_info("slba {}, i {}", slba, i);
-            ctx->num_queued++;
-            int rc = spdk_nvme_zns_zone_append(
-                ctx->ns, ctx->qpair, ctx->write_buff, ctx->zslba + slba, 1,
-                write_zone_complete, ctx, 0);
-            if (rc != 0) {
-                log_error("{} error while write_zone: {}\n", spdk_strerror(-rc),
-                          rc);
-                // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-                spdk_app_stop(-1);
-                return;
-            }
-            while (ctx->num_queued && ctx->zstore_open) {
-                spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-            }
-        }
-    }
-}
-
-static void reset_zone_complete(void *arg, const struct spdk_nvme_cpl *cpl)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    log_info("reset_zone_complete: load {}", ctx->count.load());
-
-    ctx->num_completed += 1;
-    if (spdk_nvme_cpl_is_error(cpl)) {
-        spdk_nvme_qpair_print_completion(ctx->qpair,
-                                         (struct spdk_nvme_cpl *)cpl);
-        fprintf(stderr, "Reset all zone error - status = %s\n",
-                spdk_nvme_cpl_get_status_string(&cpl->status));
-        ctx->num_fail += 1;
-        ctx->num_queued -= 1;
-        log_debug("reset zone complete: queued {} completed {} success {} "
-                  "fail {}",
-                  ctx->num_queued, ctx->num_completed, ctx->num_success,
-                  ctx->num_fail);
-        SPDK_ERRLOG("nvme io reset error: %s\n",
-                    spdk_nvme_cpl_get_status_string(&cpl->status));
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_app_stop(-1);
-        return;
-    } else {
-        ctx->num_success += 1;
-        ctx->num_queued -= 1;
-    }
-
-    log_debug("reset zone complete: queued {} completed {} success {} fail {}, "
-              "load {}",
-              ctx->num_queued, ctx->num_completed, ctx->num_success,
-              ctx->num_fail, ctx->count.load());
-
-    // when all reset is done, do writes
-    ctx->count.fetch_sub(1);
-    if (ctx->count.load() == 0) {
-        log_info("reset zone complete. load {}\n", ctx->count.load());
-        // write_zone(ctx);
-    }
-}
-
-static void reset_zone(void *arg)
-{
-    log_info("reset_zone \n");
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    ctx->count = zone_num;
-    log_debug("Reset zone: current zone {}, num {}, size {}, load {}",
-              ctx->current_zone, zone_num, ctx->info.zone_size,
-              ctx->count.load());
-
-    for (uint64_t slba = 0; slba < zone_num * ctx->info.zone_size;
-         slba += ctx->info.zone_size) {
-        ctx->num_queued++;
-        int rc = spdk_nvme_zns_reset_zone(
-            ctx->ns, ctx->qpair, ctx->zslba + slba + ctx->info.zone_size, 0,
-            reset_zone_complete, ctx);
-        SPDK_NOTICELOG("reset zone with lba:0x%x\n",
-                       ctx->zslba + slba + ctx->info.zone_size);
-        if (rc == -ENOMEM) {
-            log_debug("Queueing io: {}, {}", rc, spdk_strerror(-rc));
-        } else if (rc) {
-            log_error("{} error while resetting zone: {}\n", spdk_strerror(-rc),
-                      rc);
-            // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-            spdk_app_stop(-1);
-            return;
-        }
-
-        log_debug("Reset zone: slba {}: load {}, queued {}", ctx->zslba + slba,
-                  ctx->count.load(), ctx->num_queued);
-    }
-
-    log_debug("1: queued: {}", ctx->num_queued);
-    while (ctx->num_queued && ctx->zstore_open) {
-        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
-    }
-
-    log_info("reset_zone end, load {}, ", ctx->count.load());
-}
 
 static void test_start(void *arg1)
 {
@@ -533,35 +105,49 @@ static void test_start(void *arg1)
         log_info("append lbs: {}", i);
     }
 
-    ctx->current_lba = 0x5780342;
+    // ctx->current_lba = 0x5780342;
+    ctx->current_lba = 0x57a14c0;
 
     // char **rbuf = new char *[append_times];
-    auto rbuf1 = new char *[4096 * append_times];
+    // auto rbuf = new char *[4096 * append_times];
     std::vector<u64> data1;
-
+    int rc = 0;
     log_info("read with z_append:");
     for (int i = 0; i < append_times; i++) {
-        rbuf1[i] = (char *)z_calloc(ctx, 4096, sizeof(char));
+        log_info("z_append: {}", i);
+        char *rbuf = (char *)z_calloc(ctx, 4096, sizeof(char *));
 
-        int rc = z_read(ctx, ctx->current_lba + i * 4096, rbuf1[i], 4096);
-
-        printf("%s", rbuf1[i]);
+        rc = z_read(ctx, ctx->current_lba + i * 4096, rbuf, 4096);
+        assert(rc == 0);
+        // printf("%s\n", rbuf);
+        // fprintf("%s\n", rbuf);
         // fprintf(stderr, "read [%lx] [%lx] [%lx]", *((uint64_t *)(rbuf1[i])),
         //         *((uint64_t *)(rbuf1[i] + 512)),
         //         *((uint64_t *)(rbuf1[i] + 1024)));
 
-        u64 data;
-        data = *(u64 *)rbuf1[i];
-        log_info("{}", data);
+        for (int j = 0; j < 4096; j++) {
+            fprintf(stdout, "%c", rbuf[j]);
+        }
 
-        std::string myString = std::string((char *)rbuf1[i]);
-        log_info("test1 {}", myString);
+        // log_info("log rbuf {}", rbuf);
+        // u64 data;
+        // data = *(u64 *)(rbuf + i * 4096);
+        // log_info("log data {}", data);
+        //
+        // char cdata;
+        // cdata = *(char *)(rbuf + i * 4096);
+        // log_info("log cdata {}", cdata);
+
+        // std::string myString = std::string((char *)rbuf + i * 4096);
+        // log_info("test1 {}", myString);
     }
 
-    for (int i = 0; i < append_times; i++) {
-        data1.push_back(*(u64 *)rbuf1[i]);
-    }
-    delete[] rbuf1;
+    // for (int i = 0; i < append_times; i++) {
+    //     data1.push_back(*(u64 *)rbuf + i * 4096);
+    //     printf("%s", rbuf + i * 4096);
+    // }
+    //
+    // delete[] rbuf;
     std::ofstream of1("data1.txt");
     for (auto d : data1)
         of1 << d << " ";

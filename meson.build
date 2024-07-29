@@ -187,39 +187,47 @@ kvstore_src = files('src/kvstore.cc')
 simple_src = files('src/simple_append.cc')
 multi_src = files('src/multi_append.cc')
 
-executable(
-	'hello_world',
-	files('src/hello-world.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-
-executable(
-	'rhello_world',
-	files('src/remote-hello-world.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'bdev_test',
-	files('src/zns_bdev_test.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-
-executable(
-	'nvme_test',
-	files('src/zns_nvme_test.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'hello_world',
+# 	files('src/hello-world.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+#
+# executable(
+# 	'rhello_world',
+# 	files('src/remote-hello-world.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'bdev_test',
+# 	files('src/zns_bdev_test.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+#
+# executable(
+# 	'nvme_test',
+# 	files('src/zns_nvme_test.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 executable(
 	'zstore',
 	files('src/spdk_append.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
+executable(
+	'zns_test',
+	files('src/tests/device_test.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
