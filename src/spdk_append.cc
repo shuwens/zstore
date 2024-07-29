@@ -16,7 +16,8 @@
 #include <string>
 
 const int zone_num = 1;
-const int append_times = 100;
+// const int append_times = 10000;
+const int append_times = 10;
 const int value = 10000000; // Integer value to set in the buffer
 
 void memset64(void *dest, u64 val, usize bytes)
@@ -521,7 +522,7 @@ static void test_start(void *arg1)
 
         // const std::string data = "zstore:test:42";
         // memcpy(valpt, data.c_str(), data.size());
-        snprintf(wbuf, 4096, "zstore:%d", value + i);
+        snprintf(wbuf, 4096, "zstore1:%d", value + i);
 
         // printf("write: %d\n", value + i);
         int rc = z_append(ctx, ctx->zslba, wbuf, 4096);
@@ -544,24 +545,17 @@ static void test_start(void *arg1)
 
         int rc = z_read(ctx, ctx->current_lba + i * 4096, rbuf1[i], 4096);
 
-        // fprintf(stderr, "read [%lx] [%lx] [%lx]", *((uint64_t *)(buffer)),
-        //         *((uint64_t *)(buffer + 512)), *((uint64_t *)(buffer +
-        //         1024)));
+        printf("%s", rbuf1[i]);
+        // fprintf(stderr, "read [%lx] [%lx] [%lx]", *((uint64_t *)(rbuf1[i])),
+        //         *((uint64_t *)(rbuf1[i] + 512)),
+        //         *((uint64_t *)(rbuf1[i] + 1024)));
 
-        // u64 data;
-        // data = *(u64 *)rbuf;
-        // log_info("{}", data);
+        u64 data;
+        data = *(u64 *)rbuf1[i];
+        log_info("{}", data);
 
-        // std::string myString = std::string((char *)valpt);
-        // log_info("fuck{}", myString);
-        //
-        // std::string string1;
-        // string1 = valpt;
-        // log_info("fuck{}", string1);
-        //
-        // std::string s1;
-        // s1.assign(valpt, valpt + 4096);
-        // log_info("fuck{}", s1);
+        std::string myString = std::string((char *)rbuf1[i]);
+        log_info("test1 {}", myString);
     }
 
     for (int i = 0; i < append_times; i++) {
