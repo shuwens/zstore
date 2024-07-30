@@ -5,17 +5,14 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
-#include <chrono>
 #include <cstdint>
 #include <fmt/core.h>
 #include <fstream>
 #include <stdio.h>
 // #include "spdk/nvmf_spec.h"
-#include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <string>
 
 static void test_start(void *arg1)
 {
@@ -90,7 +87,7 @@ static void test_start(void *arg1)
     // write_zone(ctx);
     log_info("writing with z_append:");
     for (int i = 0; i < append_times; i++) {
-        char *wbuf = (char *)z_calloc(ctx, 4096, sizeof(char));
+        char *wbuf = (char *)z_calloc(ctx, 4096, sizeof(char *));
 
         // const std::string data = "zstore:test:42";
         // memcpy(valpt, data.c_str(), data.size());

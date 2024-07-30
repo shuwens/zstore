@@ -1,10 +1,17 @@
 #include "../include/utils.hpp"
 #include "../include/zns_device.h"
 #include "spdk/env.h"
+#include "spdk/event.h"
+#include "spdk/log.h"
 #include "spdk/nvme.h"
+#include "spdk/nvme_zns.h"
 #include "src/include/utils.hpp"
 #include <cstdint>
 #include <cstdlib>
+#include <fmt/core.h>
+#include <fstream>
+#include <iostream>
+#include <stdio.h>
 
 extern "C" {
 
@@ -161,6 +168,24 @@ int write_pattern(char **pattern, void *arg, int32_t size, int32_t jump)
     return 0;
 }
 
+int write_zstore_pattern(char **pattern, void *arg, int32_t size,
+                         char *test_str)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    if (*pattern != NULL) {
+        z_free(ctx->qpair, *pattern);
+    }
+    *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
+    if (*pattern == NULL) {
+        return 1;
+    }
+    snprintf(*pattern, ctx->info.lba_size, "%s", test_str);
+    // for (int j = 0; j < size; j++) {
+    //     (*pattern)[j] = j % 200 + jump;
+    // }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     printf("----------------------UNDEFINED----------------------\n");
@@ -260,12 +285,21 @@ int main(int argc, char **argv)
     VALID(rc);
     for (int i = 0; i < ctx.info.zasl; i++) {
         assert((char *)(pattern_read_2)[i] == (char *)(*pattern_2)[i]);
+        // printf("%d-th write %c, read %c\n", i, (char *)(*pattern_2)[i],
+        //        (char *)(pattern_read_2)[i]);
     }
 
     printf("----------------------WORKLOAD ZSTORE----------------------\n");
+    log_debug("1");
     char **pattern_zstore = (char **)calloc(1, sizeof(char **));
-    rc = write_pattern(pattern_zstore, &ctx, ctx.info.lba_size, 42);
+    // char *wbuf = (char *)z_calloc(ctx, 4096, sizeof(char));
 
+    log_debug("2");
+    // rc = write_pattern(pattern_zstore, &ctx, ctx.info.lba_size, 42);
+    rc = write_zstore_pattern(pattern_zstore, &ctx, ctx.info.lba_size,
+                              "test_zstore:42");
+
+    log_debug("3");
     rc = z_append(&ctx, 0, *pattern_zstore, ctx.info.lba_size);
     DEBUG_TEST_PRINT("append zstore testing content ", rc);
     VALID(rc);
@@ -279,9 +313,13 @@ int main(int argc, char **argv)
     rc = z_read(&ctx, 2, pattern_read_zstore, ctx.info.lba_size);
     DEBUG_TEST_PRINT("read zstore testing content ", rc);
     VALID(rc);
+    log_debug("here");
     for (int i = 0; i < ctx.info.lba_size; i++) {
+        // log_debug("{}", i);
         assert((char *)(pattern_read_zstore)[i] ==
                (char *)(*pattern_zstore)[i]);
+        // printf("%d-th write %c, read %c\n", i, (char *)(*pattern_zstore)[i],
+        //        (char *)(pattern_read_zstore)[i]);
     }
 
     rc = z_reset(&ctx, 0, true);
