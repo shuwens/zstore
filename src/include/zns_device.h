@@ -961,11 +961,14 @@ int z_get_zone_head(void *arg, uint64_t slba, uint64_t *head)
     if (completion.err != 0) {
         return completion.err;
     }
+    // log_info("here");
     uint32_t zd_index = sizeof(struct spdk_nvme_zns_zone_report);
     struct spdk_nvme_zns_zone_desc *desc =
         (struct spdk_nvme_zns_zone_desc *)(report_buf + zd_index);
+    // log_info("1");
     *head = desc->wp;
     free(report_buf);
+    // log_info("2");
     return rc;
 }
 
