@@ -16,3 +16,7 @@ builddir/
 builddir
 zstore
 current_zone
+run.sh
+zstore1.log
+zstore4.log
+

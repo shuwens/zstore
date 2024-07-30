@@ -183,7 +183,7 @@ int main(int argc, char **argv)
     INVALID(rc);
 
     // try existing device
-    rc = z_open(&ctx, "0000:05:00.0");
+    rc = z_open(&ctx, "0000:06:00.0");
     DEBUG_TEST_PRINT("existing return code ", rc);
     VALID(rc);
 
@@ -224,17 +224,15 @@ int main(int argc, char **argv)
     rc = z_get_zone_head(&ctx, 0, &write_head);
     VALID(rc);
     assert(write_head == 0);
+
     char **pattern_1 = (char **)calloc(1, sizeof(char **));
     rc = write_pattern(pattern_1, &ctx, ctx.info.lba_size, 10);
     VALID(rc);
-
-    log_info("FAIL: before apend");
     log_debug("lba: {}", ctx.info.lba_size);
     rc = z_append(&ctx, 0, *pattern_1, ctx.info.lba_size);
     DEBUG_TEST_PRINT("append alligned ", rc);
     VALID(rc);
 
-    log_info("never reached");
     rc = z_get_zone_head(&ctx, 0, &write_head);
     VALID(rc);
     assert(write_head == 1);
@@ -263,6 +261,29 @@ int main(int argc, char **argv)
     for (int i = 0; i < ctx.info.zasl; i++) {
         assert((char *)(pattern_read_2)[i] == (char *)(*pattern_2)[i]);
     }
+
+    printf("----------------------WORKLOAD ZSTORE----------------------\n");
+    char **pattern_zstore = (char **)calloc(1, sizeof(char **));
+    rc = write_pattern(pattern_zstore, &ctx, ctx.info.lba_size, 42);
+
+    rc = z_append(&ctx, 0, *pattern_zstore, ctx.info.lba_size);
+    DEBUG_TEST_PRINT("append zstore testing content ", rc);
+    VALID(rc);
+
+    rc = z_get_zone_head(&ctx, 0, &write_head);
+    VALID(rc);
+    assert(write_head == 3);
+    assert(write_head == 2 + ctx.info.zasl / ctx.info.lba_size);
+    char *pattern_read_zstore =
+        (char *)z_calloc(&ctx, ctx.info.lba_size, sizeof(char *));
+    rc = z_read(&ctx, 2, pattern_read_zstore, ctx.info.lba_size);
+    DEBUG_TEST_PRINT("read zstore testing content ", rc);
+    VALID(rc);
+    for (int i = 0; i < ctx.info.lba_size; i++) {
+        assert((char *)(pattern_read_zstore)[i] ==
+               (char *)(*pattern_zstore)[i]);
+    }
+
     rc = z_reset(&ctx, 0, true);
     DEBUG_TEST_PRINT("reset all ", rc);
     VALID(rc);
