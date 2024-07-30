@@ -1,16 +1,11 @@
 # zstore
 
-## Proof of concept design
+An distributed, eventually-consistent KV store built on ZNS SSDs
 
-remote is server `gundyr` and gateway is `pjdrz`.
+This project builds the following parts after compilation:
+- `measurement`: we measure the append time, write time, read time, and zone
+  full detection time.
+- `multipath`: we use the multipath support from spdk to understand the
+  reordering caused by running zone append in parallel
+- `zstore`: the distributed, eventually-consistent object store built on ZNS SSDs
 
-- the ZNS SSD is installed on remote and exposed as a nvme-tgt, with nvme over
-  tcp.
-- 
-
-
-## Store on NVME
-https://news.ycombinator.com/item?id=37897921
-
-## TODO:
-- [ ] fix compile spdk demo with meson
