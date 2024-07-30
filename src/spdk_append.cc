@@ -15,7 +15,7 @@
 #include <iostream>
 
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
-                         char *test_str)
+                         char *test_str, int value)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     if (*pattern != NULL) {
@@ -25,10 +25,7 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
     if (*pattern == NULL) {
         return 1;
     }
-    snprintf(*pattern, ctx->info.lba_size, "%s", test_str);
-    // for (int j = 0; j < size; j++) {
-    //     (*pattern)[j] = j % 200 + jump;
-    // }
+    snprintf(*pattern, ctx->info.lba_size, "%s:%d", test_str, value);
     return 0;
 }
 
@@ -107,7 +104,7 @@ static void test_start(void *arg1)
         log_debug("1");
         char **wbuf = (char **)calloc(1, sizeof(char **));
         rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
-                                  "test_zstore1:42");
+                                  "test_zstore1:", value + i);
         assert(rc == 0);
         // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
         log_debug("2");
@@ -116,7 +113,7 @@ static void test_start(void *arg1)
         rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
         assert(rc == 0);
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 30; i++) {
             // log_debug("{}", i);
             // assert((char *)(pattern_read_zstore)[i] ==
             //        (char *)(*pattern_zstore)[i]);
@@ -129,7 +126,7 @@ static void test_start(void *arg1)
     //     log_info("append lbs: {}", i);
     // }
 
-    ctx->current_lba = 0x5780258;
+    ctx->current_lba = 0x5780267;
     log_info("read with z_append:");
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
@@ -139,7 +136,7 @@ static void test_start(void *arg1)
         assert(rc == 0);
 
         // for (int i = 0; i < ctx->info.lba_size; i++) {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 30; i++) {
             // log_debug("{}", i);
             // assert((char *)(pattern_read_zstore)[i] ==
             //        (char *)(*pattern_zstore)[i]);
