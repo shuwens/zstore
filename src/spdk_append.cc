@@ -14,6 +14,24 @@
 #include <fstream>
 #include <iostream>
 
+int write_zstore_pattern(char **pattern, void *arg, int32_t size,
+                         char *test_str)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    if (*pattern != NULL) {
+        z_free(ctx->qpair, *pattern);
+    }
+    *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
+    if (*pattern == NULL) {
+        return 1;
+    }
+    snprintf(*pattern, ctx->info.lba_size, "%s", test_str);
+    // for (int j = 0; j < size; j++) {
+    //     (*pattern)[j] = j % 200 + jump;
+    // }
+    return 0;
+}
+
 static void test_start(void *arg1)
 {
     log_info("test start\n");
@@ -82,72 +100,52 @@ static void test_start(void *arg1)
     // }
 
     // working
-    // reset_zone(ctx);
-
-    // write_zone(ctx);
+    int rc = 0;
     log_info("writing with z_append:");
+    log_debug("here");
     for (int i = 0; i < append_times; i++) {
-        char *wbuf = (char *)z_calloc(ctx, 4096, sizeof(char *));
-
-        // const std::string data = "zstore:test:42";
-        // memcpy(valpt, data.c_str(), data.size());
-        snprintf(wbuf, 4096, "zstore1:%d", value + i);
+        log_debug("1");
+        char **wbuf = (char **)calloc(1, sizeof(char **));
+        rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
+                                  "test_zstore1:42");
+        assert(rc == 0);
+        // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
+        log_debug("2");
 
         // printf("write: %d\n", value + i);
-        int rc = z_append(ctx, ctx->zslba, wbuf, 4096);
+        rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
+        assert(rc == 0);
+
+        for (int i = 0; i < 10; i++) {
+            // log_debug("{}", i);
+            // assert((char *)(pattern_read_zstore)[i] ==
+            //        (char *)(*pattern_zstore)[i]);
+            printf("%d-th write %c\n", i, (char *)(*wbuf)[i]);
+        }
     }
 
-    log_info("append lbs for loop");
-    for (auto &i : ctx->append_lbas) {
-        log_info("append lbs: {}", i);
-    }
+    // log_info("append lbs for loop");
+    // for (auto &i : ctx->append_lbas) {
+    //     log_info("append lbs: {}", i);
+    // }
 
-    // ctx->current_lba = 0x5780342;
-    ctx->current_lba = 0x57a14c0;
-
-    // char **rbuf = new char *[append_times];
-    // auto rbuf = new char *[4096 * append_times];
-    std::vector<u64> data1;
-    int rc = 0;
+    ctx->current_lba = 0x5780258;
     log_info("read with z_append:");
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
-        char *rbuf = (char *)z_calloc(ctx, 4096, sizeof(char *));
+        char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
 
-        rc = z_read(ctx, ctx->current_lba + i * 4096, rbuf, 4096);
+        rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
         assert(rc == 0);
-        // printf("%s\n", rbuf);
-        // fprintf("%s\n", rbuf);
-        // fprintf(stderr, "read [%lx] [%lx] [%lx]", *((uint64_t *)(rbuf1[i])),
-        //         *((uint64_t *)(rbuf1[i] + 512)),
-        //         *((uint64_t *)(rbuf1[i] + 1024)));
 
-        for (int j = 0; j < 4096; j++) {
-            fprintf(stdout, "%c", rbuf[j]);
+        // for (int i = 0; i < ctx->info.lba_size; i++) {
+        for (int i = 0; i < 10; i++) {
+            // log_debug("{}", i);
+            // assert((char *)(pattern_read_zstore)[i] ==
+            //        (char *)(*pattern_zstore)[i]);
+            printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
         }
-
-        // log_info("log rbuf {}", rbuf);
-        // u64 data;
-        // data = *(u64 *)(rbuf + i * 4096);
-        // log_info("log data {}", data);
-        //
-        // char cdata;
-        // cdata = *(char *)(rbuf + i * 4096);
-        // log_info("log cdata {}", cdata);
-
-        // std::string myString = std::string((char *)rbuf + i * 4096);
-        // log_info("test1 {}", myString);
     }
-
-    // for (int i = 0; i < append_times; i++) {
-    //     data1.push_back(*(u64 *)rbuf + i * 4096);
-    //     printf("%s", rbuf + i * 4096);
-    // }
-    //
-    // delete[] rbuf;
-    std::ofstream of1("data1.txt");
-    for (auto d : data1)
-        of1 << d << " ";
 
     // read_zone(ctx);
 

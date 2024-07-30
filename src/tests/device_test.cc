@@ -290,16 +290,16 @@ int main(int argc, char **argv)
     }
 
     printf("----------------------WORKLOAD ZSTORE----------------------\n");
-    log_debug("1");
+    // log_debug("1");
     char **pattern_zstore = (char **)calloc(1, sizeof(char **));
     // char *wbuf = (char *)z_calloc(ctx, 4096, sizeof(char));
 
-    log_debug("2");
+    // log_debug("2");
     // rc = write_pattern(pattern_zstore, &ctx, ctx.info.lba_size, 42);
     rc = write_zstore_pattern(pattern_zstore, &ctx, ctx.info.lba_size,
                               "test_zstore:42");
 
-    log_debug("3");
+    // log_debug("3");
     rc = z_append(&ctx, 0, *pattern_zstore, ctx.info.lba_size);
     DEBUG_TEST_PRINT("append zstore testing content ", rc);
     VALID(rc);
