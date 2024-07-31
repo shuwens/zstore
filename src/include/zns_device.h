@@ -15,9 +15,9 @@ using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
 
-// const int append_times = 3;
+const int append_times = 3;
 // const int append_times = 1000;
-const int append_times = 16000;
+// const int append_times = 16000;
 
 const int value = 10000000; // Integer value to set in the buffer
 
@@ -210,6 +210,7 @@ static void zns_dev_init(void *arg)
 static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    int rc = 0;
     // 2. creating qpairs
     // struct spdk_nvme_io_qpair_opts qpair_opts;
     // spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->ctrlr, &qpair_opts,
@@ -240,6 +241,12 @@ static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
 static void zstore_qpair_teardown(void *arg)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+
+    // if (ctx->verbose)
+    //     log_info("complete queued items {}, qd {}", ctx->num_queued,
+    //     ctx->qd);
+    // spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+
     log_info("disconnect and free qpair");
     spdk_nvme_ctrlr_disconnect_io_qpair(ctx->qpair);
     spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
@@ -475,9 +482,48 @@ void *z_calloc(void *arg, int nr, int size)
     return temp_buffer;
 }
 
+static void __complete(void *arg, const struct spdk_nvme_cpl *cpl)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+
+    ctx->num_completed += 1;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        spdk_nvme_qpair_print_completion(ctx->qpair,
+                                         (struct spdk_nvme_cpl *)cpl);
+        fprintf(stderr, "Reset all zone error - status = %s\n",
+                spdk_nvme_cpl_get_status_string(&cpl->status));
+        ctx->num_fail += 1;
+        ctx->num_queued -= 1;
+        if (ctx->verbose)
+            log_debug("reset zone complete: queued {} completed {} success {} "
+                      "fail {}",
+                      ctx->num_queued, ctx->num_completed, ctx->num_success,
+                      ctx->num_fail);
+        if (ctx->verbose)
+            SPDK_ERRLOG("nvme io reset error: %s\n",
+                        spdk_nvme_cpl_get_status_string(&cpl->status));
+        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        spdk_app_stop(-1);
+        return;
+    } else {
+        ctx->num_success += 1;
+        ctx->num_queued -= 1;
+    }
+
+    if (ctx->verbose)
+        log_debug(
+            "reset zone complete: queued {} completed {} success {} fail {}, "
+            "load {}",
+            ctx->num_queued, ctx->num_completed, ctx->num_success,
+            ctx->num_fail, ctx->count.load());
+}
+
 int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    if (ctx->verbose)
+        log_info("z_read: slba {}, size {}", slba, size);
+
     ERROR_ON_NULL(ctx->qpair, 1);
     ERROR_ON_NULL(buffer, 1);
     int rc = 0;
@@ -489,7 +535,6 @@ int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
     int slba_start = slba;
 
     while (lbas_processed < lbas) {
-        Completion completion = {.done = false, .err = 0};
         if ((slba + lbas_processed + step_size) / ctx->info.zone_size >
             (slba + lbas_processed) / ctx->info.zone_size) {
             current_step_size =
@@ -503,21 +548,29 @@ int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
                                 ? current_step_size
                                 : lbas - lbas_processed;
         // printf("%d step %d  \n", slba_start, current_step_size);
+        ctx->num_queued += 1;
+        if (ctx->verbose)
+            log_info("cmd_read: slba_start {}, current step size {}, queued {}",
+                     slba_start, current_step_size, ctx->num_queued);
         rc = spdk_nvme_ns_cmd_read(ctx->ns, ctx->qpair,
                                    (char *)buffer +
                                        lbas_processed * ctx->info.lba_size,
                                    slba_start,        /* LBA start */
                                    current_step_size, /* number of LBAs */
-                                   __read_complete2, &completion, 0);
+                                   __complete, ctx, 0);
         if (rc != 0) {
             return 1;
         }
-        POLL_QPAIR(ctx->qpair, completion.done);
-        if (completion.err != 0) {
-            return completion.err;
-        }
+
         lbas_processed += current_step_size;
         slba_start = slba + lbas_processed;
+    }
+    while (ctx->num_queued) {
+        if (ctx->verbose)
+            log_info("qpair process completion: queued {}, qd {}",
+                     ctx->num_queued, ctx->qd);
+
+        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     }
     return rc;
 }
@@ -525,6 +578,8 @@ int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
 int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    if (ctx->verbose)
+        log_info("z_append: slba {}, size {}", slba, size);
     ERROR_ON_NULL(ctx->qpair, 1);
     ERROR_ON_NULL(buffer, 1);
 
@@ -537,7 +592,7 @@ int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
     int slba_start = (slba / ctx->info.zone_size) * ctx->info.zone_size;
 
     while (lbas_processed < lbas) {
-        Completion completion = {.done = false, .err = 0};
+        // Completion completion = {.done = false, .err = 0};
         if ((slba + lbas_processed + step_size) / ctx->info.zone_size >
             (slba + lbas_processed) / ctx->info.zone_size) {
             current_step_size =
@@ -550,22 +605,31 @@ int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
         current_step_size = lbas - lbas_processed > current_step_size
                                 ? current_step_size
                                 : lbas - lbas_processed;
+        ctx->num_queued += 1;
+        if (ctx->verbose)
+            log_info(
+                "zone_append: slba start {}, current step size {}, queued {}",
+                slba_start, current_step_size, ctx->num_queued);
         rc = spdk_nvme_zns_zone_append(ctx->ns, ctx->qpair,
                                        (char *)buffer +
                                            lbas_processed * ctx->info.lba_size,
                                        slba_start,        /* LBA start */
                                        current_step_size, /* number of LBAs */
-                                       __append_complete2, &completion, 0);
+                                       __complete, ctx, 0);
         if (rc != 0) {
             break;
         }
-        POLL_QPAIR(ctx->qpair, completion.done);
-        if (completion.err != 0) {
-            return completion.err;
-        }
+
         lbas_processed += current_step_size;
         slba_start = ((slba + lbas_processed) / ctx->info.zone_size) *
                      ctx->info.zone_size;
+    }
+    // while (ctx->num_queued >= ctx->qd) {
+    while (ctx->num_queued) {
+        if (ctx->verbose)
+            log_info("qpair process completion: queued {}, qd {}",
+                     ctx->num_queued, ctx->qd);
+        spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     }
     return rc;
 }

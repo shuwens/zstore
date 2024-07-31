@@ -43,9 +43,9 @@ static void zns_measure(void *arg)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
 
-    // std::vector<int> qds{2, 4, 8, 16, 32, 64};
-    std::vector<int> qds{64};
     // std::vector<int> qds{2, 64};
+    // std::vector<int> qds{2, 4, 8, 16, 32, 64};
+    std::vector<int> qds{32, 64};
 
     for (auto qd : qds) {
         log_info("Starting measurment with queue depth {}", qd);
@@ -177,6 +177,7 @@ int main(int argc, char **argv)
 
     struct ZstoreContext ctx = {};
     ctx.current_zone = current_zone;
+    // ctx.verbose = true;
 
     rc = spdk_app_start(&opts, zns_measure, &ctx);
     if (rc) {
