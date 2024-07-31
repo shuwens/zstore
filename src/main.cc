@@ -34,7 +34,9 @@ static void test_start(void *arg1)
     log_info("test start\n");
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg1);
 
+    struct spdk_nvme_io_qpair_opts qpair_opts = {};
     zns_dev_init(ctx);
+    zstore_qpair_setup(ctx, qpair_opts);
 
     zstore_init(ctx);
 

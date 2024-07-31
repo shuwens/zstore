@@ -14,8 +14,11 @@ using chrono_tp = std::chrono::high_resolution_clock::time_point;
 // static const char *g_bdev_name = "Nvme1n2";
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
-// const int append_times = 10000;
-const int append_times = 1000;
+
+// const int append_times = 3;
+// const int append_times = 1000;
+const int append_times = 16000;
+
 const int value = 10000000; // Integer value to set in the buffer
 
 typedef struct {
@@ -35,7 +38,18 @@ typedef struct {
 } DeviceManager;
 
 struct ZstoreContext {
-    // spdk things
+    // specific parameters we control
+    int qd = 0;
+    u64 current_zone;
+    bool verbose = false;
+
+    // tmp values that matters in the run
+    u64 current_lba = 0;
+    std::vector<uint32_t> append_lbas;
+
+    // --------------------------------------
+
+    // spdk things we populate
     struct spdk_nvme_ctrlr *ctrlr = nullptr;
     struct spdk_nvme_transport_id g_trid = {};
     struct spdk_nvme_ns *ns = nullptr;
@@ -43,12 +57,10 @@ struct ZstoreContext {
     char *write_buff = nullptr;
     char *read_buff = nullptr;
     uint32_t buff_size;
-    // char *bdev_name;
 
     // device related
     bool device_support_meta = true;
     DeviceInfo info;
-    u64 current_zone;
     u64 zslba;
 
     bool done = false;
@@ -62,9 +74,6 @@ struct ZstoreContext {
     bool zstore_open = false;
 
     std::atomic<int> count; // atomic count for concurrency
-    // tmp
-    u64 current_lba = 0;
-    std::vector<uint32_t> append_lbas;
 };
 
 typedef struct {
@@ -107,36 +116,6 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     }
 }
 
-// static void test_nvme_event_cb(void *arg, const struct spdk_nvme_cpl *cpl)
-// {
-//     SPDK_NOTICELOG("Unsupported nvme event: %s\n",
-//                    spdk_nvme_cpl_get_status_string(&cpl->status));
-// }
-
-// TODO: unused code
-static void unused_zns_dev_init(void *arg)
-{
-    int ret = 0;
-    struct spdk_env_opts opts;
-    spdk_env_opts_init(&opts);
-    opts.core_mask = "0x1fc";
-    if (spdk_env_init(&opts) < 0) {
-        fprintf(stderr, "Unable to initialize SPDK env.\n");
-        exit(-1);
-    }
-
-    ret = spdk_thread_lib_init(nullptr, 0);
-    if (ret < 0) {
-        fprintf(stderr, "Unable to initialize SPDK thread lib.\n");
-        exit(-1);
-    }
-    // ret = spdk_nvme_probe(NULL, NULL, probe_cb, attach_cb, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "Unable to probe devices\n");
-        exit(-1);
-    }
-}
-
 static void zns_dev_init(void *arg)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
@@ -144,7 +123,8 @@ static void zns_dev_init(void *arg)
     ctx->ctrlr = NULL;
     ctx->ns = NULL;
 
-    SPDK_NOTICELOG("Successfully started the application\n");
+    if (ctx->verbose)
+        SPDK_NOTICELOG("Successfully started the application\n");
 
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid = {};
@@ -164,7 +144,7 @@ static void zns_dev_init(void *arg)
     ctx->ctrlr = spdk_nvme_connect(&trid, &opts, sizeof(opts));
     // ctx->ctrlr = spdk_nvme_connect(&trid, NULL, 0);
 
-    if (ctx->ctrlr == NULL) {
+    if (ctx->ctrlr == NULL && ctx->verbose) {
         fprintf(stderr,
                 "spdk_nvme_connect() failed for transport address '%s'\n",
                 trid.traddr);
@@ -174,32 +154,34 @@ static void zns_dev_init(void *arg)
         // return rc;
     }
 
-    SPDK_NOTICELOG("Successfully started the application\n");
-    SPDK_NOTICELOG("Initializing NVMe controller\n");
+    // SPDK_NOTICELOG("Successfully started the application\n");
+    // SPDK_NOTICELOG("Initializing NVMe controller\n");
 
-    if (spdk_nvme_zns_ctrlr_get_data(ctx->ctrlr)) {
+    if (spdk_nvme_zns_ctrlr_get_data(ctx->ctrlr) && ctx->verbose) {
         printf("ZNS Specific Controller Data\n");
         printf("============================\n");
         printf("Zone Append Size Limit:      %u\n",
                spdk_nvme_zns_ctrlr_get_data(ctx->ctrlr)->zasl);
         printf("\n");
         printf("\n");
-    }
 
-    printf("Active Namespaces\n");
-    printf("=================\n");
-    // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
-    //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
-    //     print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr,
-    //     nsid));
-    // }
+        printf("Active Namespaces\n");
+        printf("=================\n");
+        // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid !=
+        // 0;
+        //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
+        //     print_namespace(ctx->ctrlr,
+        //                     spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
+        // }
+    }
     // ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
 
     // NOTE: must find zns ns
     // take any ZNS namespace, we do not care which.
     for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
-        log_info("ns id: {}", nsid);
+        if (ctx->verbose)
+            log_info("ns id: {}", nsid);
 
         struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid);
         if (ns == NULL) {
@@ -210,8 +192,10 @@ static void zns_dev_init(void *arg)
         }
         ctx->ns = ns;
 
-        print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid),
-                        ctx->current_zone);
+        if (ctx->verbose)
+            print_namespace(ctx->ctrlr,
+                            spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid),
+                            ctx->current_zone);
 
         break;
     }
@@ -221,17 +205,22 @@ static void zns_dev_init(void *arg)
         spdk_app_stop(-1);
         return;
     }
+}
 
+static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     // 2. creating qpairs
     // struct spdk_nvme_io_qpair_opts qpair_opts;
     // spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->ctrlr, &qpair_opts,
     //                                           sizeof(qpair_opts));
     // qpair_opts.delay_cmd_submit = true;
     // qpair_opts.create_only = true;
-    // ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, &qpair_opts,
-    //                                             sizeof(qpair_opts));
-
-    ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, NULL, 0);
+    log_info("alloc qpair of queue size {}, request size {}",
+             qpair_opts.io_queue_size, qpair_opts.io_queue_requests);
+    ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, &qpair_opts,
+                                                sizeof(qpair_opts));
+    // ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, NULL, 0);
 
     if (ctx->qpair == NULL) {
         SPDK_ERRLOG("Could not allocate IO queue pair\n");
@@ -246,6 +235,14 @@ static void zns_dev_init(void *arg)
     //     spdk_app_stop(-1);
     //     return;
     // }
+}
+
+static void zstore_qpair_teardown(void *arg)
+{
+    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    log_info("disconnect and free qpair");
+    spdk_nvme_ctrlr_disconnect_io_qpair(ctx->qpair);
+    spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
 }
 
 // TODO: make ZNS device class and put this in Init() or ctor
@@ -270,14 +267,17 @@ static void zstore_init(void *arg)
         zone_capacity = zone_size;
     }
     ctx->info.zone_cap = zone_capacity;
-    log_info("Zone size: {}, zone cap: {}, num of zones: {}\n", zone_size,
-             zone_capacity, num_zones);
+    if (ctx->verbose)
+        log_info("Zone size: {}, zone cap: {}, num of zones: {}\n", zone_size,
+                 zone_capacity, num_zones);
 
     uint32_t blockSize = 4096;
     uint64_t storageSpace = 1024 * 1024 * 1024 * 1024ull;
     auto mMappingBlockUnitSize = blockSize * blockSize / 4;
-    log_info("block size: {}, storage space: {}, mapping block unit size: {}\n",
-             blockSize, storageSpace, mMappingBlockUnitSize);
+    if (ctx->verbose)
+        log_info(
+            "block size: {}, storage space: {}, mapping block unit size: {}\n",
+            blockSize, storageSpace, mMappingBlockUnitSize);
 }
 
 // TropoDB
@@ -450,10 +450,12 @@ int z_get_device_info(void *arg)
     ctx->info.zasl = zasl == 0 ? ctx->info.mdts
                                : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
     ctx->info.lba_cap = ns_data->ncap;
-    log_info("Z Get Device Info: lbs size {}, zone size {}, mdts {}, zasl {}, "
-             "lba cap {}, current zone {}, current zslba {}",
-             ctx->info.lba_size, ctx->info.zone_size, ctx->info.mdts,
-             ctx->info.zasl, ctx->info.lba_cap, ctx->current_zone, ctx->zslba);
+    if (ctx->verbose)
+        log_info(
+            "Z Get Device Info: lbs size {}, zone size {}, mdts {}, zasl {}, "
+            "lba cap {}, current zone {}, current zslba {}",
+            ctx->info.lba_size, ctx->info.zone_size, ctx->info.mdts,
+            ctx->info.zasl, ctx->info.lba_cap, ctx->current_zone, ctx->zslba);
 
     return 0;
 }
@@ -967,7 +969,9 @@ int z_get_zone_head(void *arg, uint64_t slba, uint64_t *head)
     uint32_t zd_index = sizeof(struct spdk_nvme_zns_zone_report);
     struct spdk_nvme_zns_zone_desc *desc =
         (struct spdk_nvme_zns_zone_desc *)(report_buf + zd_index);
-    // log_info("1");
+    log_info("Zone Capacity (in number of LBAs) {}, Zone Start LBA {}, Write "
+             "Pointer (LBA) {}",
+             desc->zcap, desc->zslba, desc->wp);
     *head = desc->wp;
     free(report_buf);
     log_info("zone head: {}", *head);
