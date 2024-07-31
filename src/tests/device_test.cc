@@ -208,7 +208,7 @@ int main(int argc, char **argv)
     INVALID(rc);
 
     // try existing device
-    rc = z_open(&ctx, "0000:06:00.0");
+    rc = z_open(&ctx, "0000:05:00.0");
     DEBUG_TEST_PRINT("existing return code ", rc);
     VALID(rc);
 

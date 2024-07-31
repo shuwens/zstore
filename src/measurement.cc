@@ -5,14 +5,16 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
+#include <bits/stdc++.h>
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <fmt/core.h>
 #include <fstream>
-#include <stdio.h>
-// #include "spdk/nvmf_spec.h"
-#include <cstdlib>
-#include <fstream>
 #include <iostream>
+#include <stdio.h>
+
+// using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
                          char *test_str, int value)
@@ -45,18 +47,14 @@ static void test_start(void *arg1)
     // zone cap * lba_bytes ()
     log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
              ctx->info.lba_size);
-    // ctx->buff_size = ctx->info.zone_cap * ctx->info.lba_size;
     ctx->buff_size = ctx->info.lba_size * append_times;
-    // ctx->buff_size = 4096;
     uint32_t buf_align = ctx->info.lba_size;
     log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
 
-    // static_cast<char *>(spdk_zmalloc(ctx->buff_size, buf_align, NULL));
     ctx->write_buff = (char *)spdk_zmalloc(
         ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     if (!ctx->write_buff) {
         SPDK_ERRLOG("Failed to allocate buffer\n");
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_nvme_detach(ctx->ctrlr);
         spdk_app_stop(-1);
         return;
@@ -65,7 +63,6 @@ static void test_start(void *arg1)
         ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     if (!ctx->read_buff) {
         SPDK_ERRLOG("Failed to allocate buffer\n");
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
         spdk_nvme_detach(ctx->ctrlr);
         spdk_app_stop(-1);
         return;
@@ -82,74 +79,71 @@ static void test_start(void *arg1)
              spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
              spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
 
-    // memset(ctx->write_buff, 0, ctx->buff_size);
-    // memset(ctx->read_buff, 0, ctx->buff_size);
-    // for (int i = 0; i < append_times; i++) {
-    //     log_info("memset buffer in before write:");
-    //     // std::memcpy(ctx->write_buff + 4096 * i, &value + i, 4096);
-    //     memset64((char *)ctx->write_buff + 4096 * i, i + value, 4096);
-    //     // memset64((char *)ctx->write_buff + 4096 * i, i + value, 4096);
-    //
-    //     u64 dw = *(u64 *)(ctx->write_buff + 4096 * i);
-    //     u64 dr = *(u64 *)(ctx->read_buff + 4096 * i);
-    //     printf("write: %d\n", dw);
-    //     printf("read: %d\n", dr);
-    // }
-
     // working
     int rc = 0;
+
+    uint64_t write_head = 0;
+    rc = z_get_zone_head(ctx, ctx->current_zone, &write_head);
+    assert(rc == 0);
+    log_info("current zone: {}, current lba {}, head {}", ctx->current_zone,
+             ctx->current_lba, write_head);
+    // FIXME:
+    ctx->current_lba = write_head;
+
+    // measurment time points
+    chrono_tp stime;
+    chrono_tp etime;
+    std::vector<u64> deltas;
+
     log_info("writing with z_append:");
     log_debug("here");
+    char **wbuf = (char **)calloc(1, sizeof(char **));
     for (int i = 0; i < append_times; i++) {
-        log_debug("1");
-        char **wbuf = (char **)calloc(1, sizeof(char **));
         rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
                                   "test_zstore1:", value + i);
         assert(rc == 0);
-        // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
-        log_debug("2");
 
-        // printf("write: %d\n", value + i);
+        stime = std::chrono::high_resolution_clock::now();
+
+        // APPEND
         rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
         assert(rc == 0);
 
-        for (int i = 0; i < 30; i++) {
-            // log_debug("{}", i);
-            // assert((char *)(pattern_read_zstore)[i] ==
-            //        (char *)(*pattern_zstore)[i]);
-            printf("%d-th write %c\n", i, (char *)(*wbuf)[i]);
-        }
+        etime = std::chrono::high_resolution_clock::now();
+        auto dur = std::chrono::duration_cast<std::chrono::microseconds>(etime -
+                                                                         stime);
+        deltas.push_back(dur.count());
+
+        // log_info("write {}", *wbuf);
     }
+    auto sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
+    auto avg = sum / append_times;
+    log_info("Averge append {} us", avg);
+    deltas.clear();
 
-    // log_info("append lbs for loop");
-    // for (auto &i : ctx->append_lbas) {
-    //     log_info("append lbs: {}", i);
-    // }
-
-    ctx->current_lba = 0x5780267;
+    ctx->current_lba = 0x5781dd4;
     log_info("read with z_append:");
+    char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
     for (int i = 0; i < append_times; i++) {
-        log_info("z_append: {}", i);
-        char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
-
+        stime = std::chrono::high_resolution_clock::now();
         rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
         assert(rc == 0);
 
-        // for (int i = 0; i < ctx->info.lba_size; i++) {
-        for (int i = 0; i < 30; i++) {
-            // log_debug("{}", i);
-            // assert((char *)(pattern_read_zstore)[i] ==
-            //        (char *)(*pattern_zstore)[i]);
-            printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
-        }
+        etime = std::chrono::high_resolution_clock::now();
+        auto dur = std::chrono::duration_cast<std::chrono::microseconds>(etime -
+                                                                         stime);
+        deltas.push_back(dur.count());
+
+        // log_info("z_read: {}, {}", i, rbuf);
+        // printf("%s\n", rbuf);
+
+        // for (int i = 0; i < 30; i++) {
+        //     printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
+        // }
     }
-
-    // read_zone(ctx);
-
-    // close_zone(ctx);
-
-    // for (const uint32_t &i : ctx.append_lbas)
-    //     std::cout << "append lbs: " << i << std::endl;
+    sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
+    avg = sum / append_times;
+    log_info("Averge read {} us", avg);
 
     log_info("Test start finish");
 }

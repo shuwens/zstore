@@ -7,13 +7,15 @@
 #include "utils.hpp"
 #include "zns_utils.h"
 #include <atomic>
+#include <chrono>
 #include <fstream>
+using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
 // static const char *g_bdev_name = "Nvme1n2";
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
 // const int append_times = 10000;
-const int append_times = 3;
+const int append_times = 1000;
 const int value = 10000000; // Integer value to set in the buffer
 
 typedef struct {
@@ -333,7 +335,7 @@ static void __operation_complete2(void *arg,
         completed->err = 1;
         return;
     }
-    SPDK_NOTICELOG("append slba:0x%016x\n", completion->cdw0);
+    // SPDK_NOTICELOG("append slba:0x%016x\n", completion->cdw0);
 }
 
 static void __append_complete2(void *arg,
@@ -345,7 +347,7 @@ static void __append_complete2(void *arg,
         completed->err = 1;
         return;
     }
-    SPDK_NOTICELOG("append slba:0x%lx\n", completion->cdw0);
+    // SPDK_NOTICELOG("append slba:0x%lx\n", completion->cdw0);
 }
 
 static void __read_complete2(void *arg, const struct spdk_nvme_cpl *completion)
@@ -968,7 +970,7 @@ int z_get_zone_head(void *arg, uint64_t slba, uint64_t *head)
     // log_info("1");
     *head = desc->wp;
     free(report_buf);
-    // log_info("2");
+    log_info("zone head: {}", *head);
     return rc;
 }
 

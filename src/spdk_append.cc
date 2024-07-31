@@ -5,6 +5,7 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
+#include <cassert>
 #include <cstdint>
 #include <fmt/core.h>
 #include <fstream>
@@ -98,6 +99,12 @@ static void test_start(void *arg1)
 
     // working
     int rc = 0;
+
+    rc = z_get_zone_head(ctx, ctx->current_zone, &ctx->current_lba);
+    assert(rc == 0);
+    log_info("current zone: {}, current lba {}", ctx->current_zone,
+             ctx->current_lba);
+
     log_info("writing with z_append:");
     log_debug("here");
     for (int i = 0; i < append_times; i++) {
@@ -126,7 +133,6 @@ static void test_start(void *arg1)
     //     log_info("append lbs: {}", i);
     // }
 
-    ctx->current_lba = 0x5780267;
     log_info("read with z_append:");
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
