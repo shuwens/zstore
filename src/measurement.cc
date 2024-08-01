@@ -12,6 +12,7 @@
 #include <fmt/core.h>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <stdio.h>
 #include <vector>
 
@@ -34,7 +35,7 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
 
 // FIXME:
 // DONE: add queue size as qpair options
-// detect current lbas to use for reads
+// DONE: detect current lbas to use for reads
 // TODO:
 // something smart about open/close zones etc
 static void zns_measure(void *arg)
@@ -44,11 +45,11 @@ static void zns_measure(void *arg)
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
 
     // std::vector<int> qds{2, 64};
-    // std::vector<int> qds{2, 4, 8, 16, 32, 64};
-    std::vector<int> qds{32, 64};
+    std::vector<int> qds{2, 4, 8, 16, 32, 64};
 
     for (auto qd : qds) {
-        log_info("Starting measurment with queue depth {}", qd);
+        log_info("\nStarting measurment with queue depth {}, append times {}\n",
+                 qd, append_times);
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
@@ -60,6 +61,7 @@ static void zns_measure(void *arg)
         z_get_device_info(ctx);
 
         ctx->zstore_open = true;
+        ctx->current_lba = 0;
 
         // zone cap * lba_bytes ()
         // log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
@@ -82,13 +84,14 @@ static void zns_measure(void *arg)
         // working
         int rc = 0;
 
-        uint64_t write_head = 0;
-        rc = z_get_zone_head(ctx, ctx->current_zone, &write_head);
-        assert(rc == 0);
-        log_info("current zone: {}, current lba {}, head {}", ctx->current_zone,
-                 ctx->current_lba, write_head);
-        // FIXME:
-        ctx->current_lba = write_head;
+        // uint64_t write_head = 0;
+        // rc = z_get_zone_head(ctx, ctx->current_zone, &write_head);
+        // assert(rc == 0);
+        // log_info("current zone: {}, current lba {}, head {}",
+        // ctx->current_zone,
+        //          ctx->current_lba, write_head);
+        // // FIXME:
+        // ctx->current_lba = write_head;
 
         // measurment time points
         chrono_tp stime;
@@ -99,8 +102,8 @@ static void zns_measure(void *arg)
         log_debug("here");
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
-            rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
-                                      "test_zstore1:", value + i);
+            rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, "",
+                                      value + i);
             assert(rc == 0);
 
             stime = std::chrono::high_resolution_clock::now();
@@ -117,11 +120,14 @@ static void zns_measure(void *arg)
             // log_info("write {}", *wbuf);
         }
         auto sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
-        auto avg = sum / append_times;
-        log_info("qd {}, averge append {} us", ctx->qd, avg);
+        auto mean = sum / deltas.size();
+        auto sq_sum = std::inner_product(deltas.begin(), deltas.end(),
+                                         deltas.begin(), 0.0);
+        auto stdev = std::sqrt(sq_sum / deltas.size() - mean * mean);
+        log_info("qd {}, append: mean {} us, std {}", ctx->qd, mean, stdev);
         deltas.clear();
 
-        ctx->current_lba = 0x5781dd4;
+        log_info("current lba for read is {}", ctx->current_lba);
         log_info("read with z_append:");
         char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
         for (int i = 0; i < append_times; i++) {
@@ -134,9 +140,14 @@ static void zns_measure(void *arg)
                 etime - stime);
             deltas.push_back(dur.count());
         }
+
         sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
-        avg = sum / append_times;
-        log_info("qd {}, averge read {} us", ctx->qd, avg);
+        mean = sum / deltas.size();
+        sq_sum = std::inner_product(deltas.begin(), deltas.end(),
+                                    deltas.begin(), 0.0);
+        stdev = std::sqrt(sq_sum / deltas.size() - mean * mean);
+        log_info("qd {}, read: mean {} us, std {}", ctx->qd, mean, stdev);
+        deltas.clear();
 
         zstore_qpair_teardown(ctx);
     }
