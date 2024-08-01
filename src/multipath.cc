@@ -37,7 +37,8 @@ static void zns_multipath(void *arg)
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
     u64 starting_zone = ctx->current_zone - 1;
 
-    std::vector<int> qds{2, 64};
+    std::vector<int> qds{64};
+    // std::vector<int> qds{2, 64};
     // std::vector<int> qds{2, 4, 8, 16, 32, 64};
 
     for (auto qd : qds) {
@@ -48,7 +49,7 @@ static void zns_multipath(void *arg)
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
-        zns_dev_init(ctx);
+        zns_dev_init(ctx, "192.168.1.121", "4420");
 
         zstore_qpair_setup(ctx, qpair_opts);
         zstore_init(ctx);
@@ -63,26 +64,41 @@ static void zns_multipath(void *arg)
         log_info("writing with z_append:");
         log_debug("here");
         log_info("{} append start lba {}", node, ctx->zslba);
-        char **wbuf = (char **)calloc(1, sizeof(char **));
-        for (int i = 0; i < append_times; i++) {
-            rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, node, i);
-            assert(rc == 0);
+        // char **wbuf = (char **)calloc(1, sizeof(char **));
+        // for (int i = 0; i < append_times; i++) {
+        //     rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, node,
+        //     i); assert(rc == 0);
+        //
+        //     // APPEND
+        //     rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
+        //     assert(rc == 0);
+        // }
 
-            // APPEND
-            rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
-            assert(rc == 0);
-        }
-
+        // ctx->current_lba = ;
         log_info("{} current lba for read is {}", node, ctx->current_lba);
+
         log_info("read with z_append:");
         char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
+        // std::vector<std::string> data1;
         for (int i = 0; i < append_times * 2; i++) {
             rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
             assert(rc == 0);
-            printf("%d-th read %s\n", i, (char *)(rbuf));
+            // data1.push_back(*(char *)rbuf);
+            // std::string str(rbuf);
+            // data1.push_back(str);
+            // printf("%d-th read %s\n", i, (char *)(rbuf));
         }
 
         zstore_qpair_teardown(ctx);
+
+        std::ofstream of1("data1.txt");
+        // std::ofstream of2("data2.txt");
+        // for (auto d : data1) {
+        //     log_info("{}", d);
+        //     of1 << d << " ";
+        // }
+        // for (auto d : data2)
+        //     of2 << d - data_off << " ";
     }
 
     log_info("Test start finish");

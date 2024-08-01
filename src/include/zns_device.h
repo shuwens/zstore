@@ -16,8 +16,8 @@ static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
 
 // const int append_times = 3;
-const int append_times = 1000;
-// const int append_times = 16000;
+// const int append_times = 1000;
+const int append_times = 16000;
 // const int append_times = 12800;
 // const int append_times = 128000;
 
@@ -118,7 +118,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     }
 }
 
-static void zns_dev_init(void *arg)
+static void zns_dev_init(void *arg, std::string ip, std::string port)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     int rc = 0;
@@ -130,10 +130,10 @@ static void zns_dev_init(void *arg)
 
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid = {};
-    int nsid = 0;
+    // int nsid = 0;
 
-    snprintf(trid.traddr, sizeof(trid.traddr), "%s", "192.168.1.121");
-    snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", "4420");
+    snprintf(trid.traddr, sizeof(trid.traddr), "%s", ip.c_str());
+    snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
     // snprintf(trid.subnqn, sizeof(trid.subnqn), "%s",
     // SPDK_NVMF_DISCOVERY_NQN);
     snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
@@ -182,8 +182,8 @@ static void zns_dev_init(void *arg)
     // take any ZNS namespace, we do not care which.
     for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
-        if (ctx->verbose)
-            log_info("ns id: {}", nsid);
+        // if (ctx->verbose)
+        log_info("ns id: {}", nsid);
 
         struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid);
         if (ns == NULL) {
@@ -194,12 +194,11 @@ static void zns_dev_init(void *arg)
         }
         ctx->ns = ns;
 
-        if (ctx->verbose)
-            print_namespace(ctx->ctrlr,
-                            spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid),
-                            ctx->current_zone);
+        // if (ctx->verbose)
+        print_namespace(ctx->ctrlr, spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid),
+                        ctx->current_zone);
 
-        break;
+        // break;
     }
 
     if (ctx->ns == NULL) {
@@ -477,10 +476,10 @@ static void __complete(void *arg, const struct spdk_nvme_cpl *cpl)
         ctx->num_success += 1;
         ctx->num_queued -= 1;
     }
-    if (ctx->current_lba == 0) {
-        log_info("setting current lba value: {}", cpl->cdw0);
-        ctx->current_lba = cpl->cdw0;
-    }
+    // if (ctx->current_lba == 0) {
+    //     log_info("setting current lba value: {}", cpl->cdw0);
+    //     ctx->current_lba = cpl->cdw0;
+    // }
 }
 
 int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)

@@ -35,7 +35,7 @@ static void test_start(void *arg1)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg1);
 
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
-    zns_dev_init(ctx);
+    zns_dev_init(ctx, "192.168.1.121", "4420");
     zstore_qpair_setup(ctx, qpair_opts);
 
     zstore_init(ctx);

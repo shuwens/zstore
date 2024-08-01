@@ -53,7 +53,7 @@ static void zns_measure(void *arg)
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
-        zns_dev_init(ctx);
+        zns_dev_init(ctx, "192.168.1.121", "4420");
 
         zstore_qpair_setup(ctx, qpair_opts);
         zstore_init(ctx);
