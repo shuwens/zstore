@@ -11,7 +11,7 @@
             "adrfam": "ipv4",
             "name": "Nvme1",
             "traddr": "192.168.1.121",
-            "trsvcid": "4420",
+            "trsvcid": "5520",
             "subnqn": "nqn.2024-04.io.zstore:cnode1",
             "hdgst": true,
             "ddgst": true
