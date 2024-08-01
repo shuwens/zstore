@@ -31,7 +31,8 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
 
 static void zns_multipath(void *arg)
 {
-    log_info("Fn: zns_multipath\n");
+    char *node = "zstore1";
+    log_info("Fn: zns_multipath for {}\n", node);
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
     u64 starting_zone = ctx->current_zone - 1;
@@ -63,8 +64,7 @@ static void zns_multipath(void *arg)
         log_debug("here");
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
-            rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, "zstore1",
-                                      i);
+            rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, node, i);
             assert(rc == 0);
 
             // APPEND
@@ -72,7 +72,7 @@ static void zns_multipath(void *arg)
             assert(rc == 0);
         }
 
-        log_info("current lba for read is {}", ctx->current_lba);
+        log_info("{} current lba for read is {}", node, ctx->current_lba);
         log_info("read with z_append:");
         char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
         for (int i = 0; i < append_times * 2; i++) {
