@@ -62,6 +62,7 @@ static void zns_multipath(void *arg)
 
         log_info("writing with z_append:");
         log_debug("here");
+        log_info("{} append start lba {}", node, ctx->zslba);
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
             rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, node, i);
