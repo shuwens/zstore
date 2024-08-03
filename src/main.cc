@@ -17,15 +17,15 @@
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
                          char *test_str, int value)
 {
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
     if (*pattern != NULL) {
-        z_free(ctx->qpair, *pattern);
+        z_free(dm->qpair, *pattern);
     }
-    *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
+    *pattern = (char *)z_calloc(dm, size, sizeof(char *));
     if (*pattern == NULL) {
         return 1;
     }
-    snprintf(*pattern, ctx->info.lba_size, "%s:%d", test_str, value);
+    snprintf(*pattern, dm->info.lba_size, "%s:%d", test_str, value);
     return 0;
 }
 
@@ -35,7 +35,7 @@ static void test_start(void *arg1)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg1);
 
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
-    zns_dev_init(ctx, "192.168.1.121", "4420");
+    zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
     zstore_qpair_setup(ctx, qpair_opts);
 
     zstore_init(ctx);
@@ -45,44 +45,26 @@ static void test_start(void *arg1)
     ctx->zstore_open = true;
 
     // zone cap * lba_bytes ()
-    log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
-             ctx->info.lba_size);
+    log_info("zone cap: {}, lba bytes {}", ctx->m1->info.zone_cap,
+             ctx->m1->info.lba_size);
     // ctx->buff_size = ctx->info.zone_cap * ctx->info.lba_size;
-    ctx->buff_size = ctx->info.lba_size * append_times;
+    // ctx->buff_size = ctx->m1->info.lba_size * append_times;
     // ctx->buff_size = 4096;
-    uint32_t buf_align = ctx->info.lba_size;
-    log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
+    // uint32_t buf_align = ctx->info.lba_size;
+    // log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
 
     // static_cast<char *>(spdk_zmalloc(ctx->buff_size, buf_align, NULL));
-    ctx->write_buff = (char *)spdk_zmalloc(
-        ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-    if (!ctx->write_buff) {
-        SPDK_ERRLOG("Failed to allocate buffer\n");
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_app_stop(-1);
-        return;
-    }
-    ctx->read_buff = (char *)spdk_zmalloc(
-        ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-    if (!ctx->read_buff) {
-        SPDK_ERRLOG("Failed to allocate buffer\n");
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_app_stop(-1);
-        return;
-    }
-    log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
-             "{}, max append size: {},  max open "
-             "zone: {}, max active zone: {}\n ",
-             spdk_nvme_ns_get_sector_size(ctx->ns),
-             spdk_nvme_ns_get_md_size(ctx->ns),
-             spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone size
-             spdk_nvme_zns_ns_get_num_zones(ctx->ns),
-             spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
-                 spdk_nvme_ns_get_sector_size(ctx->ns),
-             spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
-             spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
+    // log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
+    //          "{}, max append size: {},  max open "
+    //          "zone: {}, max active zone: {}\n ",
+    //          spdk_nvme_ns_get_sector_size(ctx->ns),
+    //          spdk_nvme_ns_get_md_size(ctx->ns),
+    //          spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone size
+    //          spdk_nvme_zns_ns_get_num_zones(ctx->ns),
+    //          spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
+    //              spdk_nvme_ns_get_sector_size(ctx->ns),
+    //          spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
+    //          spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
 
     // memset(ctx->write_buff, 0, ctx->buff_size);
     // memset(ctx->read_buff, 0, ctx->buff_size);
@@ -99,21 +81,22 @@ static void test_start(void *arg1)
     // }
 
     // working
-    int rc = 0;
+    int rc1 = 0;
+    int rc2 = 0;
     log_info("writing with z_append:");
-    log_debug("here");
     for (int i = 0; i < append_times; i++) {
         log_debug("1");
         char **wbuf = (char **)calloc(1, sizeof(char **));
-        rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
-                                  "test_zstore1:", value + i);
-        assert(rc == 0);
+        rc1 = write_zstore_pattern(wbuf, ctx->m1, ctx->m1->info.lba_size,
+                                   "test_zstore1:", value + i);
+        assert(rc1 == 0 && rc2 == 0);
         // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
         log_debug("2");
 
         // printf("write: %d\n", value + i);
-        rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
-        assert(rc == 0);
+        rc1 = z_append(ctx->m1, ctx->zslba, *wbuf, ctx->m1->info.lba_size);
+        rc2 = z_append(ctx->m2, ctx->zslba, *wbuf, ctx->m2->info.lba_size);
+        assert(rc1 == 0 && rc2 == 0);
 
         for (int i = 0; i < 30; i++) {
             // log_debug("{}", i);
@@ -132,18 +115,22 @@ static void test_start(void *arg1)
     log_info("read with z_append:");
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
-        char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
+        char *rbuf1 =
+            (char *)z_calloc(ctx->m1, ctx->m1->info.lba_size, sizeof(char *));
+        char *rbuf2 =
+            (char *)z_calloc(ctx->m2, ctx->m2->info.lba_size, sizeof(char *));
 
-        rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
-        assert(rc == 0);
+        rc1 = z_read(ctx->m1, ctx->current_lba + i, rbuf1, 4096);
+        rc2 = z_read(ctx->m2, ctx->current_lba + i, rbuf2, 4096);
+        assert(rc1 == 0 && rc2 == 0);
 
         // for (int i = 0; i < ctx->info.lba_size; i++) {
-        for (int i = 0; i < 30; i++) {
-            // log_debug("{}", i);
-            // assert((char *)(pattern_read_zstore)[i] ==
-            //        (char *)(*pattern_zstore)[i]);
-            printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
-        }
+        // for (int i = 0; i < 30; i++) {
+        // log_debug("{}", i);
+        // assert((char *)(pattern_read_zstore)[i] ==
+        //        (char *)(*pattern_zstore)[i]);
+        // printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
+        // }
     }
 
     // read_zone(ctx);
@@ -185,8 +172,8 @@ int main(int argc, char **argv)
 
     log_info("freee dma");
     // spdk_nvme_ctrlr_free_io_qpair(ctx.qpair);
-    spdk_dma_free(ctx.write_buff);
-    spdk_dma_free(ctx.read_buff);
+    // spdk_dma_free(ctx.write_buff);
+    // spdk_dma_free(ctx.read_buff);
 
     spdk_app_fini();
 

@@ -4,28 +4,26 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include <bits/stdc++.h>
-#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
 #include <fstream>
 #include <iostream>
-#include <numeric>
 #include <stdio.h>
 #include <vector>
 
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
                          char *test_str, int value)
 {
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
     if (*pattern != NULL) {
-        z_free(ctx->qpair, *pattern);
+        z_free(dm->qpair, *pattern);
     }
-    *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
+    *pattern = (char *)z_calloc(dm, size, sizeof(char *));
     if (*pattern == NULL) {
         return 1;
     }
-    snprintf(*pattern, ctx->info.lba_size, "%s:%d", test_str, value);
+    snprintf(*pattern, dm->info.lba_size, "%s:%d", test_str, value);
     return 0;
 }
 
@@ -49,7 +47,7 @@ static void zns_multipath(void *arg)
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
-        zns_dev_init(ctx, "192.168.1.121", "4420");
+        zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
 
         zstore_qpair_setup(ctx, qpair_opts);
         zstore_init(ctx);
@@ -59,30 +57,37 @@ static void zns_multipath(void *arg)
         ctx->zstore_open = true;
         ctx->current_lba = 0;
 
-        int rc = 0;
+        int rc1 = 0;
+        int rc2 = 0;
 
         log_info("writing with z_append:");
         log_debug("here");
         log_info("{} append start lba {}", node, ctx->zslba);
-        // char **wbuf = (char **)calloc(1, sizeof(char **));
-        // for (int i = 0; i < append_times; i++) {
-        //     rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, node,
-        //     i); assert(rc == 0);
-        //
-        //     // APPEND
-        //     rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
-        //     assert(rc == 0);
-        // }
+        char **wbuf = (char **)calloc(1, sizeof(char **));
+        for (int i = 0; i < append_times; i++) {
+            rc1 = write_zstore_pattern(wbuf, ctx->m1, ctx->m1->info.lba_size,
+                                       node, i);
+            assert(rc1 == 0);
+
+            // APPEND
+            rc1 = z_append(ctx->m1, ctx->zslba, *wbuf, ctx->m1->info.lba_size);
+            rc2 = z_append(ctx->m2, ctx->zslba, *wbuf, ctx->m2->info.lba_size);
+            assert(rc1 == 0 && rc2 == 0);
+        }
 
         // ctx->current_lba = ;
         log_info("{} current lba for read is {}", node, ctx->current_lba);
 
         log_info("read with z_append:");
-        char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
+        char *rbuf1 =
+            (char *)z_calloc(ctx->m1, ctx->m1->info.lba_size, sizeof(char *));
+        char *rbuf2 =
+            (char *)z_calloc(ctx->m2, ctx->m2->info.lba_size, sizeof(char *));
         // std::vector<std::string> data1;
         for (int i = 0; i < append_times * 2; i++) {
-            rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
-            assert(rc == 0);
+            rc1 = z_read(ctx->m1, ctx->current_lba + i, rbuf1, 4096);
+            rc2 = z_read(ctx->m2, ctx->current_lba + i, rbuf2, 4096);
+            assert(rc1 == 0 && rc2 == 0);
             // data1.push_back(*(char *)rbuf);
             // std::string str(rbuf);
             // data1.push_back(str);

@@ -1,10 +1,8 @@
 #include "include/utils.hpp"
 #include "include/zns_device.h"
-#include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
-#include "spdk/nvme_zns.h"
 #include <bits/stdc++.h>
 #include <chrono>
 #include <cstdint>
@@ -21,15 +19,15 @@
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
                          char *test_str, int value)
 {
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
     if (*pattern != NULL) {
-        z_free(ctx->qpair, *pattern);
+        z_free(dm->qpair, *pattern);
     }
-    *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
+    *pattern = (char *)z_calloc(dm, size, sizeof(char *));
     if (*pattern == NULL) {
         return 1;
     }
-    snprintf(*pattern, ctx->info.lba_size, "%s:%d", test_str, value);
+    snprintf(*pattern, dm->info.lba_size, "%s:%d", test_str, value);
     return 0;
 }
 
@@ -53,13 +51,18 @@ static void zns_measure(void *arg)
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
-        zns_dev_init(ctx, "192.168.1.121", "4420");
+        log_info("1");
+        zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
 
+        log_info("2");
         zstore_qpair_setup(ctx, qpair_opts);
+        log_info("3");
         zstore_init(ctx);
 
+        log_info("4");
         z_get_device_info(ctx);
 
+        log_info("5");
         ctx->zstore_open = true;
         ctx->current_lba = 0;
 
@@ -102,14 +105,19 @@ static void zns_measure(void *arg)
         log_debug("here");
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
-            rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size, "",
+            rc = write_zstore_pattern(wbuf, ctx, ctx->m1->info.lba_size, "",
+                                      value + i);
+            assert(rc == 0);
+            rc = write_zstore_pattern(wbuf, ctx, ctx->m2->info.lba_size, "",
                                       value + i);
             assert(rc == 0);
 
             stime = std::chrono::high_resolution_clock::now();
 
             // APPEND
-            rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
+            rc = z_append(ctx, ctx->zslba, *wbuf, ctx->m1->info.lba_size);
+            assert(rc == 0);
+            rc = z_append(ctx, ctx->zslba, *wbuf, ctx->m2->info.lba_size);
             assert(rc == 0);
 
             etime = std::chrono::high_resolution_clock::now();
@@ -129,7 +137,8 @@ static void zns_measure(void *arg)
 
         log_info("current lba for read is {}", ctx->current_lba);
         log_info("read with z_append:");
-        char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
+        char *rbuf =
+            (char *)z_calloc(ctx, ctx->m1->info.lba_size, sizeof(char *));
         for (int i = 0; i < append_times; i++) {
             stime = std::chrono::high_resolution_clock::now();
             rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
