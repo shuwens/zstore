@@ -97,26 +97,6 @@ typedef struct {
 //     DeviceManager *man;
 // } QPair;
 
-inline void spin_complete(DeviceManager *dm)
-{
-    while (spdk_nvme_qpair_process_completions(dm->qpair, 0) == 0) {
-        ;
-    }
-}
-
-void complete(void *arg, const struct spdk_nvme_cpl *completion)
-{
-    bool *done = (bool *)arg;
-    *done = true;
-
-    if (spdk_nvme_cpl_is_error(completion)) {
-        fprintf(stderr, "I/O error status: %s\n",
-                spdk_nvme_cpl_get_status_string(&completion->status));
-        fprintf(stderr, "I/O failed, aborting run\n");
-        assert(0);
-    }
-}
-
 static void zns_dev_init(void *arg, std::string ip1, std::string port1,
                          std::string ip2, std::string port2)
 {
@@ -125,19 +105,15 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
     // ctx->m1 = NULL;
     // ctx->m2 = NULL;
 
-    log_info("1");
     if (ctx->verbose)
         SPDK_NOTICELOG("Successfully started the application\n");
 
     // 1. connect nvmf device
     ctx->m1.g_trid = {};
-    log_debug("2");
     snprintf(ctx->m1.g_trid.traddr, sizeof(ctx->m1.g_trid.traddr), "%s",
              ip1.c_str());
-    log_debug("2");
     snprintf(ctx->m1.g_trid.trsvcid, sizeof(ctx->m1.g_trid.trsvcid), "%s",
              port1.c_str());
-    log_debug("2");
     snprintf(ctx->m1.g_trid.subnqn, sizeof(ctx->m1.g_trid.subnqn), "%s",
              g_hostnqn);
     ctx->m1.g_trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
@@ -152,7 +128,6 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
              g_hostnqn);
     ctx->m2.g_trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
     ctx->m2.g_trid.trtype = SPDK_NVME_TRANSPORT_TCP;
-    log_debug("3");
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
@@ -160,7 +135,6 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
     ctx->m1.ctrlr = spdk_nvme_connect(&ctx->m1.g_trid, &opts, sizeof(opts));
     ctx->m2.ctrlr = spdk_nvme_connect(&ctx->m2.g_trid, &opts, sizeof(opts));
     // ctx->ctrlr = spdk_nvme_connect(&trid, NULL, 0);
-    log_debug("4");
 
     if (ctx->m2.ctrlr == NULL && ctx->verbose) {
         fprintf(stderr,
@@ -199,7 +173,6 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
     for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->m1.ctrlr);
          nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->m1.ctrlr, nsid)) {
-        log_info("ns id: {}", nsid);
 
         struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->m1.ctrlr, nsid);
         if (ns == NULL) {
@@ -209,35 +182,20 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
             continue;
         }
 
-        ctx->m1.ns = ns;
+        if (ctx->m1.ns == NULL) {
+            log_info("Found namespace {}, connect to device manger m1", nsid);
+            ctx->m1.ns = ns;
+        } else if (ctx->m2.ns == NULL) {
+            log_info("Found namespace {}, connect to device manger m2", nsid);
+            ctx->m2.ns = ns;
+
+        } else
+            break;
 
         if (ctx->verbose)
             print_namespace(ctx->m1.ctrlr,
                             spdk_nvme_ctrlr_get_ns(ctx->m1.ctrlr, nsid),
                             ctx->current_zone);
-        break;
-    }
-
-    for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->m2.ctrlr);
-         nsid != 0;
-         nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->m2.ctrlr, nsid)) {
-        log_info("ns id: {}", nsid);
-
-        struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->m2.ctrlr, nsid);
-        if (ns == NULL) {
-            continue;
-        }
-        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            continue;
-        }
-
-        ctx->m2.ns = ns;
-
-        if (ctx->verbose)
-            print_namespace(ctx->m2.ctrlr,
-                            spdk_nvme_ctrlr_get_ns(ctx->m2.ctrlr, nsid),
-                            ctx->current_zone);
-        break;
     }
 
     if (ctx->m1.ns == NULL) {

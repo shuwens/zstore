@@ -42,8 +42,8 @@ static void zns_measure(void *arg)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
 
-    // std::vector<int> qds{2, 64};
-    std::vector<int> qds{2, 4, 8, 16, 32, 64};
+    std::vector<int> qds{64};
+    // std::vector<int> qds{2, 4, 8, 16, 32, 64};
 
     for (auto qd : qds) {
         log_info("\nStarting measurment with queue depth {}, append times {}\n",
@@ -51,18 +51,13 @@ static void zns_measure(void *arg)
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
-        log_info("1");
         zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
 
-        log_info("2");
         zstore_qpair_setup(ctx, qpair_opts);
-        log_info("3");
         zstore_init(ctx);
 
-        log_info("4");
         z_get_device_info(ctx);
 
-        log_info("5");
         ctx->zstore_open = true;
         ctx->current_lba = 0;
 
@@ -102,7 +97,6 @@ static void zns_measure(void *arg)
         std::vector<u64> deltas;
 
         log_info("writing with z_append:");
-        log_debug("here");
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
             rc = write_zstore_pattern(wbuf, &ctx->m1, ctx->m1.info.lba_size, "",
