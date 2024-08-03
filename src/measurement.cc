@@ -23,7 +23,7 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     if (*pattern != NULL) {
-        z_free(ctx->qpair, *pattern);
+        z_free(ctx->m1.qpair, *pattern);
     }
     *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
     if (*pattern == NULL) {
@@ -53,12 +53,19 @@ static void zns_measure(void *arg)
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
+
+        log_debug("1");
         zns_dev_init(ctx, "192.168.1.121", "4420");
 
+        log_debug("2");
         zstore_qpair_setup(ctx, qpair_opts);
+
+        log_debug("3");
         zstore_init(ctx);
 
+        log_debug("2");
         z_get_device_info(ctx);
+        log_debug("2");
 
         ctx->zstore_open = true;
         ctx->current_lba = 0;

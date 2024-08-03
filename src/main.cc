@@ -19,7 +19,7 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     if (*pattern != NULL) {
-        z_free(ctx->qpair, *pattern);
+        z_free(ctx->m1.qpair, *pattern);
     }
     *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
     if (*pattern == NULL) {
@@ -48,41 +48,41 @@ static void test_start(void *arg1)
     log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
              ctx->info.lba_size);
     // ctx->buff_size = ctx->info.zone_cap * ctx->info.lba_size;
-    ctx->buff_size = ctx->info.lba_size * append_times;
+    // ctx->buff_size = ctx->info.lba_size * append_times;
     // ctx->buff_size = 4096;
-    uint32_t buf_align = ctx->info.lba_size;
-    log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
+    // uint32_t buf_align = ctx->info.lba_size;
+    // log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
 
     // static_cast<char *>(spdk_zmalloc(ctx->buff_size, buf_align, NULL));
-    ctx->write_buff = (char *)spdk_zmalloc(
-        ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-    if (!ctx->write_buff) {
-        SPDK_ERRLOG("Failed to allocate buffer\n");
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_app_stop(-1);
-        return;
-    }
-    ctx->read_buff = (char *)spdk_zmalloc(
-        ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-    if (!ctx->read_buff) {
-        SPDK_ERRLOG("Failed to allocate buffer\n");
-        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
-        spdk_nvme_detach(ctx->ctrlr);
-        spdk_app_stop(-1);
-        return;
-    }
-    log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
-             "{}, max append size: {},  max open "
-             "zone: {}, max active zone: {}\n ",
-             spdk_nvme_ns_get_sector_size(ctx->ns),
-             spdk_nvme_ns_get_md_size(ctx->ns),
-             spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone size
-             spdk_nvme_zns_ns_get_num_zones(ctx->ns),
-             spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
-                 spdk_nvme_ns_get_sector_size(ctx->ns),
-             spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
-             spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
+    // ctx->write_buff = (char *)spdk_zmalloc(
+    //     ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+    // if (!ctx->write_buff) {
+    //     SPDK_ERRLOG("Failed to allocate buffer\n");
+    //     // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+    //     spdk_nvme_detach(ctx->ctrlr);
+    //     spdk_app_stop(-1);
+    //     return;
+    // }
+    // ctx->read_buff = (char *)spdk_zmalloc(
+    //     ctx->buff_size, 0, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+    // if (!ctx->read_buff) {
+    //     SPDK_ERRLOG("Failed to allocate buffer\n");
+    //     // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+    //     spdk_nvme_detach(ctx->ctrlr);
+    //     spdk_app_stop(-1);
+    //     return;
+    // }
+    // log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
+    //          "{}, max append size: {},  max open "
+    //          "zone: {}, max active zone: {}\n ",
+    //          spdk_nvme_ns_get_sector_size(ctx->m1->ns),
+    //          spdk_nvme_ns_get_md_size(ctx->m1->ns),
+    //          spdk_nvme_zns_ns_get_zone_size_sectors(ctx->m1->ns), // zone
+    //          size spdk_nvme_zns_ns_get_num_zones(ctx->m1->ns),
+    //          spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->m1->ctrlr) /
+    //              spdk_nvme_ns_get_sector_size(ctx->m1->ns),
+    //          spdk_nvme_zns_ns_get_max_open_zones(ctx->m1->ns),
+    //          spdk_nvme_zns_ns_get_max_active_zones(ctx->m1->ns));
 
     // memset(ctx->write_buff, 0, ctx->buff_size);
     // memset(ctx->read_buff, 0, ctx->buff_size);
@@ -185,8 +185,8 @@ int main(int argc, char **argv)
 
     log_info("freee dma");
     // spdk_nvme_ctrlr_free_io_qpair(ctx.qpair);
-    spdk_dma_free(ctx.write_buff);
-    spdk_dma_free(ctx.read_buff);
+    // spdk_dma_free(ctx.write_buff);
+    // spdk_dma_free(ctx.read_buff);
 
     spdk_app_fini();
 

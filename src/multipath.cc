@@ -19,7 +19,7 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     if (*pattern != NULL) {
-        z_free(ctx->qpair, *pattern);
+        z_free(ctx->m1.qpair, *pattern);
     }
     *pattern = (char *)z_calloc(ctx, size, sizeof(char *));
     if (*pattern == NULL) {

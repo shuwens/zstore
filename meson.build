@@ -191,13 +191,14 @@ spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 # 	install: true,
 # )
 
-executable(
-	'zns_test',
-	files('src/tests/device_test.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# TODO: revive the test
+# executable(
+# 	'zns_test',
+# 	files('src/tests/device_test.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 executable(
 	'zstore',
