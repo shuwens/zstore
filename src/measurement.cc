@@ -105,19 +105,19 @@ static void zns_measure(void *arg)
         log_debug("here");
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
-            rc = write_zstore_pattern(wbuf, ctx, ctx->m1->info.lba_size, "",
+            rc = write_zstore_pattern(wbuf, &ctx->m1, ctx->m1.info.lba_size, "",
                                       value + i);
             assert(rc == 0);
-            rc = write_zstore_pattern(wbuf, ctx, ctx->m2->info.lba_size, "",
+            rc = write_zstore_pattern(wbuf, &ctx->m2, ctx->m2.info.lba_size, "",
                                       value + i);
             assert(rc == 0);
 
             stime = std::chrono::high_resolution_clock::now();
 
             // APPEND
-            rc = z_append(ctx, ctx->zslba, *wbuf, ctx->m1->info.lba_size);
+            rc = z_append(&ctx->m1, ctx->zslba, *wbuf, ctx->m1.info.lba_size);
             assert(rc == 0);
-            rc = z_append(ctx, ctx->zslba, *wbuf, ctx->m2->info.lba_size);
+            rc = z_append(&ctx->m2, ctx->zslba, *wbuf, ctx->m2.info.lba_size);
             assert(rc == 0);
 
             etime = std::chrono::high_resolution_clock::now();
@@ -137,11 +137,16 @@ static void zns_measure(void *arg)
 
         log_info("current lba for read is {}", ctx->current_lba);
         log_info("read with z_append:");
-        char *rbuf =
-            (char *)z_calloc(ctx, ctx->m1->info.lba_size, sizeof(char *));
+        char *rbuf1 =
+            (char *)z_calloc(&ctx->m1, ctx->m1.info.lba_size, sizeof(char *));
+        char *rbuf2 =
+            (char *)z_calloc(&ctx->m2, ctx->m2.info.lba_size, sizeof(char *));
+
         for (int i = 0; i < append_times; i++) {
             stime = std::chrono::high_resolution_clock::now();
-            rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
+            rc = z_read(&ctx->m1, ctx->current_lba + i, rbuf1, 4096);
+            assert(rc == 0);
+            rc = z_read(&ctx->m2, ctx->current_lba + i, rbuf2, 4096);
             assert(rc == 0);
 
             etime = std::chrono::high_resolution_clock::now();

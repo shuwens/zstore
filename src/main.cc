@@ -45,10 +45,10 @@ static void test_start(void *arg1)
     ctx->zstore_open = true;
 
     // zone cap * lba_bytes ()
-    log_info("zone cap: {}, lba bytes {}", ctx->m1->info.zone_cap,
-             ctx->m1->info.lba_size);
+    log_info("zone cap: {}, lba bytes {}", ctx->m1.info.zone_cap,
+             ctx->m1.info.lba_size);
     // ctx->buff_size = ctx->info.zone_cap * ctx->info.lba_size;
-    // ctx->buff_size = ctx->m1->info.lba_size * append_times;
+    // ctx->buff_size = ctx->m1.info.lba_size * append_times;
     // ctx->buff_size = 4096;
     // uint32_t buf_align = ctx->info.lba_size;
     // log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
@@ -87,15 +87,15 @@ static void test_start(void *arg1)
     for (int i = 0; i < append_times; i++) {
         log_debug("1");
         char **wbuf = (char **)calloc(1, sizeof(char **));
-        rc1 = write_zstore_pattern(wbuf, ctx->m1, ctx->m1->info.lba_size,
+        rc1 = write_zstore_pattern(wbuf, &ctx->m1, ctx->m1.info.lba_size,
                                    "test_zstore1:", value + i);
         assert(rc1 == 0 && rc2 == 0);
         // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
         log_debug("2");
 
         // printf("write: %d\n", value + i);
-        rc1 = z_append(ctx->m1, ctx->zslba, *wbuf, ctx->m1->info.lba_size);
-        rc2 = z_append(ctx->m2, ctx->zslba, *wbuf, ctx->m2->info.lba_size);
+        rc1 = z_append(&ctx->m1, ctx->zslba, *wbuf, ctx->m1.info.lba_size);
+        rc2 = z_append(&ctx->m2, ctx->zslba, *wbuf, ctx->m2.info.lba_size);
         assert(rc1 == 0 && rc2 == 0);
 
         for (int i = 0; i < 30; i++) {
@@ -116,12 +116,12 @@ static void test_start(void *arg1)
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
         char *rbuf1 =
-            (char *)z_calloc(ctx->m1, ctx->m1->info.lba_size, sizeof(char *));
+            (char *)z_calloc(&ctx->m1, ctx->m1.info.lba_size, sizeof(char *));
         char *rbuf2 =
-            (char *)z_calloc(ctx->m2, ctx->m2->info.lba_size, sizeof(char *));
+            (char *)z_calloc(&ctx->m2, ctx->m2.info.lba_size, sizeof(char *));
 
-        rc1 = z_read(ctx->m1, ctx->current_lba + i, rbuf1, 4096);
-        rc2 = z_read(ctx->m2, ctx->current_lba + i, rbuf2, 4096);
+        rc1 = z_read(&ctx->m1, ctx->current_lba + i, rbuf1, 4096);
+        rc2 = z_read(&ctx->m2, ctx->current_lba + i, rbuf2, 4096);
         assert(rc1 == 0 && rc2 == 0);
 
         // for (int i = 0; i < ctx->info.lba_size; i++) {

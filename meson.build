@@ -199,13 +199,13 @@ spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 # 	install: true,
 # )
 
-executable(
-	'zstore',
-	files('src/main.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'zstore',
+# 	files('src/main.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 executable(
 	'measure',
@@ -215,10 +215,10 @@ executable(
 	install: true,
 )
 
-executable(
-	'multipath',
-	files('src/multipath.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'multipath',
+# 	files('src/multipath.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
