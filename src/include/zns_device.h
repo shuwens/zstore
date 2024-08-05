@@ -206,28 +206,29 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
 static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    int rc = 0;
     // 2. creating qpairs
-    // struct spdk_nvme_io_qpair_opts qpair_opts;
+    // NOTE we don't want to modify anythng with the default qpair right now,
+    // as it only controls the submission and completion queue (default to 256)
+
     // spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->ctrlr, &qpair_opts,
     //                                           sizeof(qpair_opts));
     // qpair_opts.delay_cmd_submit = true;
     // qpair_opts.create_only = true;
+
     log_info("alloc qpair of queue size {}, request size {}",
              qpair_opts.io_queue_size, qpair_opts.io_queue_requests);
-    // ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->ctrlr, NULL, 0);
     ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, &qpair_opts,
                                                    sizeof(qpair_opts));
     ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, &qpair_opts,
                                                    sizeof(qpair_opts));
 
     if (ctx->m2.qpair == NULL) {
-        SPDK_ERRLOG("Could not allocate IO queue pair\n");
+        log_error("Could not allocate IO queue pair\n");
         spdk_app_stop(-1);
         return;
     }
-
-    // 3. connect qpair
+    // 3. connect qpair,
+    // NOTE  we dont need to do this
     // rc = spdk_nvme_ctrlr_connect_io_qpair(ctx->ctrlr, ctx->qpair);
     // if (rc) {
     //     log_error("Could not connect IO queue pair\n");
