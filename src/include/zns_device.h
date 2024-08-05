@@ -15,7 +15,8 @@ using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
 
-const int append_times = 3;
+const int append_times = 64;
+// const int append_times = 12800;
 // const int append_times = 1000;
 // const int append_times = 16000;
 // const int append_times = 12800;
@@ -50,6 +51,11 @@ typedef struct {
     bool zstore_open = false;
 
     // qpair stats
+    chrono_tp stime;
+    chrono_tp etime;
+    std::vector<chrono_tp> stimes;
+    std::vector<chrono_tp> etimes;
+
     u64 num_queued = 0;
     u64 num_completed = 0;
     u64 num_success = 0;
@@ -100,8 +106,11 @@ static void zns_dev_init(void *arg, std::string ip1, std::string port1,
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     int rc = 0;
-    // ctx->m1 = NULL;
-    // ctx->m2 = NULL;
+    // allocate space for times
+    ctx->m1.stimes.reserve(append_times);
+    ctx->m1.etimes.reserve(append_times);
+    ctx->m2.stimes.reserve(append_times);
+    ctx->m2.etimes.reserve(append_times);
 
     if (ctx->verbose)
         SPDK_NOTICELOG("Successfully started the application\n");

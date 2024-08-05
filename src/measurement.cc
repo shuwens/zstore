@@ -14,6 +14,54 @@
 #include <stdio.h>
 #include <vector>
 
+static void __m_append_complete(void *arg, const struct spdk_nvme_cpl *cpl)
+{
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
+
+    dm->num_completed += 1;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        spdk_nvme_qpair_print_completion(dm->qpair,
+                                         (struct spdk_nvme_cpl *)cpl);
+        log_error("Completion failed {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        dm->num_fail += 1;
+        dm->num_queued -= 1;
+        return;
+    } else {
+        dm->etime = std::chrono::high_resolution_clock::now();
+        dm->etimes.push_back(dm->etime);
+
+        dm->num_success += 1;
+        dm->num_queued -= 1;
+    }
+    if (dm->current_lba == 0) {
+        log_info("setting current lba value: {}", cpl->cdw0);
+        dm->current_lba = cpl->cdw0;
+    }
+}
+
+static void __m_complete(void *arg, const struct spdk_nvme_cpl *cpl)
+{
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
+
+    dm->num_completed += 1;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        spdk_nvme_qpair_print_completion(dm->qpair,
+                                         (struct spdk_nvme_cpl *)cpl);
+        log_error("Completion failed {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        dm->num_fail += 1;
+        dm->num_queued -= 1;
+        return;
+    } else {
+        dm->etime = std::chrono::high_resolution_clock::now();
+        dm->etimes.push_back(dm->etime);
+
+        dm->num_success += 1;
+        dm->num_queued -= 1;
+    }
+}
+
 int measure_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
 {
     DeviceManager *dm = static_cast<DeviceManager *>(arg);
@@ -51,12 +99,14 @@ int measure_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
             log_info(
                 "cmd_read: slba_start {}, current step size {}, queued {} ",
                 slba_start, current_step_size, dm->num_queued);
+        dm->stime = std::chrono::high_resolution_clock::now();
+        dm->stimes.push_back(dm->stime);
         rc = spdk_nvme_ns_cmd_read(dm->ns, dm->qpair,
                                    (char *)buffer +
                                        lbas_processed * dm->info.lba_size,
                                    slba_start,        /* LBA start */
                                    current_step_size, /* number of LBAs */
-                                   __complete, dm, 0);
+                                   __m_complete, dm, 0);
         if (rc != 0) {
             // log_error("cmd read error: {}", rc);
             // if (rc == -ENOMEM) {
@@ -113,12 +163,14 @@ int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
             log_info(
                 "zone_append: slba start {}, current step size {}, queued {}",
                 slba_start, current_step_size, dm->num_queued);
+        dm->stime = std::chrono::high_resolution_clock::now();
+        dm->stimes.push_back(dm->stime);
         rc = spdk_nvme_zns_zone_append(dm->ns, dm->qpair,
                                        (char *)buffer +
                                            lbas_processed * dm->info.lba_size,
                                        slba_start,        /* LBA start */
                                        current_step_size, /* number of LBAs */
-                                       __append_complete, dm, 0);
+                                       __m_append_complete, dm, 0);
         if (rc != 0) {
             // log_error("zone append error: {}", rc);
             // if (rc == -ENOMEM) {
@@ -132,12 +184,12 @@ int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
         slba_start =
             ((slba + lbas_processed) / dm->info.zone_size) * dm->info.zone_size;
     }
-    while (dm->num_queued) {
-        // if (->verbose)
-        //     log_info("qpair process completion: queued {}, qd {}",
-        //              ctx->num_queued, ctx->qd);
-        spdk_nvme_qpair_process_completions(dm->qpair, 0);
-    }
+    // while (dm->num_queued) {
+    //     // if (->verbose)
+    //     //     log_info("qpair process completion: queued {}, qd {}",
+    //     //              ctx->num_queued, ctx->qd);
+    //     spdk_nvme_qpair_process_completions(dm->qpair, 0);
+    // }
     return rc;
 }
 
@@ -148,7 +200,7 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
     if (*pattern != NULL) {
         z_free(dm->qpair, *pattern);
     }
-    *pattern = (char *)z_calloc(dm, size, sizeof(char *));
+    *pattern = (char *)z_calloc(dm, dm->info.lba_size, sizeof(char *));
     if (*pattern == NULL) {
         return 1;
     }
@@ -167,8 +219,17 @@ static void zns_measure(void *arg)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
 
-    std::vector<int> qds{64};
     // std::vector<int> qds{2, 4, 8, 16, 32, 64};
+
+    // std::vector<int> qds{2}; // 180, 180
+    // std::vector<int> qds{4}; // 268
+    // std::vector<int> qds{8}; // 409
+    // std::vector<int> qds{16}; // 720
+    // std::vector<int> qds{32}; // 1203
+    std::vector<int> qds{64}; // 2727, 2204
+
+    // std::vector<int> qds{128};
+    // std::vector<int> qds{256};
 
     for (auto qd : qds) {
         log_info("\nStarting measurment with queue depth {}, append times {}\n",
@@ -187,45 +248,83 @@ static void zns_measure(void *arg)
         // working
         int rc = 0;
 
-        // measurment time points
-        chrono_tp stime;
-        chrono_tp etime;
-        std::vector<u64> deltas;
-
         log_info("writing with z_append:");
-        char **wbuf = (char **)calloc(1, sizeof(char **));
+        std::vector<void *> wbufs;
         for (int i = 0; i < append_times; i++) {
-            rc = write_zstore_pattern(wbuf, &ctx->m1, ctx->m1.info.lba_size, "",
-                                      value + i);
+            char **wbuf = (char **)calloc(1, sizeof(char **));
+            rc = write_zstore_pattern(wbuf, &ctx->m1, ctx->m2.info.lba_size,
+                                      "testing", value + i);
             assert(rc == 0);
-            rc = write_zstore_pattern(wbuf, &ctx->m2, ctx->m2.info.lba_size, "",
-                                      value + i);
-            assert(rc == 0);
-
-            stime = std::chrono::high_resolution_clock::now();
-
-            // APPEND
-            rc = measure_append(&ctx->m1, ctx->m1.zslba, *wbuf,
-                                ctx->m1.info.lba_size);
-            assert(rc == 0);
-            rc = measure_append(&ctx->m2, ctx->m2.zslba, *wbuf,
-                                ctx->m2.info.lba_size);
-            assert(rc == 0);
-
-            etime = std::chrono::high_resolution_clock::now();
-            auto dur = std::chrono::duration_cast<std::chrono::microseconds>(
-                etime - stime);
-            deltas.push_back(dur.count());
-
-            // log_info("write {}", *wbuf);
+            wbufs.push_back(*wbuf);
         }
-        auto sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
-        auto mean = sum / deltas.size();
-        auto sq_sum = std::inner_product(deltas.begin(), deltas.end(),
-                                         deltas.begin(), 0.0);
-        auto stdev = std::sqrt(sq_sum / deltas.size() - mean * mean);
-        log_info("qd {}, append: mean {} us, std {}", ctx->qd, mean, stdev);
-        deltas.clear();
+
+        // rc = write_zstore_pattern(wbuf, &ctx->m2, ctx->m2.info.lba_size,
+        // "",
+        //                           value + i);
+        // assert(rc == 0);
+
+        // measurment time points
+        // chrono_tp stime;
+        // chrono_tp etime;
+
+        for (int i = 0; i < append_times / qd; i++) {
+            // do multple append qd times
+            for (int j = 0; j < qd; j++) {
+                // APPEND
+                rc = measure_append(&ctx->m1, ctx->m1.zslba, wbufs[i * qd + j],
+                                    ctx->m1.info.lba_size);
+                assert(rc == 0);
+                rc = measure_append(&ctx->m2, ctx->m2.zslba, wbufs[i * qd + j],
+                                    ctx->m2.info.lba_size);
+                assert(rc == 0);
+                // printf("%d-th round: %d-th is %s\n", i, j, wbufs[i * qd +
+                // j]);
+            }
+
+            while (ctx->m1.num_queued || ctx->m2.num_queued) {
+                // log_debug("qpair queued: m1 {}, m2 {}", ctx->m1.num_queued,
+                //           ctx->m2.num_queued);
+
+                spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
+                spdk_nvme_qpair_process_completions(ctx->m2.qpair, 0);
+            }
+        }
+        log_debug("write is all done ");
+
+        std::vector<u64> deltas1;
+        std::vector<u64> deltas2;
+        for (int i = 0; i < append_times; i++) {
+            deltas1.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ctx->m1.etimes[i] - ctx->m1.stimes[i])
+                    .count());
+            deltas2.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ctx->m2.etimes[i] - ctx->m2.stimes[i])
+                    .count());
+        }
+        auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        auto sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
+        auto mean1 = sum1 / deltas1.size();
+        auto mean2 = sum2 / deltas2.size();
+        auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+                                          deltas1.begin(), 0.0);
+        auto sq_sum2 = std::inner_product(deltas2.begin(), deltas2.end(),
+                                          deltas2.begin(), 0.0);
+        auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        auto stdev2 = std::sqrt(sq_sum2 / deltas2.size() - mean2 * mean2);
+        log_info("WRITES-1 qd {}, append: mean {} us, std {}", ctx->qd, mean1,
+                 stdev1);
+        log_info("WRITES-2 qd {}, append: mean {} us, std {}", ctx->qd, mean2,
+                 stdev2);
+
+        // clearnup
+        deltas1.clear();
+        deltas2.clear();
+        ctx->m1.stimes.clear();
+        ctx->m1.etimes.clear();
+        ctx->m2.stimes.clear();
+        ctx->m2.etimes.clear();
 
         log_info("current lba for read: device 1 {}, device 2 {}",
                  ctx->m1.current_lba, ctx->m2.current_lba);
@@ -235,28 +334,64 @@ static void zns_measure(void *arg)
         char *rbuf2 =
             (char *)z_calloc(&ctx->m2, ctx->m2.info.lba_size, sizeof(char *));
 
-        for (int i = 0; i < append_times; i++) {
-            stime = std::chrono::high_resolution_clock::now();
-            rc = measure_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1, 4096);
-            assert(rc == 0);
-            rc = measure_read(&ctx->m2, ctx->m2.current_lba + i, rbuf2, 4096);
-            assert(rc == 0);
+        for (int i = 0; i < append_times / qd; i++) {
+            for (int j = 0; j < qd; j++) {
+                rc = measure_read(&ctx->m1, ctx->m1.current_lba + i * qd + j,
+                                  rbuf1, ctx->m1.info.lba_size);
+                assert(rc == 0);
+                rc = measure_read(&ctx->m2, ctx->m2.current_lba + i * qd + j,
+                                  rbuf2, ctx->m2.info.lba_size);
+                assert(rc == 0);
+                // printf("%d-th round: %d-th is %s, %s\n", i, j, rbuf1, rbuf2);
+            }
 
-            printf("m1: %s, m2: %s\n", rbuf1, rbuf2);
+            while (ctx->m1.num_queued || ctx->m2.num_queued) {
+                // log_debug("qpair queued: m1 {}, m2 {}", ctx->m1.num_queued,
+                //           ctx->m2.num_queued);
 
-            etime = std::chrono::high_resolution_clock::now();
-            auto dur = std::chrono::duration_cast<std::chrono::microseconds>(
-                etime - stime);
-            deltas.push_back(dur.count());
+                spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
+                spdk_nvme_qpair_process_completions(ctx->m2.qpair, 0);
+            }
+
+            // rc = measure_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1,
+            // 4096); assert(rc == 0); rc = measure_read(&ctx->m2,
+            // ctx->m2.current_lba + i, rbuf2, 4096); assert(rc == 0);
+
+            // printf("m1: %s, m2: %s\n", rbuf1, rbuf2);
         }
 
-        sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
-        mean = sum / deltas.size();
-        sq_sum = std::inner_product(deltas.begin(), deltas.end(),
-                                    deltas.begin(), 0.0);
-        stdev = std::sqrt(sq_sum / deltas.size() - mean * mean);
-        log_info("qd {}, read: mean {} us, std {}", ctx->qd, mean, stdev);
-        deltas.clear();
+        log_debug("m1: {}, {}", ctx->m1.stimes.size(), ctx->m1.etimes.size());
+        log_debug("m2: {}, {}", ctx->m2.stimes.size(), ctx->m2.etimes.size());
+        for (int i = 0; i < append_times; i++) {
+            deltas1.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ctx->m1.etimes[i] - ctx->m1.stimes[i])
+                    .count());
+            deltas2.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ctx->m2.etimes[i] - ctx->m2.stimes[i])
+                    .count());
+        }
+
+        log_debug("deltas: m1 {}, m2 {}", deltas1.size(), deltas2.size());
+        sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
+        mean1 = sum1 / deltas1.size();
+        mean2 = sum2 / deltas2.size();
+        sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+                                     deltas1.begin(), 0.0);
+        sq_sum2 = std::inner_product(deltas2.begin(), deltas2.end(),
+                                     deltas2.begin(), 0.0);
+        stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        stdev2 = std::sqrt(sq_sum2 / deltas2.size() - mean2 * mean2);
+        log_info("READ-1 qd {}, append: mean {} us, std {}", ctx->qd, mean1,
+                 stdev1);
+        log_info("READ-2 qd {}, append: mean {} us, std {}", ctx->qd, mean2,
+                 stdev2);
+
+        deltas1.clear();
+        deltas2.clear();
+        // log_info("qd {}, read: mean {} us, std {}", ctx->qd, mean, stdev);
 
         zstore_qpair_teardown(ctx);
     }
