@@ -40,6 +40,15 @@ typedef struct {
 
     DeviceInfo info = {};
 
+    // tmp values that matters in the run
+    u64 current_lba = 0;
+    std::vector<uint32_t> append_lbas;
+    // device related
+    bool device_support_meta = true;
+    // DeviceInfo info;
+    u64 zslba;
+    bool zstore_open = false;
+
     // qpair stats
     u64 num_queued = 0;
     u64 num_completed = 0;
@@ -53,25 +62,14 @@ struct ZstoreContext {
     u64 current_zone;
     bool verbose = false;
 
-    // tmp values that matters in the run
-    u64 current_lba = 0;
-    std::vector<uint32_t> append_lbas;
-
     // --------------------------------------
 
     // spdk things we populate
     DeviceManager m1;
     DeviceManager m2;
 
-    // device related
-    bool device_support_meta = true;
-    // DeviceInfo info;
-    u64 zslba;
-
     // bool done = false;
     u64 total_us = 0;
-
-    bool zstore_open = false;
 
     std::atomic<int> count; // atomic count for concurrency
 };
@@ -260,9 +258,11 @@ static void zstore_init(void *arg)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     if (spdk_nvme_ns_get_md_size(ctx->m1.ns) == 0) {
-        ctx->device_support_meta = false;
+        ctx->m1.device_support_meta = false;
     }
-
+    if (spdk_nvme_ns_get_md_size(ctx->m2.ns) == 0) {
+        ctx->m2.device_support_meta = false;
+    }
     // Adjust the capacity for user data = total capacity - footer size
     // The L2P table information at the end of the segment
     // Each block needs (LBA + timestamp + stripe ID, 20 bytes) for L2P table
@@ -293,20 +293,11 @@ static void zstore_init(void *arg)
 
 // TropoDB
 
-#include "spdk/endian.h"
 #include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
-#include "spdk/nvme_intel.h"
-#include "spdk/nvme_ocssd.h"
 #include "spdk/nvme_zns.h"
 #include "spdk/nvmf_spec.h"
-#include "spdk/pci_ids.h"
-#include "spdk/stdinc.h"
-#include "spdk/string.h"
-#include "spdk/util.h"
-#include "spdk/uuid.h"
-#include "spdk/vmd.h"
 
 extern "C" {
 #define ERROR_ON_NULL(x, err)                                                  \
@@ -348,10 +339,11 @@ static void __operation_complete(void *arg,
     }
 }
 
-static void __append_complete(void *arg, const struct spdk_nvme_cpl *completion)
-{
-    __operation_complete(arg, completion);
-}
+// static void __append_complete(void *arg, const struct spdk_nvme_cpl
+// *completion)
+// {
+//     __operation_complete(arg, completion);
+// }
 
 static void __read_complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
@@ -410,8 +402,10 @@ int z_get_device_info(void *arg)
     ERROR_ON_NULL(ctx->m2.ctrlr, 1);
     ERROR_ON_NULL(ctx->m2.ns, 1);
 
+    // TODO: right now we use same zone for both devices, change later
     u64 zone_dist = 0x80000; // zone size
-    ctx->zslba = zone_dist * ctx->current_zone;
+    ctx->m1.zslba = zone_dist * ctx->current_zone;
+    ctx->m2.zslba = zone_dist * ctx->current_zone;
 
     const struct spdk_nvme_ns_data *ns_data = spdk_nvme_ns_get_data(ctx->m2.ns);
     const struct spdk_nvme_zns_ns_data *ns_data_zns =
@@ -446,7 +440,7 @@ int z_get_device_info(void *arg)
             "lba cap {}, current zone {}, current zslba {}",
             ctx->m1.info.lba_size, ctx->m1.info.zone_size, ctx->m1.info.mdts,
             ctx->m1.info.zasl, ctx->m1.info.lba_cap, ctx->current_zone,
-            ctx->zslba);
+            ctx->m1.zslba);
 
     return 0;
 }
@@ -464,6 +458,38 @@ void *z_calloc(void *arg, int nr, int size)
                              SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     (void)dm->qpair;
     return temp_buffer;
+}
+
+static void __append_complete(void *arg, const struct spdk_nvme_cpl *cpl)
+{
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
+
+    dm->num_completed += 1;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        spdk_nvme_qpair_print_completion(dm->qpair,
+                                         (struct spdk_nvme_cpl *)cpl);
+        log_error("Completion failed {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        dm->num_fail += 1;
+        dm->num_queued -= 1;
+        // if (ctx->verbose)
+        //     log_debug("operation complete: queued {} completed {} success {}
+        //     "
+        //               "fail {}",
+        //               ctx->num_queued, ctx->num_completed, ctx->num_success,
+        //               ctx->num_fail);
+        // NOTE: we are not exiting the program
+        // spdk_nvme_ctrlr_free_io_qpair(ctx->qpair);
+        // spdk_app_stop(-1);
+        return;
+    } else {
+        dm->num_success += 1;
+        dm->num_queued -= 1;
+    }
+    if (dm->current_lba == 0) {
+        log_info("setting current lba value: {}", cpl->cdw0);
+        dm->current_lba = cpl->cdw0;
+    }
 }
 
 static void __complete(void *arg, const struct spdk_nvme_cpl *cpl)
@@ -600,7 +626,7 @@ int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
                                            lbas_processed * dm->info.lba_size,
                                        slba_start,        /* LBA start */
                                        current_step_size, /* number of LBAs */
-                                       __complete, dm, 0);
+                                       __append_complete, dm, 0);
         if (rc != 0) {
             // log_error("zone append error: {}", rc);
             // if (rc == -ENOMEM) {

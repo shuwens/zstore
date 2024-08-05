@@ -1,10 +1,8 @@
 #include "include/utils.hpp"
 #include "include/zns_device.h"
-#include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
-#include "spdk/nvme_zns.h"
 #include <cstdint>
 #include <fmt/core.h>
 #include <fstream>
@@ -42,7 +40,7 @@ static void test_start(void *arg1)
 
     z_get_device_info(ctx);
 
-    ctx->zstore_open = true;
+    ctx->m1.zstore_open = true;
 
     // zone cap * lba_bytes ()
     log_info("zone cap: {}, lba bytes {}", ctx->m1.info.zone_cap,
@@ -94,8 +92,8 @@ static void test_start(void *arg1)
         log_debug("2");
 
         // printf("write: %d\n", value + i);
-        rc1 = z_append(&ctx->m1, ctx->zslba, *wbuf, ctx->m1.info.lba_size);
-        rc2 = z_append(&ctx->m2, ctx->zslba, *wbuf, ctx->m2.info.lba_size);
+        rc1 = z_append(&ctx->m1, ctx->m1.zslba, *wbuf, ctx->m1.info.lba_size);
+        rc2 = z_append(&ctx->m2, ctx->m2.zslba, *wbuf, ctx->m2.info.lba_size);
         assert(rc1 == 0 && rc2 == 0);
 
         for (int i = 0; i < 30; i++) {
@@ -111,7 +109,7 @@ static void test_start(void *arg1)
     //     log_info("append lbs: {}", i);
     // }
 
-    ctx->current_lba = 0x5780267;
+    ctx->m1.current_lba = 0x5780267;
     log_info("read with z_append:");
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
@@ -120,8 +118,8 @@ static void test_start(void *arg1)
         char *rbuf2 =
             (char *)z_calloc(&ctx->m2, ctx->m2.info.lba_size, sizeof(char *));
 
-        rc1 = z_read(&ctx->m1, ctx->current_lba + i, rbuf1, 4096);
-        rc2 = z_read(&ctx->m2, ctx->current_lba + i, rbuf2, 4096);
+        rc1 = z_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1, 4096);
+        rc2 = z_read(&ctx->m2, ctx->m1.current_lba + i, rbuf2, 4096);
         assert(rc1 == 0 && rc2 == 0);
 
         // for (int i = 0; i < ctx->info.lba_size; i++) {

@@ -58,8 +58,8 @@ static void zns_measure(void *arg)
 
         z_get_device_info(ctx);
 
-        ctx->zstore_open = true;
-        ctx->current_lba = 0;
+        ctx->m1.zstore_open = true;
+        ctx->m2.zstore_open = true;
 
         // zone cap * lba_bytes ()
         // log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
@@ -109,9 +109,11 @@ static void zns_measure(void *arg)
             stime = std::chrono::high_resolution_clock::now();
 
             // APPEND
-            rc = z_append(&ctx->m1, ctx->zslba, *wbuf, ctx->m1.info.lba_size);
+            rc =
+                z_append(&ctx->m1, ctx->m1.zslba, *wbuf, ctx->m1.info.lba_size);
             assert(rc == 0);
-            rc = z_append(&ctx->m2, ctx->zslba, *wbuf, ctx->m2.info.lba_size);
+            rc =
+                z_append(&ctx->m2, ctx->m2.zslba, *wbuf, ctx->m2.info.lba_size);
             assert(rc == 0);
 
             etime = std::chrono::high_resolution_clock::now();
@@ -129,7 +131,8 @@ static void zns_measure(void *arg)
         log_info("qd {}, append: mean {} us, std {}", ctx->qd, mean, stdev);
         deltas.clear();
 
-        log_info("current lba for read is {}", ctx->current_lba);
+        log_info("current lba for read: device 1 {}, device 2 {}",
+                 ctx->m1.current_lba, ctx->m2.current_lba);
         log_info("read with z_append:");
         char *rbuf1 =
             (char *)z_calloc(&ctx->m1, ctx->m1.info.lba_size, sizeof(char *));
@@ -138,9 +141,9 @@ static void zns_measure(void *arg)
 
         for (int i = 0; i < append_times; i++) {
             stime = std::chrono::high_resolution_clock::now();
-            rc = z_read(&ctx->m1, ctx->current_lba + i, rbuf1, 4096);
+            rc = z_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1, 4096);
             assert(rc == 0);
-            rc = z_read(&ctx->m2, ctx->current_lba + i, rbuf2, 4096);
+            rc = z_read(&ctx->m2, ctx->m2.current_lba + i, rbuf2, 4096);
             assert(rc == 0);
 
             etime = std::chrono::high_resolution_clock::now();
