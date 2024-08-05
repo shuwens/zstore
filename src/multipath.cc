@@ -4,13 +4,17 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include <bits/stdc++.h>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <stdio.h>
 #include <vector>
+
+// using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
                          char *test_str, int value)
@@ -27,23 +31,23 @@ int write_zstore_pattern(char **pattern, void *arg, int32_t size,
     return 0;
 }
 
-static void zns_multipath(void *arg)
+// FIXME:
+// DONE: add queue size as qpair options
+// DONE: detect current lbas to use for reads
+// TODO:
+// something smart about open/close zones etc
+static void zns_measure(void *arg)
 {
-    char *node = "zstore1";
-    log_info("Fn: zns_multipath for {}\n", node);
+    log_info("Fn: zns_measure \n");
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
-    u64 starting_zone = ctx->current_zone - 1;
 
     std::vector<int> qds{64};
-    // std::vector<int> qds{2, 64};
     // std::vector<int> qds{2, 4, 8, 16, 32, 64};
 
     for (auto qd : qds) {
-        starting_zone += 1;
-        ctx->current_zone = starting_zone;
-        log_info("\nStarting with zone {}, queue depth {}, append times {}\n",
-                 starting_zone, qd, append_times);
+        log_info("\nStarting measurment with queue depth {}, append times {}\n",
+                 qd, append_times);
         ctx->qd = qd;
         qpair_opts.io_queue_size = ctx->qd;
         qpair_opts.io_queue_requests = ctx->qd;
@@ -54,56 +58,109 @@ static void zns_multipath(void *arg)
 
         z_get_device_info(ctx);
 
-        ctx->zstore_open = true;
-        ctx->current_lba = 0;
+        ctx->m1.zstore_open = true;
+        ctx->m2.zstore_open = true;
 
-        int rc1 = 0;
-        int rc2 = 0;
+        // zone cap * lba_bytes ()
+        // log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
+        //          ctx->info.lba_size);
+        // uint32_t buf_align = ctx->info.lba_size;
+        // log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
+        //
+        // log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
+        //          "{}, max append size: {},  max open "
+        //          "zone: {}, max active zone: {}\n ",
+        //          spdk_nvme_ns_get_sector_size(ctx->ns),
+        //          spdk_nvme_ns_get_md_size(ctx->ns),
+        //          spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone
+        //          size spdk_nvme_zns_ns_get_num_zones(ctx->ns),
+        //          spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
+        //              spdk_nvme_ns_get_sector_size(ctx->ns),
+        //          spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
+        //          spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
+
+        // working
+        int rc = 0;
+
+        // uint64_t write_head = 0;
+        // rc = z_get_zone_head(ctx, ctx->current_zone, &write_head);
+        // assert(rc == 0);
+        // log_info("current zone: {}, current lba {}, head {}",
+        // ctx->current_zone,
+        //          ctx->current_lba, write_head);
+        // // FIXME:
+        // ctx->current_lba = write_head;
+
+        // measurment time points
+        chrono_tp stime;
+        chrono_tp etime;
+        std::vector<u64> deltas;
 
         log_info("writing with z_append:");
-        log_debug("here");
-        log_info("{} append start lba {}", node, ctx->zslba);
         char **wbuf = (char **)calloc(1, sizeof(char **));
         for (int i = 0; i < append_times; i++) {
-            rc1 = write_zstore_pattern(wbuf, &ctx->m1, ctx->m1.info.lba_size,
-                                       node, i);
-            assert(rc1 == 0);
+            rc = write_zstore_pattern(wbuf, &ctx->m1, ctx->m1.info.lba_size, "",
+                                      value + i);
+            assert(rc == 0);
+            rc = write_zstore_pattern(wbuf, &ctx->m2, ctx->m2.info.lba_size, "",
+                                      value + i);
+            assert(rc == 0);
+
+            stime = std::chrono::high_resolution_clock::now();
 
             // APPEND
-            rc1 = z_append(&ctx->m1, ctx->zslba, *wbuf, ctx->m1.info.lba_size);
-            rc2 = z_append(&ctx->m2, ctx->zslba, *wbuf, ctx->m2.info.lba_size);
-            assert(rc1 == 0 && rc2 == 0);
+            rc =
+                z_append(&ctx->m1, ctx->m1.zslba, *wbuf, ctx->m1.info.lba_size);
+            assert(rc == 0);
+            rc =
+                z_append(&ctx->m2, ctx->m2.zslba, *wbuf, ctx->m2.info.lba_size);
+            assert(rc == 0);
+
+            etime = std::chrono::high_resolution_clock::now();
+            auto dur = std::chrono::duration_cast<std::chrono::microseconds>(
+                etime - stime);
+            deltas.push_back(dur.count());
+
+            // log_info("write {}", *wbuf);
         }
+        auto sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
+        auto mean = sum / deltas.size();
+        auto sq_sum = std::inner_product(deltas.begin(), deltas.end(),
+                                         deltas.begin(), 0.0);
+        auto stdev = std::sqrt(sq_sum / deltas.size() - mean * mean);
+        log_info("qd {}, append: mean {} us, std {}", ctx->qd, mean, stdev);
+        deltas.clear();
 
-        // ctx->current_lba = ;
-        log_info("{} current lba for read is {}", node, ctx->current_lba);
-
+        log_info("current lba for read: device 1 {}, device 2 {}",
+                 ctx->m1.current_lba, ctx->m2.current_lba);
         log_info("read with z_append:");
         char *rbuf1 =
             (char *)z_calloc(&ctx->m1, ctx->m1.info.lba_size, sizeof(char *));
         char *rbuf2 =
             (char *)z_calloc(&ctx->m2, ctx->m2.info.lba_size, sizeof(char *));
-        // std::vector<std::string> data1;
-        for (int i = 0; i < append_times * 2; i++) {
-            rc1 = z_read(&ctx->m1, ctx->current_lba + i, rbuf1, 4096);
-            rc2 = z_read(&ctx->m2, ctx->current_lba + i, rbuf2, 4096);
-            assert(rc1 == 0 && rc2 == 0);
-            // data1.push_back(*(char *)rbuf);
-            // std::string str(rbuf);
-            // data1.push_back(str);
-            // printf("%d-th read %s\n", i, (char *)(rbuf));
+
+        for (int i = 0; i < append_times; i++) {
+            stime = std::chrono::high_resolution_clock::now();
+            rc = z_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1, 4096);
+            assert(rc == 0);
+            rc = z_read(&ctx->m2, ctx->m2.current_lba + i, rbuf2, 4096);
+            assert(rc == 0);
+
+            etime = std::chrono::high_resolution_clock::now();
+            auto dur = std::chrono::duration_cast<std::chrono::microseconds>(
+                etime - stime);
+            deltas.push_back(dur.count());
         }
 
-        zstore_qpair_teardown(ctx);
+        sum = std::accumulate(deltas.begin(), deltas.end(), 0.0);
+        mean = sum / deltas.size();
+        sq_sum = std::inner_product(deltas.begin(), deltas.end(),
+                                    deltas.begin(), 0.0);
+        stdev = std::sqrt(sq_sum / deltas.size() - mean * mean);
+        log_info("qd {}, read: mean {} us, std {}", ctx->qd, mean, stdev);
+        deltas.clear();
 
-        std::ofstream of1("data1.txt");
-        // std::ofstream of2("data2.txt");
-        // for (auto d : data1) {
-        //     log_info("{}", d);
-        //     of1 << d << " ";
-        // }
-        // for (auto d : data2)
-        //     of2 << d - data_off << " ";
+        zstore_qpair_teardown(ctx);
     }
 
     log_info("Test start finish");
@@ -132,7 +189,7 @@ int main(int argc, char **argv)
 
     struct spdk_app_opts opts = {};
     spdk_app_opts_init(&opts, sizeof(opts));
-    opts.name = "zns_multipath_opts";
+    opts.name = "zns_measurement_opts";
     // opts.shutdown_cb = NULL;
     opts.shutdown_cb = test_cleanup;
     if ((rc = spdk_app_parse_args(argc, argv, &opts, NULL, NULL, NULL, NULL)) !=
@@ -144,7 +201,7 @@ int main(int argc, char **argv)
     ctx.current_zone = current_zone;
     // ctx.verbose = true;
 
-    rc = spdk_app_start(&opts, zns_multipath, &ctx);
+    rc = spdk_app_start(&opts, zns_measure, &ctx);
     if (rc) {
         SPDK_ERRLOG("ERROR starting application\n");
     }
