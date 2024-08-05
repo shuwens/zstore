@@ -39,7 +39,7 @@ typedef struct {
     struct spdk_nvme_qpair *qpair = nullptr;
 
     DeviceInfo info = {};
-
+    bool verbose = false;
     // tmp values that matters in the run
     u64 current_lba = 0;
     std::vector<uint32_t> append_lbas;
@@ -60,8 +60,8 @@ struct ZstoreContext {
     // specific parameters we control
     int qd = 0;
     u64 current_zone;
-    bool verbose = false;
 
+    bool verbose = false;
     // --------------------------------------
 
     // spdk things we populate
@@ -217,13 +217,17 @@ static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
 
     log_info("alloc qpair of queue size {}, request size {}",
              qpair_opts.io_queue_size, qpair_opts.io_queue_requests);
-    ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, &qpair_opts,
-                                                   sizeof(qpair_opts));
-    ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, &qpair_opts,
-                                                   sizeof(qpair_opts));
+    ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, NULL, 0);
+    ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, NULL, 0);
+    // ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr,
+    // &qpair_opts,
+    //                                                sizeof(qpair_opts));
+    // ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr,
+    // &qpair_opts,
+    //                                                sizeof(qpair_opts));
 
     if (ctx->m2.qpair == NULL) {
-        log_error("Could not allocate IO queue pair\n");
+        log_error("At least could not allocate IO queue pair for m2\n");
         spdk_app_stop(-1);
         return;
     }

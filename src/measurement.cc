@@ -14,7 +14,132 @@
 #include <stdio.h>
 #include <vector>
 
-// using chrono_tp = std::chrono::high_resolution_clock::time_point;
+int measure_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
+{
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
+
+    ERROR_ON_NULL(dm->qpair, 1);
+    ERROR_ON_NULL(buffer, 1);
+    int rc = 0;
+
+    int lbas = (size + dm->info.lba_size - 1) / dm->info.lba_size;
+    int lbas_processed = 0;
+    int step_size = (dm->info.mdts / dm->info.lba_size);
+    int current_step_size = step_size;
+    int slba_start = slba;
+    if (dm->verbose)
+        log_info("\nmeasure_read: lbas {}, step size {}, slba start {} \n",
+                 lbas, current_step_size, slba_start);
+
+    while (lbas_processed < lbas) {
+        if ((slba + lbas_processed + step_size) / dm->info.zone_size >
+            (slba + lbas_processed) / dm->info.zone_size) {
+            current_step_size =
+                ((slba + lbas_processed + step_size) / dm->info.zone_size) *
+                    dm->info.zone_size -
+                lbas_processed - slba;
+        } else {
+            current_step_size = step_size;
+        }
+        current_step_size = lbas - lbas_processed > current_step_size
+                                ? current_step_size
+                                : lbas - lbas_processed;
+        if (dm->verbose)
+            log_info("{} step {}  \n", slba_start, current_step_size);
+        dm->num_queued += 1;
+        if (dm->verbose)
+            log_info(
+                "cmd_read: slba_start {}, current step size {}, queued {} ",
+                slba_start, current_step_size, dm->num_queued);
+        rc = spdk_nvme_ns_cmd_read(dm->ns, dm->qpair,
+                                   (char *)buffer +
+                                       lbas_processed * dm->info.lba_size,
+                                   slba_start,        /* LBA start */
+                                   current_step_size, /* number of LBAs */
+                                   __complete, dm, 0);
+        if (rc != 0) {
+            // log_error("cmd read error: {}", rc);
+            // if (rc == -ENOMEM) {
+            //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+            //     rc = 0;
+            // } else
+            return 1;
+        }
+
+        lbas_processed += current_step_size;
+        slba_start = slba + lbas_processed;
+    }
+    while (dm->num_queued) {
+        spdk_nvme_qpair_process_completions(dm->qpair, 0);
+    }
+    return rc;
+}
+
+int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
+{
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
+    if (dm->verbose)
+        log_info("\n\nmeasure_append start: slba {}, size {}\n", slba, size);
+    ERROR_ON_NULL(dm->qpair, 1);
+    ERROR_ON_NULL(buffer, 1);
+
+    int rc = 0;
+
+    int lbas = (size + dm->info.lba_size - 1) / dm->info.lba_size;
+    int lbas_processed = 0;
+    int step_size = (dm->info.zasl / dm->info.lba_size);
+    int current_step_size = step_size;
+    int slba_start = (slba / dm->info.zone_size) * dm->info.zone_size;
+    if (dm->verbose)
+        log_info("measure_append: lbas {}, step size {}, slba start {} ", lbas,
+                 current_step_size, slba_start);
+
+    while (lbas_processed < lbas) {
+        // Completion completion = {.done = false, .err = 0};
+        if ((slba + lbas_processed + step_size) / dm->info.zone_size >
+            (slba + lbas_processed) / dm->info.zone_size) {
+            current_step_size =
+                ((slba + lbas_processed + step_size) / dm->info.zone_size) *
+                    dm->info.zone_size -
+                lbas_processed - slba;
+        } else {
+            current_step_size = step_size;
+        }
+        current_step_size = lbas - lbas_processed > current_step_size
+                                ? current_step_size
+                                : lbas - lbas_processed;
+        dm->num_queued += 1;
+        if (dm->verbose)
+            log_info(
+                "zone_append: slba start {}, current step size {}, queued {}",
+                slba_start, current_step_size, dm->num_queued);
+        rc = spdk_nvme_zns_zone_append(dm->ns, dm->qpair,
+                                       (char *)buffer +
+                                           lbas_processed * dm->info.lba_size,
+                                       slba_start,        /* LBA start */
+                                       current_step_size, /* number of LBAs */
+                                       __append_complete, dm, 0);
+        if (rc != 0) {
+            // log_error("zone append error: {}", rc);
+            // if (rc == -ENOMEM) {
+            //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
+            //     rc = 0;
+            // } else
+            break;
+        }
+
+        lbas_processed += current_step_size;
+        slba_start =
+            ((slba + lbas_processed) / dm->info.zone_size) * dm->info.zone_size;
+    }
+    while (dm->num_queued) {
+        // if (->verbose)
+        //     log_info("qpair process completion: queued {}, qd {}",
+        //              ctx->num_queued, ctx->qd);
+        spdk_nvme_qpair_process_completions(dm->qpair, 0);
+    }
+    return rc;
+}
 
 int write_zstore_pattern(char **pattern, void *arg, int32_t size,
                          char *test_str, int value)
@@ -49,8 +174,6 @@ static void zns_measure(void *arg)
         log_info("\nStarting measurment with queue depth {}, append times {}\n",
                  qd, append_times);
         ctx->qd = qd;
-        qpair_opts.io_queue_size = ctx->qd;
-        qpair_opts.io_queue_requests = ctx->qd;
         zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
 
         zstore_qpair_setup(ctx, qpair_opts);
@@ -61,35 +184,8 @@ static void zns_measure(void *arg)
         ctx->m1.zstore_open = true;
         ctx->m2.zstore_open = true;
 
-        // zone cap * lba_bytes ()
-        // log_info("zone cap: {}, lba bytes {}", ctx->info.zone_cap,
-        //          ctx->info.lba_size);
-        // uint32_t buf_align = ctx->info.lba_size;
-        // log_info("buffer size: {}, align {}", ctx->buff_size, buf_align);
-        //
-        // log_info("block size: {}, write unit: {}, zone size: {}, zone num: "
-        //          "{}, max append size: {},  max open "
-        //          "zone: {}, max active zone: {}\n ",
-        //          spdk_nvme_ns_get_sector_size(ctx->ns),
-        //          spdk_nvme_ns_get_md_size(ctx->ns),
-        //          spdk_nvme_zns_ns_get_zone_size_sectors(ctx->ns), // zone
-        //          size spdk_nvme_zns_ns_get_num_zones(ctx->ns),
-        //          spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctx->ctrlr) /
-        //              spdk_nvme_ns_get_sector_size(ctx->ns),
-        //          spdk_nvme_zns_ns_get_max_open_zones(ctx->ns),
-        //          spdk_nvme_zns_ns_get_max_active_zones(ctx->ns));
-
         // working
         int rc = 0;
-
-        // uint64_t write_head = 0;
-        // rc = z_get_zone_head(ctx, ctx->current_zone, &write_head);
-        // assert(rc == 0);
-        // log_info("current zone: {}, current lba {}, head {}",
-        // ctx->current_zone,
-        //          ctx->current_lba, write_head);
-        // // FIXME:
-        // ctx->current_lba = write_head;
 
         // measurment time points
         chrono_tp stime;
@@ -109,11 +205,11 @@ static void zns_measure(void *arg)
             stime = std::chrono::high_resolution_clock::now();
 
             // APPEND
-            rc =
-                z_append(&ctx->m1, ctx->m1.zslba, *wbuf, ctx->m1.info.lba_size);
+            rc = measure_append(&ctx->m1, ctx->m1.zslba, *wbuf,
+                                ctx->m1.info.lba_size);
             assert(rc == 0);
-            rc =
-                z_append(&ctx->m2, ctx->m2.zslba, *wbuf, ctx->m2.info.lba_size);
+            rc = measure_append(&ctx->m2, ctx->m2.zslba, *wbuf,
+                                ctx->m2.info.lba_size);
             assert(rc == 0);
 
             etime = std::chrono::high_resolution_clock::now();
@@ -141,10 +237,12 @@ static void zns_measure(void *arg)
 
         for (int i = 0; i < append_times; i++) {
             stime = std::chrono::high_resolution_clock::now();
-            rc = z_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1, 4096);
+            rc = measure_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1, 4096);
             assert(rc == 0);
-            rc = z_read(&ctx->m2, ctx->m2.current_lba + i, rbuf2, 4096);
+            rc = measure_read(&ctx->m2, ctx->m2.current_lba + i, rbuf2, 4096);
             assert(rc == 0);
+
+            printf("m1: %s, m2: %s\n", rbuf1, rbuf2);
 
             etime = std::chrono::high_resolution_clock::now();
             auto dur = std::chrono::duration_cast<std::chrono::microseconds>(
