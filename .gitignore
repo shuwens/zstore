@@ -1,22 +1,26 @@
-build/
-spdk/
-simpleznsdevice/
+# dev
 venv/
 .cache/
 .vscode/
+
+# dep
+lib/
+spdk/
+simpleznsdevice/
 civetweb-1.16/
 civetweb-v1.16.tar.gz
-lib/
 subprojects/spdk*
 subprojects/xnvme
+
+# build
+build
+builddir
 rw_test
 bdev_test
 nvme_test
-builddir/
-builddir
 zstore
 current_zone
-run.sh
 zstore1.log
 zstore4.log
 
+run.sh
