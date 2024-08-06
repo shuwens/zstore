@@ -56,7 +56,8 @@ static void zns_measure(void *arg)
         zstore_qpair_setup(ctx, qpair_opts);
         zstore_init(ctx);
 
-        z_get_device_info(ctx);
+        z_get_device_info(&ctx->m1, ctx->verbose);
+        z_get_device_info(&ctx->m2, ctx->verbose);
 
         ctx->m1.zstore_open = true;
         ctx->m2.zstore_open = true;

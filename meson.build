@@ -183,21 +183,14 @@ endforeach
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
-# executable(
-# 	'zstore',
-# 	files('src/spdk_append.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
 
-# executable(
-# 	'zns_test',
-# 	files('src/tests/device_test.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'zns_test',
+	files('src/tests/device_test.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 
 # executable(
 # 	'zstore',
@@ -215,10 +208,10 @@ executable(
 	install: true,
 )
 
-# executable(
-# 	'multipath',
-# 	files('src/multipath.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'multipath',
+	files('src/multipath.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)

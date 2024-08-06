@@ -15,6 +15,9 @@ using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
 
+// Zone managment
+u64 zone_dist = 0x80000; // zone size
+
 const int append_times = 64;
 // const int append_times = 12800;
 // const int append_times = 1000;
@@ -43,6 +46,7 @@ typedef struct {
     bool verbose = false;
     // tmp values that matters in the run
     u64 current_lba = 0;
+    u64 current_zone = 0;
     std::vector<uint32_t> append_lbas;
     // device related
     bool device_support_meta = true;
@@ -408,53 +412,40 @@ int z_reset(void *arg, uint64_t slba, bool all)
     return rc;
 }
 
-int z_get_device_info(void *arg)
+int z_get_device_info(void *arg, bool verbose)
 {
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
+    DeviceManager *dm = static_cast<DeviceManager *>(arg);
     // ERROR_ON_NULL(info, 1);
-    // ERROR_ON_NULL(manager, 1);
-    ERROR_ON_NULL(ctx->m2.ctrlr, 1);
-    ERROR_ON_NULL(ctx->m2.ns, 1);
+    ERROR_ON_NULL(dm, 1);
+    ERROR_ON_NULL(dm->ctrlr, 1);
+    ERROR_ON_NULL(dm->ns, 1);
 
-    // TODO: right now we use same zone for both devices, change later
-    u64 zone_dist = 0x80000; // zone size
-    ctx->m1.zslba = zone_dist * ctx->current_zone;
-    ctx->m2.zslba = zone_dist * ctx->current_zone;
+    dm->zslba = zone_dist * dm->current_zone;
 
-    const struct spdk_nvme_ns_data *ns_data = spdk_nvme_ns_get_data(ctx->m2.ns);
+    const struct spdk_nvme_ns_data *ns_data = spdk_nvme_ns_get_data(dm->ns);
     const struct spdk_nvme_zns_ns_data *ns_data_zns =
-        spdk_nvme_zns_ns_get_data(ctx->m2.ns);
+        spdk_nvme_zns_ns_get_data(dm->ns);
     const struct spdk_nvme_ctrlr_data *ctrlr_data =
-        spdk_nvme_ctrlr_get_data(ctx->m2.ctrlr);
+        spdk_nvme_ctrlr_get_data(dm->ctrlr);
     const spdk_nvme_zns_ctrlr_data *ctrlr_data_zns =
-        spdk_nvme_zns_ctrlr_get_data(ctx->m2.ctrlr);
-    union spdk_nvme_cap_register cap =
-        spdk_nvme_ctrlr_get_regs_cap(ctx->m2.ctrlr);
-    ctx->m1.info.lba_size = 1 << ns_data->lbaf[ns_data->flbas.format].lbads;
-    ctx->m2.info.lba_size = 1 << ns_data->lbaf[ns_data->flbas.format].lbads;
-    ctx->m1.info.zone_size = ns_data_zns->lbafe[ns_data->flbas.format].zsze;
-    ctx->m2.info.zone_size = ns_data_zns->lbafe[ns_data->flbas.format].zsze;
-    ctx->m1.info.mdts = (uint64_t)1
-                        << (12 + cap.bits.mpsmin + ctrlr_data->mdts);
-    ctx->m2.info.mdts = (uint64_t)1
-                        << (12 + cap.bits.mpsmin + ctrlr_data->mdts);
+        spdk_nvme_zns_ctrlr_get_data(dm->ctrlr);
+    union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(dm->ctrlr);
+    dm->info.lba_size = 1 << ns_data->lbaf[ns_data->flbas.format].lbads;
+    dm->info.zone_size = ns_data_zns->lbafe[ns_data->flbas.format].zsze;
+    dm->info.mdts = (uint64_t)1 << (12 + cap.bits.mpsmin + ctrlr_data->mdts);
     auto zasl = ctrlr_data_zns->zasl;
-    ctx->m1.info.zasl = zasl == 0
-                            ? ctx->m1.info.mdts
-                            : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
-    ctx->m2.info.zasl = zasl == 0
-                            ? ctx->m2.info.mdts
-                            : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
-    ctx->m1.info.lba_cap = ns_data->ncap;
-    ctx->m2.info.lba_cap = ns_data->ncap;
+    dm->info.zasl = zasl == 0 ? dm->info.mdts
+                              : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
+    dm->info.zasl = zasl == 0 ? dm->info.mdts
+                              : (uint64_t)1 << (12 + cap.bits.mpsmin + zasl);
+    dm->info.lba_cap = ns_data->ncap;
 
-    if (ctx->verbose)
+    if (verbose)
         log_info(
             "Z Get Device Info: lbs size {}, zone size {}, mdts {}, zasl {}, "
             "lba cap {}, current zone {}, current zslba {}",
-            ctx->m1.info.lba_size, ctx->m1.info.zone_size, ctx->m1.info.mdts,
-            ctx->m1.info.zasl, ctx->m1.info.lba_cap, ctx->current_zone,
-            ctx->m1.zslba);
+            dm->info.lba_size, dm->info.zone_size, dm->info.mdts, dm->info.zasl,
+            dm->info.lba_cap, dm->current_zone, dm->zslba);
 
     return 0;
 }
