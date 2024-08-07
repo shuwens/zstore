@@ -3,6 +3,7 @@
 #include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
+#include <algorithm>
 #include <bits/stdc++.h>
 #include <chrono>
 #include <cstdint>
@@ -10,29 +11,31 @@
 #include <fmt/core.h>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <numeric>
+#include <random>
 #include <stdio.h>
 #include <vector>
+
+#define RUNTIME_RX_BATCH_SIZE 32
 
 static void __m_append_complete(void *arg, const struct spdk_nvme_cpl *cpl)
 {
     DeviceManager *dm = static_cast<DeviceManager *>(arg);
 
     dm->num_completed += 1;
+    dm->num_queued -= 1;
     if (spdk_nvme_cpl_is_error(cpl)) {
         spdk_nvme_qpair_print_completion(dm->qpair,
                                          (struct spdk_nvme_cpl *)cpl);
         log_error("Completion failed {}",
                   spdk_nvme_cpl_get_status_string(&cpl->status));
         dm->num_fail += 1;
-        dm->num_queued -= 1;
         return;
     } else {
         dm->etime = std::chrono::high_resolution_clock::now();
         dm->etimes.push_back(dm->etime);
-
         dm->num_success += 1;
-        dm->num_queued -= 1;
     }
     if (dm->current_lba == 0) {
         log_info("setting current lba value: {}", cpl->cdw0);
@@ -45,20 +48,18 @@ static void __m_complete(void *arg, const struct spdk_nvme_cpl *cpl)
     DeviceManager *dm = static_cast<DeviceManager *>(arg);
 
     dm->num_completed += 1;
+    dm->num_queued -= 1;
     if (spdk_nvme_cpl_is_error(cpl)) {
         spdk_nvme_qpair_print_completion(dm->qpair,
                                          (struct spdk_nvme_cpl *)cpl);
         log_error("Completion failed {}",
                   spdk_nvme_cpl_get_status_string(&cpl->status));
         dm->num_fail += 1;
-        dm->num_queued -= 1;
         return;
     } else {
         dm->etime = std::chrono::high_resolution_clock::now();
         dm->etimes.push_back(dm->etime);
-
         dm->num_success += 1;
-        dm->num_queued -= 1;
     }
 }
 
@@ -118,10 +119,12 @@ int measure_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
 
         lbas_processed += current_step_size;
         slba_start = slba + lbas_processed;
+
+        while (dm->num_queued >= dm->qd) {
+            spdk_nvme_qpair_process_completions(dm->qpair, 0);
+        }
     }
-    while (dm->num_queued) {
-        spdk_nvme_qpair_process_completions(dm->qpair, 0);
-    }
+
     return rc;
 }
 
@@ -183,13 +186,11 @@ int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
         lbas_processed += current_step_size;
         slba_start =
             ((slba + lbas_processed) / dm->info.zone_size) * dm->info.zone_size;
+        while (dm->num_queued >= dm->qd) {
+            spdk_nvme_qpair_process_completions(dm->qpair, 0);
+        }
     }
-    // while (dm->num_queued) {
-    //     // if (->verbose)
-    //     //     log_info("qpair process completion: queued {}, qd {}",
-    //     //              ctx->num_queued, ctx->qd);
-    //     spdk_nvme_qpair_process_completions(dm->qpair, 0);
-    // }
+
     return rc;
 }
 
@@ -221,15 +222,12 @@ static void zns_measure(void *arg)
 
     // std::vector<int> qds{2, 4, 8, 16, 32, 64};
 
-    // std::vector<int> qds{2}; // 180, 180
-    // std::vector<int> qds{4}; // 268
-    // std::vector<int> qds{8}; // 409
-    // std::vector<int> qds{16}; // 720
-    // std::vector<int> qds{32}; // 1203
-    std::vector<int> qds{64}; // 2727, 2204
-
-    // std::vector<int> qds{128};
-    // std::vector<int> qds{256};
+    // std::vector<int> qds{2}; // 147
+    // std::vector<int> qds{4}; // 157
+    // std::vector<int> qds{8}; //
+    // std::vector<int> qds{16}; // 157
+    // std::vector<int> qds{32}; //
+    std::vector<int> qds{64}; // 157
 
     for (auto qd : qds) {
         log_info("\nStarting measurment with queue depth {}, append times {}\n",
@@ -237,6 +235,8 @@ static void zns_measure(void *arg)
         ctx->qd = qd;
         zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
 
+        qpair_opts.io_queue_size = 64;
+        qpair_opts.io_queue_requests = 128;
         zstore_qpair_setup(ctx, qpair_opts);
         zstore_init(ctx);
 
@@ -244,6 +244,9 @@ static void zns_measure(void *arg)
         z_get_device_info(&ctx->m2, ctx->verbose);
         ctx->m1.zstore_open = true;
         ctx->m2.zstore_open = true;
+
+        ctx->m1.qd = qd;
+        ctx->m2.qd = qd;
 
         // working
         int rc = 0;
@@ -258,36 +261,24 @@ static void zns_measure(void *arg)
             wbufs.push_back(*wbuf);
         }
 
-        // rc = write_zstore_pattern(wbuf, &ctx->m2, ctx->m2.info.lba_size,
-        // "",
-        //                           value + i);
-        // assert(rc == 0);
-
-        // measurment time points
-        // chrono_tp stime;
-        // chrono_tp etime;
-
-        for (int i = 0; i < append_times / qd; i++) {
+        for (int i = 0; i < append_times; i++) {
             // do multple append qd times
-            for (int j = 0; j < qd; j++) {
-                // APPEND
-                rc = measure_append(&ctx->m1, ctx->m1.zslba, wbufs[i * qd + j],
-                                    ctx->m1.info.lba_size);
-                assert(rc == 0);
-                rc = measure_append(&ctx->m2, ctx->m2.zslba, wbufs[i * qd + j],
-                                    ctx->m2.info.lba_size);
-                assert(rc == 0);
-                // printf("%d-th round: %d-th is %s\n", i, j, wbufs[i * qd +
-                // j]);
-            }
-
-            while (ctx->m1.num_queued || ctx->m2.num_queued) {
-                // log_debug("qpair queued: m1 {}, m2 {}", ctx->m1.num_queued,
-                //           ctx->m2.num_queued);
-
-                spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
-                spdk_nvme_qpair_process_completions(ctx->m2.qpair, 0);
-            }
+            // APPEND
+            rc = measure_append(&ctx->m1, ctx->m1.zslba, wbufs[i],
+                                ctx->m1.info.lba_size);
+            assert(rc == 0);
+            rc = measure_append(&ctx->m2, ctx->m2.zslba, wbufs[i],
+                                ctx->m2.info.lba_size);
+            assert(rc == 0);
+            // printf("%d-th round: %d-th is %s\n", i, j, wbufs[i * qd +
+            // j]);
+        }
+        while (ctx->m1.num_queued || ctx->m2.num_queued) {
+            // log_debug("Reached");
+            // log_debug("qpair queued: m1 {}, m2 {}", ctx->m1.num_queued,
+            //           ctx->m2.num_queued);
+            spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
+            spdk_nvme_qpair_process_completions(ctx->m2.qpair, 0);
         }
         log_debug("write is all done ");
 
@@ -328,30 +319,29 @@ static void zns_measure(void *arg)
 
         log_info("current lba for read: device 1 {}, device 2 {}",
                  ctx->m1.current_lba, ctx->m2.current_lba);
-        log_info("read with z_append:");
+        log_info("\nread with z_append:");
+
+        std::vector<int> vec;
+        vec.reserve(append_times);
+        for (int i = 0; i < append_times; i++) {
+            vec.push_back(i);
+        }
+
+        auto rng = std::default_random_engine{};
+        std::shuffle(std::begin(vec), std::end(vec), rng);
+
         char *rbuf1 =
             (char *)z_calloc(&ctx->m1, ctx->m1.info.lba_size, sizeof(char *));
         char *rbuf2 =
             (char *)z_calloc(&ctx->m2, ctx->m2.info.lba_size, sizeof(char *));
-
-        for (int i = 0; i < append_times / qd; i++) {
-            for (int j = 0; j < qd; j++) {
-                rc = measure_read(&ctx->m1, ctx->m1.current_lba + i * qd + j,
-                                  rbuf1, ctx->m1.info.lba_size);
-                assert(rc == 0);
-                rc = measure_read(&ctx->m2, ctx->m2.current_lba + i * qd + j,
-                                  rbuf2, ctx->m2.info.lba_size);
-                assert(rc == 0);
-                // printf("%d-th round: %d-th is %s, %s\n", i, j, rbuf1, rbuf2);
-            }
-
-            while (ctx->m1.num_queued || ctx->m2.num_queued) {
-                // log_debug("qpair queued: m1 {}, m2 {}", ctx->m1.num_queued,
-                //           ctx->m2.num_queued);
-
-                spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
-                spdk_nvme_qpair_process_completions(ctx->m2.qpair, 0);
-            }
+        for (const auto &i : vec) {
+            rc = measure_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1,
+                              ctx->m1.info.lba_size);
+            assert(rc == 0);
+            rc = measure_read(&ctx->m2, ctx->m2.current_lba + i, rbuf2,
+                              ctx->m2.info.lba_size);
+            assert(rc == 0);
+            // printf("%d-th round: %d-th is %s, %s\n", i, j, rbuf1, rbuf2);
 
             // rc = measure_read(&ctx->m1, ctx->m1.current_lba + i, rbuf1,
             // 4096); assert(rc == 0); rc = measure_read(&ctx->m2,
@@ -359,7 +349,14 @@ static void zns_measure(void *arg)
 
             // printf("m1: %s, m2: %s\n", rbuf1, rbuf2);
         }
+        while (ctx->m1.num_queued || ctx->m2.num_queued) {
+            // log_debug("qpair queued: m1 {}, m2 {}",
+            // ctx->m1.num_queued,
+            //           ctx->m2.num_queued);
 
+            spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
+            spdk_nvme_qpair_process_completions(ctx->m2.qpair, 0);
+        }
         log_debug("m1: {}, {}", ctx->m1.stimes.size(), ctx->m1.etimes.size());
         log_debug("m2: {}, {}", ctx->m2.stimes.size(), ctx->m2.etimes.size());
         for (int i = 0; i < append_times; i++) {
@@ -391,7 +388,8 @@ static void zns_measure(void *arg)
 
         deltas1.clear();
         deltas2.clear();
-        // log_info("qd {}, read: mean {} us, std {}", ctx->qd, mean, stdev);
+        // log_info("qd {}, read: mean {} us, std {}", ctx->qd, mean,
+        // stdev);
 
         zstore_qpair_teardown(ctx);
     }

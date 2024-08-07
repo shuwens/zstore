@@ -19,8 +19,8 @@ const int zone_num = 1;
 u64 zone_dist = 0x80000; // zone size
 
 const int append_times = 64;
-// const int append_times = 12800;
 // const int append_times = 1000;
+// const int append_times = 12800;
 // const int append_times = 16000;
 // const int append_times = 12800;
 // const int append_times = 128000;
@@ -55,6 +55,7 @@ typedef struct {
     bool zstore_open = false;
 
     // qpair stats
+    u64 qd = 0;
     chrono_tp stime;
     chrono_tp etime;
     std::vector<chrono_tp> stimes;
@@ -230,14 +231,12 @@ static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
 
     log_info("alloc qpair of queue size {}, request size {}",
              qpair_opts.io_queue_size, qpair_opts.io_queue_requests);
-    ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, NULL, 0);
-    ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, NULL, 0);
-    // ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr,
-    // &qpair_opts,
-    //                                                sizeof(qpair_opts));
-    // ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr,
-    // &qpair_opts,
-    //                                                sizeof(qpair_opts));
+    // ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, NULL, 0);
+    // ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, NULL, 0);
+    ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, &qpair_opts,
+                                                   sizeof(qpair_opts));
+    ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, &qpair_opts,
+                                                   sizeof(qpair_opts));
 
     if (ctx->m2.qpair == NULL) {
         log_error("At least could not allocate IO queue pair for m2\n");
