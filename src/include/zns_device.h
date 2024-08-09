@@ -18,8 +18,8 @@ const int zone_num = 1;
 // Zone managment
 u64 zone_dist = 0x80000; // zone size
 
-const int append_times = 64;
-// const int append_times = 1000;
+// const int append_times = 64;
+const int append_times = 1000;
 // const int append_times = 12800;
 // const int append_times = 16000;
 // const int append_times = 12800;
@@ -222,17 +222,17 @@ static void zstore_qpair_setup(void *arg, spdk_nvme_io_qpair_opts qpair_opts)
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
     // 2. creating qpairs
     // NOTE we don't want to modify anythng with the default qpair right now,
-    // as it only controls the submission and completion queue (default to 256)
+    // as it only controls the submission and completion queue (default to
+    // 128/512)
 
-    // spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->ctrlr, &qpair_opts,
+    // spdk_nvme_ctrlr_get_default_io_qpair_opts(ctx->m1.ctrlr, &qpair_opts,
     //                                           sizeof(qpair_opts));
     // qpair_opts.delay_cmd_submit = true;
     // qpair_opts.create_only = true;
 
     log_info("alloc qpair of queue size {}, request size {}",
              qpair_opts.io_queue_size, qpair_opts.io_queue_requests);
-    // ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, NULL, 0);
-    // ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, NULL, 0);
+
     ctx->m1.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m1.ctrlr, &qpair_opts,
                                                    sizeof(qpair_opts));
     ctx->m2.qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctx->m2.ctrlr, &qpair_opts,
@@ -580,13 +580,20 @@ int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
 
         lbas_processed += current_step_size;
         slba_start = slba + lbas_processed;
+
+        while (dm->num_queued >= dm->qd) {
+            // if (ctx->verbose)
+            //     log_info("qpair process completion: queued {}, qd {}",
+            //              ctx->num_queued, ctx->qd);
+            rc = spdk_nvme_qpair_process_completions(dm->qpair, 0);
+            if (rc < 0) {
+                log_error(
+                    "FAILED: spdk_nvme_qpair_process_completion(), err: %d",
+                    rc);
+            }
+        }
     }
-    while (dm->num_queued) {
-        // if (ctx->verbose)
-        //     log_info("qpair process completion: queued {}, qd {}",
-        //              ctx->num_queued, ctx->qd);
-        spdk_nvme_qpair_process_completions(dm->qpair, 0);
-    }
+
     return rc;
 }
 
@@ -643,13 +650,23 @@ int z_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
         lbas_processed += current_step_size;
         slba_start =
             ((slba + lbas_processed) / dm->info.zone_size) * dm->info.zone_size;
+
+        while (dm->num_queued >= dm->qd) {
+            if (dm->verbose)
+                log_info("qpair process completion: queued {}, qd {}",
+                         dm->num_queued, dm->qd);
+            rc = spdk_nvme_qpair_process_completions(dm->qpair, 0);
+            if (rc < 0) {
+                log_error(
+                    "FAILED: spdk_nvme_qpair_process_completion(), err: %d",
+                    rc);
+            }
+        }
     }
-    while (dm->num_queued) {
-        // if (->verbose)
-        //     log_info("qpair process completion: queued {}, qd {}",
-        //              ctx->num_queued, ctx->qd);
-        spdk_nvme_qpair_process_completions(dm->qpair, 0);
-    }
+    if (dm->verbose)
+        log_info("qpair process completion: queued {}, qd {}", dm->num_queued,
+                 dm->qd);
+
     return rc;
 }
 

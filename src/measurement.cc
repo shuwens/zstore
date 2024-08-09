@@ -24,7 +24,7 @@ static void __m_append_complete(void *arg, const struct spdk_nvme_cpl *cpl)
     DeviceManager *dm = static_cast<DeviceManager *>(arg);
 
     dm->num_completed += 1;
-    dm->num_queued -= 1;
+    // dm->num_queued -= 1;
     if (spdk_nvme_cpl_is_error(cpl)) {
         spdk_nvme_qpair_print_completion(dm->qpair,
                                          (struct spdk_nvme_cpl *)cpl);
@@ -48,7 +48,7 @@ static void __m_complete(void *arg, const struct spdk_nvme_cpl *cpl)
     DeviceManager *dm = static_cast<DeviceManager *>(arg);
 
     dm->num_completed += 1;
-    dm->num_queued -= 1;
+    // dm->num_queued -= 1;
     if (spdk_nvme_cpl_is_error(cpl)) {
         spdk_nvme_qpair_print_completion(dm->qpair,
                                          (struct spdk_nvme_cpl *)cpl);
@@ -70,6 +70,7 @@ int measure_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
     ERROR_ON_NULL(dm->qpair, 1);
     ERROR_ON_NULL(buffer, 1);
     int rc = 0;
+    int ret = 0;
 
     int lbas = (size + dm->info.lba_size - 1) / dm->info.lba_size;
     int lbas_processed = 0;
@@ -120,8 +121,9 @@ int measure_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
         lbas_processed += current_step_size;
         slba_start = slba + lbas_processed;
 
-        while (dm->num_queued >= dm->qd) {
-            spdk_nvme_qpair_process_completions(dm->qpair, 0);
+        while (dm->num_queued) {
+            ret = spdk_nvme_qpair_process_completions(dm->qpair, 0);
+            dm->num_queued -= ret;
         }
     }
 
@@ -137,6 +139,7 @@ int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
     ERROR_ON_NULL(buffer, 1);
 
     int rc = 0;
+    int ret = 0;
 
     int lbas = (size + dm->info.lba_size - 1) / dm->info.lba_size;
     int lbas_processed = 0;
@@ -175,7 +178,7 @@ int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
                                        current_step_size, /* number of LBAs */
                                        __m_append_complete, dm, 0);
         if (rc != 0) {
-            // log_error("zone append error: {}", rc);
+            log_error("zone append error: {}", rc);
             // if (rc == -ENOMEM) {
             //     spdk_nvme_qpair_process_completions(ctx->qpair, 0);
             //     rc = 0;
@@ -186,11 +189,13 @@ int measure_append(void *arg, uint64_t slba, void *buffer, uint64_t size)
         lbas_processed += current_step_size;
         slba_start =
             ((slba + lbas_processed) / dm->info.zone_size) * dm->info.zone_size;
-        while (dm->num_queued >= dm->qd) {
-            spdk_nvme_qpair_process_completions(dm->qpair, 0);
-        }
     }
-
+    while (dm->num_queued) {
+        // log_debug("GOOD: qpair process completion: queued {}, qd {}",
+        //           dm->num_queued, dm->qd);
+        ret = spdk_nvme_qpair_process_completions(dm->qpair, 0);
+        dm->num_queued -= ret;
+    }
     return rc;
 }
 
@@ -222,12 +227,12 @@ static void zns_measure(void *arg)
 
     // std::vector<int> qds{2, 4, 8, 16, 32, 64};
 
-    // std::vector<int> qds{2}; // 147
-    // std::vector<int> qds{4}; // 157
-    // std::vector<int> qds{8}; //
-    // std::vector<int> qds{16}; // 157
-    // std::vector<int> qds{32}; //
-    std::vector<int> qds{64}; // 157
+    // std::vector<int> qds{2}; // 143, 137
+    // std::vector<int> qds{4}; //
+    // std::vector<int> qds{8}; // 495
+    // std::vector<int> qds{16}; //
+    std::vector<int> qds{32}; //
+    // std::vector<int> qds{64}; // 2345, 4340
 
     for (auto qd : qds) {
         log_info("\nStarting measurment with queue depth {}, append times {}\n",
@@ -235,8 +240,12 @@ static void zns_measure(void *arg)
         ctx->qd = qd;
         zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
 
+        // default
+        // qpair_opts.io_queue_size = 128;
+        // qpair_opts.io_queue_requests = 512;
         qpair_opts.io_queue_size = 64;
-        qpair_opts.io_queue_requests = 128;
+        qpair_opts.io_queue_requests = 64 * 4;
+
         zstore_qpair_setup(ctx, qpair_opts);
         zstore_init(ctx);
 
@@ -250,6 +259,8 @@ static void zns_measure(void *arg)
 
         // working
         int rc = 0;
+        int rc1 = 0;
+        int rc2 = 0;
 
         log_info("writing with z_append:");
         std::vector<void *> wbufs;
@@ -264,17 +275,16 @@ static void zns_measure(void *arg)
         for (int i = 0; i < append_times; i++) {
             // do multple append qd times
             // APPEND
-            rc = measure_append(&ctx->m1, ctx->m1.zslba, wbufs[i],
-                                ctx->m1.info.lba_size);
-            assert(rc == 0);
-            rc = measure_append(&ctx->m2, ctx->m2.zslba, wbufs[i],
-                                ctx->m2.info.lba_size);
-            assert(rc == 0);
+            rc1 = measure_append(&ctx->m1, ctx->m1.zslba, wbufs[i],
+                                 ctx->m1.info.lba_size);
+            rc2 = measure_append(&ctx->m2, ctx->m2.zslba, wbufs[i],
+                                 ctx->m2.info.lba_size);
+            assert(rc1 == 0 && rc2 == 0);
             // printf("%d-th round: %d-th is %s\n", i, j, wbufs[i * qd +
             // j]);
         }
         while (ctx->m1.num_queued || ctx->m2.num_queued) {
-            // log_debug("Reached");
+            log_debug("Reached here to process outstanding requests");
             // log_debug("qpair queued: m1 {}, m2 {}", ctx->m1.num_queued,
             //           ctx->m2.num_queued);
             spdk_nvme_qpair_process_completions(ctx->m1.qpair, 0);
