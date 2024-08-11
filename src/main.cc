@@ -12,18 +12,59 @@
 #include <fstream>
 #include <iostream>
 
-int write_zstore_pattern(char **pattern, void *arg, int32_t size,
-                         char *test_str, int value)
+typedef struct {
+    // struct nvme
+    struct spdk_nvme_transport_id g_trid = {};
+    struct spdk_nvme_ctrlr *ctrlr = nullptr;
+    spdk_nvme_ns *ns = nullptr;
+    struct spdk_nvme_qpair *qpair = nullptr;
+
+    // ns worker ctx
+    uint64_t io_completed;
+    uint64_t current_queue_depth;
+    uint64_t offset_in_ios;
+    bool is_draining;
+
+    // arb ctx
+    int outstanding_commands;
+    int queue_depth;
+
+    DeviceInfo info = {};
+    bool verbose = false;
+    // tmp values that matters in the run
+    u64 current_lba = 0;
+    u64 current_zone = 0;
+    std::vector<uint32_t> append_lbas;
+    // device related
+    bool device_support_meta = true;
+    // DeviceInfo info;
+    u64 zslba;
+    bool zstore_open = false;
+
+    // qpair stats
+    u64 qd = 0;
+    chrono_tp stime;
+    chrono_tp etime;
+    std::vector<chrono_tp> stimes;
+    std::vector<chrono_tp> etimes;
+
+    u64 num_queued = 0;
+    u64 num_completed = 0;
+    u64 num_success = 0;
+    u64 num_fail = 0;
+} DeviceManager;
+
+int write_zstore_pattern(char **pattern, struct ns_worker_ctx *ns_ctx,
+                         int32_t size, char *test_str, int value)
 {
-    DeviceManager *dm = static_cast<DeviceManager *>(arg);
     if (*pattern != NULL) {
-        z_free(dm->qpair, *pattern);
+        z_free(ns_ctx, *pattern);
     }
-    *pattern = (char *)z_calloc(dm, size, sizeof(char *));
+    *pattern = (char *)z_calloc(ns_ctx, ns_ctx->info.lba_size, sizeof(char *));
     if (*pattern == NULL) {
         return 1;
     }
-    snprintf(*pattern, dm->info.lba_size, "%s:%d", test_str, value);
+    snprintf(*pattern, ns_ctx->info.lba_size, "%s:%d", test_str, value);
     return 0;
 }
 
@@ -32,14 +73,14 @@ static void test_start(void *arg1)
     log_info("test start\n");
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg1);
 
-    struct spdk_nvme_io_qpair_opts qpair_opts = {};
-    zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
-    zstore_qpair_setup(ctx, qpair_opts);
+    // struct spdk_nvme_io_qpair_opts qpair_opts = {};
+    // zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
+    // zstore_qpair_setup(ctx, qpair_opts);
 
-    zstore_init(ctx);
-
-    z_get_device_info(&ctx->m1, ctx->verbose);
-    z_get_device_info(&ctx->m2, ctx->verbose);
+    // zstore_init(ctx);
+    //
+    // z_get_device_info(&ctx->m1, ctx->verbose);
+    // z_get_device_info(&ctx->m2, ctx->verbose);
 
     ctx->m1.zstore_open = true;
 

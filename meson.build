@@ -51,12 +51,12 @@ libs = declare_dependency(
 )
 incdir = include_directories('civetweb-1.16/include')
 
-zstore_src = files('src/main.cc')
-executable(
-	'_dummy',
-	zstore_src,
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-)
+# zstore_src = files('src/main.cc')
+# executable(
+# 	'_dummy',
+# 	zstore_src,
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# )
 
 # FIXME: there should be a better of doing this, but I don't know it yet.
 custom_libnames = [
@@ -183,14 +183,14 @@ endforeach
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
-
-executable(
-	'zns_test',
-	files('src/tests/device_test.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# FIXME
+# executable(
+# 	'zns_test',
+# 	files('src/tests/device_test.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 # executable(
 # 	'zstore',
@@ -208,10 +208,10 @@ executable(
 	install: true,
 )
 
-executable(
-	'multipath',
-	files('src/multipath.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'multipath',
+# 	files('src/multipath.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
