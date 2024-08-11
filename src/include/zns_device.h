@@ -117,6 +117,7 @@ struct worker_thread {
 };
 
 struct zstore_context {
+    bool verbose = false;
     // int shm_id;
     int outstanding_commands;
     int num_namespaces;
@@ -191,119 +192,6 @@ typedef struct {
     bool done = false;
     int err = 0;
 } Completion;
-
-/*
-static void zns_dev_init(void *arg, std::string ip1, std::string port1,
-                         std::string ip2, std::string port2)
-{
-    struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    int rc = 0;
-    // allocate space for times
-    ctx->stimes.reserve(append_times);
-    ctx->m1.etimes.reserve(append_times);
-    ctx->m2.stimes.reserve(append_times);
-    ctx->m2.etimes.reserve(append_times);
-
-    if (ctx->verbose)
-        SPDK_NOTICELOG("Successfully started the application\n");
-
-    // 1. connect nvmf device
-    ctx->m1.g_trid = {};
-    snprintf(ctx->m1.g_trid.traddr, sizeof(ctx->m1.g_trid.traddr), "%s",
-             ip1.c_str());
-    snprintf(ctx->m1.g_trid.trsvcid, sizeof(ctx->m1.g_trid.trsvcid), "%s",
-             port1.c_str());
-    snprintf(ctx->m1.g_trid.subnqn, sizeof(ctx->m1.g_trid.subnqn), "%s",
-             g_hostnqn);
-    ctx->m1.g_trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    ctx->m1.g_trid.trtype = SPDK_NVME_TRANSPORT_TCP;
-
-    // ctx->m2.g_trid = {};
-    snprintf(ctx->m2.g_trid.traddr, sizeof(ctx->m2.g_trid.traddr), "%s",
-             ip2.c_str());
-    snprintf(ctx->m2.g_trid.trsvcid, sizeof(ctx->m2.g_trid.trsvcid), "%s",
-             port2.c_str());
-    snprintf(ctx->m2.g_trid.subnqn, sizeof(ctx->m2.g_trid.subnqn), "%s",
-             g_hostnqn);
-    ctx->m2.g_trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    ctx->m2.g_trid.trtype = SPDK_NVME_TRANSPORT_TCP;
-
-    struct spdk_nvme_ctrlr_opts opts;
-    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
-    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
-    ctx->m1.ctrlr = spdk_nvme_connect(&ctx->m1.g_trid, &opts, sizeof(opts));
-    ctx->m2.ctrlr = spdk_nvme_connect(&ctx->m2.g_trid, &opts, sizeof(opts));
-    // ctx->ctrlr = spdk_nvme_connect(&trid, NULL, 0);
-
-    if (ctx->m2.ctrlr == NULL && ctx->verbose) {
-        fprintf(stderr,
-                "spdk_nvme_connect() failed for transport address '%s'\n",
-                ctx->m2.g_trid.traddr);
-        spdk_app_stop(-1);
-        // pthread_kill(g_fuzz_td, SIGSEGV);
-        // return NULL;
-        // return rc;
-    }
-
-    // SPDK_NOTICELOG("Successfully started the application\n");
-    // SPDK_NOTICELOG("Initializing NVMe controller\n");
-
-    if (spdk_nvme_zns_ctrlr_get_data(ctx->m2.ctrlr) && ctx->verbose) {
-        printf("ZNS Specific Controller Data\n");
-        printf("============================\n");
-        printf("Zone Append Size Limit:      %u\n",
-               spdk_nvme_zns_ctrlr_get_data(ctx->m2.ctrlr)->zasl);
-        printf("\n");
-        printf("\n");
-
-        printf("Active Namespaces\n");
-        printf("=================\n");
-        // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid !=
-        // 0;
-        //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
-        //     print_namespace(ctx->ctrlr,
-        //                     spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
-        // }
-    }
-    // ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
-
-    // NOTE: must find zns ns
-    // take any ZNS namespace, we do not care which.
-    for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->m1.ctrlr);
-         nsid != 0;
-         nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->m1.ctrlr, nsid)) {
-
-        struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->m1.ctrlr, nsid);
-        if (ns == NULL) {
-            continue;
-        }
-        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            continue;
-        }
-
-        if (ctx->m1.ns == NULL) {
-            log_info("Found namespace {}, connect to device manger m1", nsid);
-            ctx->m1.ns = ns;
-        } else if (ctx->m2.ns == NULL) {
-            log_info("Found namespace {}, connect to device manger m2", nsid);
-            ctx->m2.ns = ns;
-
-        } else
-            break;
-
-        if (ctx->verbose)
-            print_namespace(ctx->m1.ctrlr,
-                            spdk_nvme_ctrlr_get_ns(ctx->m1.ctrlr, nsid),
-                            ctx->current_zone);
-    }
-
-    if (ctx->m1.ns == NULL) {
-        SPDK_ERRLOG("Could not get NVMe namespace\n");
-        spdk_app_stop(-1);
-        return;
-    }
-}
-*/
 
 static void zstore_qpair_setup(struct ns_worker_ctx *ns_ctx,
                                spdk_nvme_io_qpair_opts qpair_opts)

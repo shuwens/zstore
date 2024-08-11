@@ -23,6 +23,7 @@ static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion);
 
 static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 {
+    log_debug("resiger ns");
     struct ns_entry *entry;
     const struct spdk_nvme_ctrlr_data *cdata;
 
@@ -57,10 +58,12 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 
     g_zstore.num_namespaces++;
     TAILQ_INSERT_TAIL(&g_namespaces, entry, link);
+    log_debug("resiger ns ends");
 }
 
 static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
 {
+    log_debug("resiger ctrlr");
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
 
@@ -88,13 +91,15 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         }
         register_ns(ctrlr, ns);
     }
+    log_debug("resiger ctrlr ends");
 }
 
 static int register_workers(void)
 {
+    log_debug("resiger workers");
     uint32_t i;
     struct worker_thread *worker;
-    enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
+    // enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
 
     SPDK_ENV_FOREACH_CORE(i)
     {
@@ -110,40 +115,150 @@ static int register_workers(void)
         g_zstore.num_workers++;
     }
 
+    log_debug("resiger workers ends ");
     return 0;
 }
 
-static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                     struct spdk_nvme_ctrlr_opts *opts)
+// static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
+//                      struct spdk_nvme_ctrlr_opts *opts)
+// {
+//     /* Update with user specified arbitration configuration */
+//     // opts->arb_mechanism = g_zstore.arbitration_mechanism;
+//
+//     printf("Attaching to %s\n", trid->traddr);
+//
+//     return true;
+// }
+
+// static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id
+// *trid,
+//                       struct spdk_nvme_ctrlr *ctrlr,
+//                       const struct spdk_nvme_ctrlr_opts *opts)
+// {
+//     printf("Attached to %s\n", trid->traddr);
+//
+//     /* Update with actual arbitration configuration in use */
+//     // g_zstore.arbitration_mechanism = opts->arb_mechanism;
+//
+//     register_ctrlr(ctrlr);
+// }
+
+static void zns_dev_init(struct zstore_context *ctx, std::string ip1,
+                         std::string port1, std::string ip2, std::string port2)
 {
-    /* Update with user specified arbitration configuration */
-    // opts->arb_mechanism = g_zstore.arbitration_mechanism;
+    int rc = 0;
+    // FIXME
+    // allocate space for times
+    // ctx->stimes.reserve(append_times);
+    // ctx->m1.etimes.reserve(append_times);
+    // ctx->m2.stimes.reserve(append_times);
+    // ctx->m2.etimes.reserve(append_times);
 
-    printf("Attaching to %s\n", trid->traddr);
+    if (ctx->verbose)
+        SPDK_NOTICELOG("Successfully started the application\n");
 
-    return true;
+    // 1. connect nvmf device
+    struct spdk_nvme_transport_id trid1 = {};
+    snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
+    snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
+    snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
+    trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_transport_id trid2 = {};
+    snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
+    snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
+    snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
+    trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_ctrlr_opts opts;
+    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
+    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+
+    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+    register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
+
+    /*
+    if (ctx->m2.ctrlr == NULL && ctx->verbose) {
+        fprintf(stderr,
+                "spdk_nvme_connect() failed for transport address '%s'\n",
+                ctx->m2.g_trid.traddr);
+        spdk_app_stop(-1);
+        // pthread_kill(g_fuzz_td, SIGSEGV);
+        // return NULL;
+        // return rc;
+    }
+
+    // SPDK_NOTICELOG("Successfully started the application\n");
+    // SPDK_NOTICELOG("Initializing NVMe controller\n");
+
+    if (spdk_nvme_zns_ctrlr_get_data(ctx->m2.ctrlr) && ctx->verbose) {
+        printf("ZNS Specific Controller Data\n");
+        printf("============================\n");
+        printf("Zone Append Size Limit:      %u\n",
+               spdk_nvme_zns_ctrlr_get_data(ctx->m2.ctrlr)->zasl);
+        printf("\n");
+        printf("\n");
+
+        printf("Active Namespaces\n");
+        printf("=================\n");
+        // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->ctrlr); nsid !=
+        // 0;
+        //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->ctrlr, nsid)) {
+        //     print_namespace(ctx->ctrlr,
+        //                     spdk_nvme_ctrlr_get_ns(ctx->ctrlr, nsid));
+        // }
+    }
+    // ctx->ns = spdk_nvme_ctrlr_get_ns(ctx->ctrlr, 1);
+
+    // NOTE: must find zns ns
+    // take any ZNS namespace, we do not care which.
+    for (int nsid = spdk_nvme_ctrlr_get_first_active_ns(ctx->m1.ctrlr);
+         nsid != 0;
+         nsid = spdk_nvme_ctrlr_get_next_active_ns(ctx->m1.ctrlr, nsid)) {
+
+        struct spdk_nvme_ns *ns = spdk_nvme_ctrlr_get_ns(ctx->m1.ctrlr, nsid);
+        if (ns == NULL) {
+            continue;
+        }
+        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+            continue;
+        }
+
+        if (ctx->m1.ns == NULL) {
+            log_info("Found namespace {}, connect to device manger m1", nsid);
+            ctx->m1.ns = ns;
+        } else if (ctx->m2.ns == NULL) {
+            log_info("Found namespace {}, connect to device manger m2", nsid);
+            ctx->m2.ns = ns;
+
+        } else
+            break;
+
+        if (ctx->verbose)
+            print_namespace(ctx->m1.ctrlr,
+                            spdk_nvme_ctrlr_get_ns(ctx->m1.ctrlr, nsid),
+                            ctx->current_zone);
+    }
+
+    if (ctx->m1.ns == NULL) {
+        SPDK_ERRLOG("Could not get NVMe namespace\n");
+        spdk_app_stop(-1);
+        return;
+    }
+    */
 }
 
-static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                      struct spdk_nvme_ctrlr *ctrlr,
-                      const struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Attached to %s\n", trid->traddr);
-
-    /* Update with actual arbitration configuration in use */
-    // g_zstore.arbitration_mechanism = opts->arb_mechanism;
-
-    register_ctrlr(ctrlr);
-}
-
-static int register_controllers(void)
+static int register_controllers(struct zstore_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
-        fprintf(stderr, "spdk_nvme_probe() failed\n");
-        return 1;
-    }
+    zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
+    // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
+    //     fprintf(stderr, "spdk_nvme_probe() failed\n");
+    //     return 1;
+    // }
 
     if (g_zstore.num_namespaces == 0) {
         fprintf(stderr, "No valid namespaces to continue IO testing\n");
@@ -175,7 +290,7 @@ static void unregister_controllers(void)
     }
 }
 
-static int associate_workers_with_ns(void)
+static int associate_workers_with_ns(int current_zone)
 {
     struct ns_entry *entry = TAILQ_FIRST(&g_namespaces);
     struct worker_thread *worker = TAILQ_FIRST(&g_workers);
@@ -775,34 +890,6 @@ int main(int argc, char **argv)
 
         return rc;
     }
-    if (register_controllers() != 0) {
-        rc = 1;
-        log_info("zstore exits gracefully");
-        unregister_controllers();
-        cleanup(task_count);
-
-        spdk_env_fini();
-
-        if (rc != 0) {
-            fprintf(stderr, "%s: errors occurred\n", argv[0]);
-        }
-
-        return rc;
-    }
-    if (associate_workers_with_ns() != 0) {
-        rc = 1;
-        log_info("zstore exits gracefully");
-        unregister_controllers();
-        cleanup(task_count);
-
-        spdk_env_fini();
-
-        if (rc != 0) {
-            fprintf(stderr, "%s: errors occurred\n", argv[0]);
-        }
-
-        return rc;
-    }
 
     // NOTE: we switch between zones and keep track of it with a file
     int current_zone = 0;
@@ -812,6 +899,37 @@ int main(int argc, char **argv)
         inputFile.close();
     }
     log_info("Zstore start with current zone: {}", current_zone);
+
+    struct zstore_context ctx = {};
+
+    if (register_controllers(&ctx) != 0) {
+        rc = 1;
+        log_info("zstore exits gracefully");
+        unregister_controllers();
+        cleanup(task_count);
+
+        spdk_env_fini();
+
+        if (rc != 0) {
+            fprintf(stderr, "%s: errors occurred\n", argv[0]);
+        }
+
+        return rc;
+    }
+    if (associate_workers_with_ns(current_zone) != 0) {
+        rc = 1;
+        log_info("zstore exits gracefully");
+        unregister_controllers();
+        cleanup(task_count);
+
+        spdk_env_fini();
+
+        if (rc != 0) {
+            fprintf(stderr, "%s: errors occurred\n", argv[0]);
+        }
+
+        return rc;
+    }
 
     spdk_env_opts_init(&opts);
     // struct spdk_app_opts opts = {};
@@ -830,10 +948,6 @@ int main(int argc, char **argv)
     //     SPDK_APP_PARSE_ARGS_SUCCESS) {
     //     exit(rc);
     // }
-
-    struct ZstoreContext ctx = {};
-    ctx.current_zone = current_zone;
-    // ctx.verbose = true;
 
     // task pool
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
