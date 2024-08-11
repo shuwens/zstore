@@ -43,6 +43,7 @@ zstore_deps = [
 	dependency('numa'),
 	dependency('openssl'),
 	dependency('fmt'),
+	dependency('_spdk'),
 ]
 libs = declare_dependency(
 	link_args: [
@@ -55,7 +56,7 @@ incdir = include_directories('civetweb-1.16/include')
 # executable(
 # 	'_dummy',
 # 	zstore_src,
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	dependencies: [zstore_deps, libs] + [],
 # )
 
 # FIXME: there should be a better of doing this, but I don't know it yet.
