@@ -105,9 +105,9 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         }
         register_ns(ctrlr, ns);
         // FIXME: why is it getting namespace 1 2 again?
-        // if (g_zstore.num_namespaces == 2)
-        //     // force exit when we have two namespace
-        //     break;
+        // force exit when we have two namespace
+        if (g_zstore.num_namespaces == 2)
+            break;
     }
 }
 
@@ -244,6 +244,8 @@ static int associate_workers_with_ns(int current_zone)
                 : g_zstore.num_workers;
     log_info("worker {}, ns {}, count {}", g_zstore.num_workers,
              g_zstore.num_namespaces, count);
+    // FIXME:
+    count = 2;
 
     for (i = 0; i < count; i++) {
         if (entry == NULL) {
@@ -367,21 +369,24 @@ static void drain_io(struct ns_worker_ctx *ns_ctx)
     }
 }
 
-static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
-                              enum spdk_nvme_qprio qprio)
+static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx)
 {
+    log_debug("init ns worker ctx");
     struct spdk_nvme_ctrlr *ctrlr = ns_ctx->entry->nvme.ctrlr;
     struct spdk_nvme_io_qpair_opts opts;
 
+    log_debug("init ns worker ctx2");
     spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
-    opts.qprio = qprio;
+    // opts.qprio = qprio;
 
+    log_debug("init ns worker ctx3");
     ns_ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
     if (!ns_ctx->qpair) {
         printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
         return 1;
     }
 
+    log_debug("init ns worker ctx4");
     return 0;
 }
 
@@ -444,14 +449,13 @@ static int work_fn(void *arg)
     struct ns_worker_ctx *ns_ctx;
 
     log_info("Starting thread on core {}", worker->lcore);
-
     // printf("Starting thread on core %u with %s\n", worker->lcore,
     //        print_qprio(worker->qprio));
 
     /* Allocate a queue pair for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     {
-        if (init_ns_worker_ctx(ns_ctx, worker->qprio) != 0) {
+        if (init_ns_worker_ctx(ns_ctx) != 0) {
             printf("ERROR: init_ns_worker_ctx() failed\n");
             return 1;
         }

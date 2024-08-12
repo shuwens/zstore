@@ -202,6 +202,14 @@ executable(
 	install: true,
 )
 
+executable(
+	'arbitration',
+	files('src/arbitration.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
 # executable(
 # 	'multipath',
 # 	files('src/multipath.cc'),
