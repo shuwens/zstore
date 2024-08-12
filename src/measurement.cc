@@ -12,14 +12,26 @@
 #include <stdio.h>
 #include <vector>
 
-// static void task_complete(struct zstore_task *task);
+static void task_complete(struct zstore_task *task);
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion);
 
-// static const char *print_qprio(enum spdk_nvme_qprio);
-
 // static int g_dpdk_mem = 0;
 // static bool g_dpdk_mem_single_seg = false;
+
+int write_zstore_pattern(char **pattern, struct ns_worker_ctx *ns_ctx,
+                         int32_t size, char *test_str, int value)
+{
+    if (*pattern != NULL) {
+        z_free(ns_ctx, *pattern);
+    }
+    *pattern = (char *)z_calloc(ns_ctx, ns_ctx->info.lba_size, sizeof(char *));
+    if (*pattern == NULL) {
+        return 1;
+    }
+    snprintf(*pattern, ns_ctx->info.lba_size, "%s:%d", test_str, value);
+    return 0;
+}
 
 static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 {
@@ -93,9 +105,9 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         }
         register_ns(ctrlr, ns);
         // FIXME: why is it getting namespace 1 2 again?
-        if (g_zstore.num_namespaces == 2)
-            // force exit when we have two namespace
-            break;
+        // if (g_zstore.num_namespaces == 2)
+        //     // force exit when we have two namespace
+        //     break;
     }
 }
 
@@ -262,18 +274,71 @@ static int associate_workers_with_ns(int current_zone)
     return 0;
 }
 
-int write_zstore_pattern(char **pattern, struct ns_worker_ctx *ns_ctx,
-                         int32_t size, char *test_str, int value)
+static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 {
-    if (*pattern != NULL) {
-        z_free(ns_ctx, *pattern);
+    struct zstore_task *task = NULL;
+    uint64_t offset_in_ios;
+    int rc;
+    struct ns_entry *entry = ns_ctx->entry;
+
+    task = static_cast<struct zstore_task *>(spdk_mempool_get(task_pool));
+    if (!task) {
+        fprintf(stderr, "Failed to get task from task_pool\n");
+        exit(1);
     }
-    *pattern = (char *)z_calloc(ns_ctx, ns_ctx->info.lba_size, sizeof(char *));
-    if (*pattern == NULL) {
-        return 1;
+
+    task->buf = spdk_dma_zmalloc(g_zstore.io_size_bytes, 0x200, NULL);
+    if (!task->buf) {
+        spdk_mempool_put(task_pool, task);
+        fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
+        exit(1);
     }
-    snprintf(*pattern, ns_ctx->info.lba_size, "%s:%d", test_str, value);
-    return 0;
+
+    task->ns_ctx = ns_ctx;
+
+    offset_in_ios = ns_ctx->offset_in_ios++;
+    if (ns_ctx->offset_in_ios == entry->size_in_ios) {
+        ns_ctx->offset_in_ios = 0;
+    }
+
+    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                               offset_in_ios * entry->io_size_blocks,
+                               entry->io_size_blocks, io_complete, task, 0);
+    // rc = spdk_nvme_zns_zone_append(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                                offset_in_ios * entry->io_size_blocks,
+    //                                entry->io_size_blocks, io_complete, task,
+    //                                0);
+    // rc = spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                             offset_in_ios * entry->io_size_blocks,
+    //                             entry->io_size_blocks, io_complete, task, 0);
+
+    if (rc != 0) {
+        fprintf(stderr, "starting I/O failed\n");
+    } else {
+        ns_ctx->current_queue_depth++;
+    }
+}
+
+static void task_complete(struct zstore_task *task)
+{
+    struct ns_worker_ctx *ns_ctx;
+
+    ns_ctx = task->ns_ctx;
+    ns_ctx->current_queue_depth--;
+    ns_ctx->io_completed++;
+
+    spdk_dma_free(task->buf);
+    spdk_mempool_put(task_pool, task);
+
+    /*
+     * is_draining indicates when time has expired for the test run
+     * and we are just waiting for the previously submitted I/O
+     * to complete.  In this case, do not submit a new I/O to replace
+     * the one just completed.
+     */
+    if (!ns_ctx->is_draining) {
+        submit_single_io(ns_ctx);
+    }
 }
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
@@ -358,6 +423,19 @@ static void cleanup(uint32_t task_count)
     spdk_mempool_free(task_pool);
 }
 
+static void zstore_cleanup(u32 task_count)
+{
+
+    unregister_controllers();
+    cleanup(task_count);
+
+    spdk_env_fini();
+
+    // if (rc != 0) {
+    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
+    // }
+}
+
 static int work_fn(void *arg)
 {
     log_debug("workfn");
@@ -389,14 +467,18 @@ static int work_fn(void *arg)
     }
 
     while (1) {
-        log_debug("while\n");
+        log_debug("while");
         // crashes
         /*
          * Check for completed I/O for each controller. A new
          * I/O will be submitted in the io_complete callback
          * to replace each I/O that is completed.
          */
-        TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link) { check_io(ns_ctx); }
+        TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
+        {
+            log_debug("for each: {}", ns_ctx->io_completed);
+            check_io(ns_ctx);
+        }
 
         if (ns_ctx->io_completed > append_times) {
             break;
@@ -410,19 +492,6 @@ static int work_fn(void *arg)
     }
 
     return 0;
-}
-
-static void zstore_cleanup(u32 task_count)
-{
-
-    unregister_controllers();
-    cleanup(task_count);
-
-    spdk_env_fini();
-
-    // if (rc != 0) {
-    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
-    // }
 }
 
 int main(int argc, char **argv)

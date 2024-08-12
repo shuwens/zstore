@@ -1,21 +1,19 @@
+
+#pragma once
 #include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
+#include "spdk/nvme_intel.h"
 #include "spdk/nvme_zns.h"
 #include "spdk/nvmf_spec.h"
 #include "spdk/stdinc.h"
+#include "spdk/string.h"
 #include "utils.hpp"
 #include "zns_utils.h"
 #include <atomic>
 #include <chrono>
 #include <fstream>
-
-#include "spdk/env.h"
-#include "spdk/log.h"
-#include "spdk/nvme.h"
-#include "spdk/nvme_intel.h"
-#include "spdk/string.h"
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
@@ -487,56 +485,56 @@ static void __complete(void *ctx, const struct spdk_nvme_cpl *cpl)
     // }
 }
 
-static void submit_single_io(struct ns_worker_ctx *ns_ctx)
-{
-    struct zstore_task *task = NULL;
-    uint64_t offset_in_ios;
-    int rc;
-    struct ns_entry *entry = ns_ctx->entry;
+// static void submit_single_io(struct ns_worker_ctx *ns_ctx)
+// {
+//     struct zstore_task *task = NULL;
+//     uint64_t offset_in_ios;
+//     int rc;
+//     struct ns_entry *entry = ns_ctx->entry;
+//
+//     task = static_cast<struct zstore_task *>(spdk_mempool_get(task_pool));
+//     if (!task) {
+//         fprintf(stderr, "Failed to get task from task_pool\n");
+//         exit(1);
+//     }
+//
+//     task->buf = spdk_dma_zmalloc(g_zstore.io_size_bytes, 0x200, NULL);
+//     if (!task->buf) {
+//         spdk_mempool_put(task_pool, task);
+//         fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
+//         exit(1);
+//     }
+//
+//     task->ns_ctx = ns_ctx;
+//
+//     if (rc != 0) {
+//         fprintf(stderr, "starting I/O failed\n");
+//     } else {
+//         ns_ctx->current_queue_depth++;
+//     }
+// }
 
-    task = static_cast<struct zstore_task *>(spdk_mempool_get(task_pool));
-    if (!task) {
-        fprintf(stderr, "Failed to get task from task_pool\n");
-        exit(1);
-    }
-
-    task->buf = spdk_dma_zmalloc(g_zstore.io_size_bytes, 0x200, NULL);
-    if (!task->buf) {
-        spdk_mempool_put(task_pool, task);
-        fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
-        exit(1);
-    }
-
-    task->ns_ctx = ns_ctx;
-
-    if (rc != 0) {
-        fprintf(stderr, "starting I/O failed\n");
-    } else {
-        ns_ctx->current_queue_depth++;
-    }
-}
-
-static void task_complete(struct zstore_task *task)
-{
-    struct ns_worker_ctx *ns_ctx;
-
-    ns_ctx = task->ns_ctx;
-    ns_ctx->current_queue_depth--;
-    ns_ctx->io_completed++;
-
-    spdk_dma_free(task->buf);
-    spdk_mempool_put(task_pool, task);
-
-    /*
-     * is_draining indicates when time has expired for the test run
-     * and we are just waiting for the previously submitted I/O
-     * to complete.  In this case, do not submit a new I/O to replace
-     * the one just completed.
-     */
-    if (!ns_ctx->is_draining) {
-        submit_single_io(ns_ctx);
-    }
-}
+// static void task_complete(struct zstore_task *task)
+// {
+//     struct ns_worker_ctx *ns_ctx;
+//
+//     ns_ctx = task->ns_ctx;
+//     ns_ctx->current_queue_depth--;
+//     ns_ctx->io_completed++;
+//
+//     spdk_dma_free(task->buf);
+//     spdk_mempool_put(task_pool, task);
+//
+//     /*
+//      * is_draining indicates when time has expired for the test run
+//      * and we are just waiting for the previously submitted I/O
+//      * to complete.  In this case, do not submit a new I/O to replace
+//      * the one just completed.
+//      */
+//     if (!ns_ctx->is_draining) {
+//         submit_single_io(ns_ctx);
+//     }
+// }
 
 int z_read(struct ns_worker_ctx *ns_ctx, uint64_t slba, void *buffer,
            uint64_t size)
