@@ -3,13 +3,13 @@
  *   All rights reserved.
  */
 
-#include "spdk/stdinc.h"
-
 #include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
+#include "spdk/stdinc.h"
 #include "spdk/string.h"
+#include <string>
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -238,6 +238,8 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
             continue;
         }
         register_ns(ctrlr, ns);
+        if (g_arbitration.num_namespaces == 1)
+            break;
     }
 
     if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR &&
@@ -284,18 +286,19 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         }
     }
 
-    if ((g_arbitration.rw_percentage == 100) ||
-        (g_arbitration.rw_percentage != 0 &&
-         ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-        rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                   offset_in_ios * entry->io_size_blocks,
-                                   entry->io_size_blocks, io_complete, task, 0);
-    } else {
-        rc =
-            spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                   offset_in_ios * entry->io_size_blocks,
-                                   entry->io_size_blocks, io_complete, task, 0);
-    }
+    // if ((g_arbitration.rw_percentage == 100) ||
+    //     (g_arbitration.rw_percentage != 0 &&
+    //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
+    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                               offset_in_ios * entry->io_size_blocks,
+                               entry->io_size_blocks, io_complete, task, 0);
+    // } else {
+    //     rc =
+    //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                                offset_in_ios * entry->io_size_blocks,
+    //                                entry->io_size_blocks, io_complete, task,
+    //                                0);
+    // }
 
     if (rc != 0) {
         fprintf(stderr, "starting I/O failed\n");
@@ -859,10 +862,29 @@ static int register_controllers(void)
 {
     printf("Initializing NVMe Controllers\n");
 
-    if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
-        fprintf(stderr, "spdk_nvme_probe() failed\n");
-        return 1;
-    }
+    // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
+    //     fprintf(stderr, "spdk_nvme_probe() failed\n");
+    //     return 1;
+    // }
+
+    static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+    std::string ip1 = "192.168.1.121";
+    std::string port1 = "4420";
+    // 1. connect nvmf device
+    struct spdk_nvme_transport_id trid1 = {};
+    snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
+    snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
+    snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
+    trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_ctrlr_opts opts;
+    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
+    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+
+    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+
+    // register_ctrlr(ctrlr);
 
     if (g_arbitration.num_namespaces == 0) {
         fprintf(stderr, "No valid namespaces to continue IO testing\n");
@@ -904,7 +926,7 @@ static int associate_workers_with_ns(void)
     count = g_arbitration.num_namespaces > g_arbitration.num_workers
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
-
+    count = 1;
     for (i = 0; i < count; i++) {
         if (entry == NULL) {
             break;
