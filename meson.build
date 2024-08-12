@@ -204,12 +204,19 @@ executable(
 
 executable(
 	'arbitration',
-	files('src/arbitration.cc'),
+	files('src/examples/arbitration.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 
+# executable(
+# 	'nvmf',
+# 	files('src/examples/nvmf.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 # executable(
 # 	'multipath',
 # 	files('src/multipath.cc'),

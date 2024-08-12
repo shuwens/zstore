@@ -120,17 +120,17 @@ struct zstore_context {
     int outstanding_commands;
     int num_namespaces;
     int num_workers;
-    // int rw_percentage;
+    int rw_percentage;
     // int is_random;
     int queue_depth;
-    // int time_in_sec;
+    int time_in_sec;
     int io_count;
     // uint8_t latency_tracking_enable;
     // uint8_t arbitration_mechanism;
     // uint8_t arbitration_config;
     uint32_t io_size_bytes;
     uint32_t max_completions;
-    // uint64_t tsc_rate;
+    uint64_t tsc_rate;
     const char *core_mask;
     const char *workload_type;
 };
@@ -140,9 +140,9 @@ static struct zstore_context g_zstore = {
     .outstanding_commands = 0,
     .num_namespaces = 0,
     .num_workers = 0,
-    // .rw_percentage = 50,
+    .rw_percentage = 50,
     .queue_depth = 64,
-    // .time_in_sec = 60,
+    .time_in_sec = 60,
     .io_count = 100000,
     // .latency_tracking_enable = 0,
     // .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,

@@ -1,5 +1,6 @@
 #include "include/utils.hpp"
 #include "include/zns_device.h"
+#include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/nvme.h"
 #include <bits/stdc++.h>
@@ -106,13 +107,13 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         register_ns(ctrlr, ns);
         // FIXME: why is it getting namespace 1 2 again?
         // force exit when we have two namespace
-        if (g_zstore.num_namespaces == 2)
-            break;
+        break;
     }
 }
 
 static int register_workers(void)
 {
+    log_info("reg worksers");
     uint32_t i;
     struct worker_thread *worker;
     // enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
@@ -129,6 +130,9 @@ static int register_workers(void)
         worker->lcore = i;
         TAILQ_INSERT_TAIL(&g_workers, worker, link);
         g_zstore.num_workers++;
+        // FIXME: we have 4 cores, but we only want 1 worker for now
+        if (g_zstore.num_workers == 1)
+            break;
     }
     return 0;
 }
@@ -245,7 +249,7 @@ static int associate_workers_with_ns(int current_zone)
     log_info("worker {}, ns {}, count {}", g_zstore.num_workers,
              g_zstore.num_namespaces, count);
     // FIXME:
-    count = 2;
+    count = 1;
 
     for (i = 0; i < count; i++) {
         if (entry == NULL) {
@@ -276,6 +280,8 @@ static int associate_workers_with_ns(int current_zone)
     return 0;
 }
 
+static __thread unsigned int seed = 0;
+
 static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 {
     struct zstore_task *task = NULL;
@@ -303,16 +309,21 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         ns_ctx->offset_in_ios = 0;
     }
 
-    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                               offset_in_ios * entry->io_size_blocks,
-                               entry->io_size_blocks, io_complete, task, 0);
-    // rc = spdk_nvme_zns_zone_append(entry->nvme.ns, ns_ctx->qpair, task->buf,
-    //                                offset_in_ios * entry->io_size_blocks,
-    //                                entry->io_size_blocks, io_complete, task,
-    //                                0);
-    // rc = spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
-    //                             offset_in_ios * entry->io_size_blocks,
-    //                             entry->io_size_blocks, io_complete, task, 0);
+    if ((g_zstore.rw_percentage == 100) ||
+        (g_zstore.rw_percentage != 0 &&
+         ((rand_r(&seed) % 100) < g_zstore.rw_percentage))) {
+
+        log_debug("read ");
+        rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                                   offset_in_ios * entry->io_size_blocks,
+                                   entry->io_size_blocks, io_complete, task, 0);
+    } else {
+        log_debug("write");
+        rc =
+            spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                                   offset_in_ios * entry->io_size_blocks,
+                                   entry->io_size_blocks, io_complete, task, 0);
+    }
 
     if (rc != 0) {
         fprintf(stderr, "starting I/O failed\n");
@@ -444,7 +455,7 @@ static void zstore_cleanup(u32 task_count)
 static int work_fn(void *arg)
 {
     log_debug("workfn");
-    // uint64_t tsc_end;
+    uint64_t tsc_end;
     struct worker_thread *worker = (struct worker_thread *)arg;
     struct ns_worker_ctx *ns_ctx;
 
@@ -461,8 +472,7 @@ static int work_fn(void *arg)
         }
     }
 
-    // tsc_end = spdk_get_ticks() + g_zstore.time_in_sec *
-    // g_zstore.tsc_rate;
+    tsc_end = spdk_get_ticks() + g_zstore.time_in_sec * g_zstore.tsc_rate;
 
     /* Submit initial I/O for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -480,13 +490,17 @@ static int work_fn(void *arg)
          */
         TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
         {
-            log_debug("for each: {}", ns_ctx->io_completed);
+            log_debug("\tfor each : {}", ns_ctx->io_completed);
             check_io(ns_ctx);
         }
 
-        if (ns_ctx->io_completed > append_times) {
+        // if (ns_ctx->io_completed > append_times) {
+        //     break;
+        // }
+        if (spdk_get_ticks() > tsc_end) {
             break;
         }
+        log_debug("one loop: {}", ns_ctx->io_completed);
     }
 
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -590,8 +604,10 @@ int main(int argc, char **argv)
     /* Launch all of the secondary workers */
     main_core = spdk_env_get_current_core();
     main_worker = NULL;
+    log_debug("main core {}", main_core);
     TAILQ_FOREACH(worker, &g_workers, link)
     {
+        log_debug("TAIL for core {}", worker->lcore);
         if (worker->lcore != main_core) {
             spdk_env_thread_launch_pinned(worker->lcore, work_fn, worker);
         } else {
