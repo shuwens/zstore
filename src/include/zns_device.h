@@ -1,4 +1,3 @@
-
 #pragma once
 #include "spdk/env.h"
 #include "spdk/event.h"
@@ -788,4 +787,298 @@ int z_destroy_qpair(struct ns_worker_ctx *ns_ctx)
     ns_ctx = NULL;
     free(ns_ctx->qpair);
     return 0;
+}
+
+static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
+{
+    struct ns_entry *entry;
+    const struct spdk_nvme_ctrlr_data *cdata;
+
+    cdata = spdk_nvme_ctrlr_get_data(ctrlr);
+
+    if (spdk_nvme_ns_get_size(ns) < g_zstore.io_size_bytes ||
+        spdk_nvme_ns_get_extended_sector_size(ns) > g_zstore.io_size_bytes ||
+        g_zstore.io_size_bytes % spdk_nvme_ns_get_extended_sector_size(ns)) {
+        printf("WARNING: controller %-20.20s (%-20.20s) ns %u has invalid "
+               "ns size %" PRIu64 " / block size %u for I/O size %u\n",
+               cdata->mn, cdata->sn, spdk_nvme_ns_get_id(ns),
+               spdk_nvme_ns_get_size(ns),
+               spdk_nvme_ns_get_extended_sector_size(ns),
+               g_zstore.io_size_bytes);
+        return;
+    }
+
+    entry = (struct ns_entry *)malloc(sizeof(struct ns_entry));
+    if (entry == NULL) {
+        perror("ns_entry malloc");
+        exit(1);
+    }
+
+    entry->nvme.ctrlr = ctrlr;
+    entry->nvme.ns = ns;
+
+    entry->size_in_ios = spdk_nvme_ns_get_size(ns) / g_zstore.io_size_bytes;
+    entry->io_size_blocks =
+        g_zstore.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
+
+    snprintf(entry->name, 44, "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
+
+    g_zstore.num_namespaces++;
+    TAILQ_INSERT_TAIL(&g_namespaces, entry, link);
+}
+
+static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
+{
+    uint32_t nsid;
+    struct spdk_nvme_ns *ns;
+
+    struct ctrlr_entry *entry =
+        (struct ctrlr_entry *)calloc(1, sizeof(struct ctrlr_entry));
+    union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
+    const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
+
+    if (entry == NULL) {
+        perror("ctrlr_entry malloc");
+        exit(1);
+    }
+
+    snprintf(entry->name, sizeof(entry->name), "%-20.20s (%-20.20s)", cdata->mn,
+             cdata->sn);
+
+    entry->ctrlr = ctrlr;
+    TAILQ_INSERT_TAIL(&g_controllers, entry, link);
+
+    for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
+         nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
+        log_info("getting ns {}", nsid);
+        ns = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
+        if (ns == NULL) {
+            continue;
+        }
+        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+            log_info("ns {} is not zns ns", nsid);
+            continue;
+        }
+        register_ns(ctrlr, ns);
+        // FIXME: why is it getting namespace 1 2 again?
+        // force exit when we have two namespace
+        break;
+    }
+}
+
+static int register_workers(void)
+{
+    log_info("reg worksers");
+    uint32_t i;
+    struct worker_thread *worker;
+    // enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
+
+    SPDK_ENV_FOREACH_CORE(i)
+    {
+        worker = (struct worker_thread *)calloc(1, sizeof(*worker));
+        if (worker == NULL) {
+            fprintf(stderr, "Unable to allocate worker\n");
+            return -1;
+        }
+
+        TAILQ_INIT(&worker->ns_ctx);
+        worker->lcore = i;
+        TAILQ_INSERT_TAIL(&g_workers, worker, link);
+        g_zstore.num_workers++;
+        // FIXME: we have 4 cores, but we only want 1 worker for now
+        if (g_zstore.num_workers == 1)
+            break;
+    }
+    return 0;
+}
+
+static void zns_dev_init(struct zstore_context *ctx, std::string ip1,
+                         std::string port1, std::string ip2, std::string port2)
+{
+    int rc = 0;
+    // FIXME
+    // allocate space for times
+    // ctx->stimes.reserve(append_times);
+    // ctx->m1.etimes.reserve(append_times);
+    // ctx->m2.stimes.reserve(append_times);
+    // ctx->m2.etimes.reserve(append_times);
+
+    if (ctx->verbose)
+        log_info("Successfully started the application\n");
+
+    // 1. connect nvmf device
+    struct spdk_nvme_transport_id trid1 = {};
+    snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
+    snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
+    snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
+    trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_transport_id trid2 = {};
+    snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
+    snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
+    snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
+    trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_ctrlr_opts opts;
+    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
+    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+
+    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+    // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
+
+    log_info("Found {} namspaces", g_zstore.num_namespaces);
+}
+
+static int register_controllers(struct zstore_context *ctx)
+{
+    log_info("Initializing NVMe Controllers");
+
+    zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
+
+    if (g_zstore.num_namespaces == 0) {
+        fprintf(stderr, "No valid namespaces to continue IO testing\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+static void unregister_controllers(void)
+{
+    struct ctrlr_entry *entry, *tmp;
+    struct spdk_nvme_detach_ctx *detach_ctx = NULL;
+
+    TAILQ_FOREACH_SAFE(entry, &g_controllers, link, tmp)
+    {
+        TAILQ_REMOVE(&g_controllers, entry, link);
+        // if (g_zstore.latency_tracking_enable &&
+        //     spdk_nvme_ctrlr_is_feature_supported(
+        //         entry->ctrlr, SPDK_NVME_INTEL_FEAT_LATENCY_TRACKING)) {
+        //     set_latency_tracking_feature(entry->ctrlr, false);
+        // }
+        spdk_nvme_detach_async(entry->ctrlr, &detach_ctx);
+        free(entry);
+    }
+
+    while (detach_ctx && spdk_nvme_detach_poll_async(detach_ctx) == -EAGAIN) {
+        ;
+    }
+}
+
+static int associate_workers_with_ns(int current_zone)
+{
+    struct ns_entry *entry = TAILQ_FIRST(&g_namespaces);
+    struct worker_thread *worker = TAILQ_FIRST(&g_workers);
+    struct ns_worker_ctx *ns_ctx;
+    int i, count;
+
+    count = g_zstore.num_namespaces > g_zstore.num_workers
+                ? g_zstore.num_namespaces
+                : g_zstore.num_workers;
+    log_info("worker {}, ns {}, count {}", g_zstore.num_workers,
+             g_zstore.num_namespaces, count);
+    // FIXME:
+    count = 1;
+
+    for (i = 0; i < count; i++) {
+        if (entry == NULL) {
+            break;
+        }
+
+        ns_ctx = (struct ns_worker_ctx *)malloc(sizeof(struct ns_worker_ctx));
+        if (!ns_ctx) {
+            return 1;
+        }
+        memset(ns_ctx, 0, sizeof(*ns_ctx));
+
+        printf("Associating %s with lcore %d\n", entry->name, worker->lcore);
+        ns_ctx->entry = entry;
+        TAILQ_INSERT_TAIL(&worker->ns_ctx, ns_ctx, link);
+
+        worker = TAILQ_NEXT(worker, link);
+        if (worker == NULL) {
+            worker = TAILQ_FIRST(&g_workers);
+        }
+
+        entry = TAILQ_NEXT(entry, link);
+        if (entry == NULL) {
+            entry = TAILQ_FIRST(&g_namespaces);
+        }
+    }
+
+    return 0;
+}
+
+static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx)
+{
+    log_debug("init ns worker ctx");
+    struct spdk_nvme_ctrlr *ctrlr = ns_ctx->entry->nvme.ctrlr;
+    struct spdk_nvme_io_qpair_opts opts;
+
+    log_debug("init ns worker ctx2");
+    spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
+    // opts.qprio = qprio;
+
+    log_debug("init ns worker ctx3");
+    ns_ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
+    if (!ns_ctx->qpair) {
+        printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
+        return 1;
+    }
+
+    log_debug("init ns worker ctx4");
+    return 0;
+}
+
+static void cleanup_ns_worker_ctx(struct ns_worker_ctx *ns_ctx)
+{
+    spdk_nvme_ctrlr_free_io_qpair(ns_ctx->qpair);
+}
+
+static void cleanup(uint32_t task_count)
+{
+    struct ns_entry *entry, *tmp_entry;
+    struct worker_thread *worker, *tmp_worker;
+    struct ns_worker_ctx *ns_ctx, *tmp_ns_ctx;
+
+    TAILQ_FOREACH_SAFE(entry, &g_namespaces, link, tmp_entry)
+    {
+        TAILQ_REMOVE(&g_namespaces, entry, link);
+        free(entry);
+    };
+
+    TAILQ_FOREACH_SAFE(worker, &g_workers, link, tmp_worker)
+    {
+        TAILQ_REMOVE(&g_workers, worker, link);
+
+        /* ns_worker_ctx is a list in the worker */
+        TAILQ_FOREACH_SAFE(ns_ctx, &worker->ns_ctx, link, tmp_ns_ctx)
+        {
+            TAILQ_REMOVE(&worker->ns_ctx, ns_ctx, link);
+            free(ns_ctx);
+        }
+
+        free(worker);
+    };
+
+    if (spdk_mempool_count(task_pool) != (size_t)task_count) {
+        fprintf(stderr, "task_pool count is %zu but should be %u\n",
+                spdk_mempool_count(task_pool), task_count);
+    }
+    spdk_mempool_free(task_pool);
+}
+
+static void zstore_cleanup(u32 task_count)
+{
+
+    unregister_controllers();
+    cleanup(task_count);
+
+    spdk_env_fini();
+
+    // if (rc != 0) {
+    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
+    // }
 }
