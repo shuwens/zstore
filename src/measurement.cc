@@ -309,21 +309,22 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         ns_ctx->offset_in_ios = 0;
     }
 
-    if ((g_zstore.rw_percentage == 100) ||
-        (g_zstore.rw_percentage != 0 &&
-         ((rand_r(&seed) % 100) < g_zstore.rw_percentage))) {
-
-        log_debug("read ");
-        rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                   offset_in_ios * entry->io_size_blocks,
-                                   entry->io_size_blocks, io_complete, task, 0);
-    } else {
-        log_debug("write");
-        rc =
-            spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                   offset_in_ios * entry->io_size_blocks,
-                                   entry->io_size_blocks, io_complete, task, 0);
-    }
+    // if ((g_zstore.rw_percentage == 100) ||
+    //     (g_zstore.rw_percentage != 0 &&
+    //      ((rand_r(&seed) % 100) < g_zstore.rw_percentage))) {
+    //
+    log_debug("read ");
+    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                               offset_in_ios * entry->io_size_blocks,
+                               entry->io_size_blocks, io_complete, task, 0);
+    // } else {
+    //     log_debug("write");
+    //     rc =
+    //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                                offset_in_ios * entry->io_size_blocks,
+    //                                entry->io_size_blocks, io_complete, task,
+    //                                0);
+    // }
 
     if (rc != 0) {
         fprintf(stderr, "starting I/O failed\n");
