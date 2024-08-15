@@ -63,7 +63,10 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     //     (g_zstore.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_zstore.rw_percentage))) {
     //
-    log_debug("read ");
+    // log_debug("read ");
+    // log_debug("\tSUBMIT IO: io completed {}, current qd {}, offset {}",
+    //           ns_ctx->io_completed, ns_ctx->current_queue_depth,
+    //           ns_ctx->offset_in_ios);
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                offset_in_ios * entry->io_size_blocks,
                                entry->io_size_blocks, io_complete, task, 0);
@@ -112,6 +115,9 @@ static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
 
 static void check_io(struct ns_worker_ctx *ns_ctx)
 {
+    // log_debug("\tCHECK IO: io completed {}, current qd {}, offset {}",
+    //           ns_ctx->io_completed, ns_ctx->current_queue_depth,
+    //           ns_ctx->offset_in_ios);
     spdk_nvme_qpair_process_completions(ns_ctx->qpair,
                                         g_zstore.max_completions);
 }
@@ -152,6 +158,8 @@ static int work_fn(void *arg)
     }
 
     tsc_end = spdk_get_ticks() + g_zstore.time_in_sec * g_zstore.tsc_rate;
+    log_debug("ticks {}, tsc end {}, delta {}", spdk_get_ticks(), tsc_end,
+              g_zstore.time_in_sec * g_zstore.tsc_rate);
 
     /* Submit initial I/O for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -160,8 +168,6 @@ static int work_fn(void *arg)
     }
 
     while (1) {
-        log_debug("while");
-        // crashes
         /*
          * Check for completed I/O for each controller. A new
          * I/O will be submitted in the io_complete callback
@@ -169,7 +175,7 @@ static int work_fn(void *arg)
          */
         TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
         {
-            log_debug("\tfor each : {}", ns_ctx->io_completed);
+            // log_debug("\tfor each : {}", ns_ctx->io_completed);
             check_io(ns_ctx);
         }
 
@@ -177,15 +183,19 @@ static int work_fn(void *arg)
         //     break;
         // }
         if (spdk_get_ticks() > tsc_end) {
+            log_debug("ticks {}, tsc end {}", spdk_get_ticks(), tsc_end);
             break;
         }
-        log_debug("one loop: {}", ns_ctx->io_completed);
+        // log_debug("one loop: {}", ns_ctx->io_completed);
     }
 
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     {
         drain_io(ns_ctx);
         cleanup_ns_worker_ctx(ns_ctx);
+        log_debug("\t io completed {}, current qd {}, offset {}",
+                  ns_ctx->io_completed, ns_ctx->current_queue_depth,
+                  ns_ctx->offset_in_ios);
     }
 
     return 0;
@@ -208,6 +218,11 @@ int main(int argc, char **argv)
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
     opts.core_mask = g_zstore.core_mask;
     // opts.shm_id = g_zstore.shm_id;
+
+    // g_zstore.tsc_rate = spdk_get_ticks_hz();
+    g_zstore.tsc_rate = 10'000'000;
+    log_error("tsc rate {}", g_zstore.tsc_rate);
+
     if (spdk_env_init(&opts) < 0) {
         return 1;
     }
@@ -295,11 +310,11 @@ int main(int argc, char **argv)
         }
     }
 
-    log_debug("1\n");
+    // log_debug("1\n");
     assert(main_worker != NULL);
     rc = work_fn(main_worker);
 
-    log_debug("1\n");
+    // log_debug("1\n");
     spdk_env_thread_wait_all();
 
     // print_stats();
