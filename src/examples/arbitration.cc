@@ -2,14 +2,20 @@
  *   Copyright (C) 2016 Intel Corporation.
  *   All rights reserved.
  */
-
-#include "spdk/stdinc.h"
-
 #include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
 #include "spdk/string.h"
+#include <bits/stdc++.h>
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
+#include <fmt/core.h>
+#include <stdio.h>
+#include <vector>
+
+using chrono_tp = std::chrono::high_resolution_clock::time_point;
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -38,6 +44,12 @@ struct ns_worker_ctx {
     bool is_draining;
     struct spdk_nvme_qpair *qpair;
     TAILQ_ENTRY(ns_worker_ctx) link;
+
+    // latency tracking
+    chrono_tp stime;
+    chrono_tp etime;
+    std::vector<chrono_tp> stimes;
+    std::vector<chrono_tp> etimes;
 };
 
 struct arb_task {
@@ -209,7 +221,8 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
 {
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
-    struct ctrlr_entry *entry = (struct ctrlr_entry *)calloc(1, sizeof(struct ctrlr_entry));
+    struct ctrlr_entry *entry =
+        (struct ctrlr_entry *)calloc(1, sizeof(struct ctrlr_entry));
     union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
     const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
 
@@ -286,10 +299,15 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     if ((g_arbitration.rw_percentage == 100) ||
         (g_arbitration.rw_percentage != 0 &&
          ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
+        ns_ctx->stime = std::chrono::high_resolution_clock::now();
+        ns_ctx->stimes.push_back(ns_ctx->stime);
+
         rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                    offset_in_ios * entry->io_size_blocks,
                                    entry->io_size_blocks, io_complete, task, 0);
     } else {
+        ns_ctx->stime = std::chrono::high_resolution_clock::now();
+        ns_ctx->stimes.push_back(ns_ctx->stime);
         rc =
             spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                    offset_in_ios * entry->io_size_blocks,
@@ -310,6 +328,8 @@ static void task_complete(struct arb_task *task)
     ns_ctx = task->ns_ctx;
     ns_ctx->current_queue_depth--;
     ns_ctx->io_completed++;
+    ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    ns_ctx->etimes.push_back(ns_ctx->etime);
 
     spdk_dma_free(task->buf);
     spdk_mempool_put(task_pool, task);
@@ -365,6 +385,10 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
         printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
         return 1;
     }
+
+    // allocate space for times
+    ns_ctx->stimes.reserve(1000000);
+    ns_ctx->etimes.reserve(1000000);
 
     return 0;
 }
@@ -451,6 +475,40 @@ static int work_fn(void *arg)
     {
         drain_io(ns_ctx);
         cleanup_ns_worker_ctx(ns_ctx);
+
+        std::vector<uint64_t> deltas1;
+        // std::vector<u64> deltas2;
+        for (int i = 0; i < ns_ctx->stimes.size(); i++) {
+            deltas1.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ns_ctx->etimes[i] - ns_ctx->stimes[i])
+                    .count());
+            // deltas2.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+            //                       ctx->m2.etimes[i] - ctx->m2.stimes[i])
+            //                       .count());
+        }
+        auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        // auto sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
+        auto mean1 = sum1 / deltas1.size();
+        // auto mean2 = sum2 / deltas2.size();
+        auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+                                          deltas1.begin(), 0.0);
+        // auto sq_sum2 = std::inner_product(deltas2.begin(), deltas2.end(),
+        //                                   deltas2.begin(), 0.0);
+        auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        // auto stdev2 = std::sqrt(sq_sum2 / deltas2.size() - mean2 * mean2);
+        printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth, mean1,
+               stdev1);
+        // log_info("WRITES-2 qd {}, append: mean {} us, std {}", ctx->qd,
+        // mean2,
+        //          stdev2);
+
+        // clearnup
+        deltas1.clear();
+        // deltas2.clear();
+        ns_ctx->etimes.clear();
+        // ctx->m1.etimes.clear();
+        ns_ctx->stimes.clear();
     }
 
     return 0;
@@ -819,10 +877,12 @@ static int register_workers(void)
         g_arbitration.num_workers++;
 
         if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR) {
-            qprio = static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) + 1);
+            qprio =
+                static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) + 1);
         }
 
-        worker->qprio = static_cast<enum spdk_nvme_qprio>(qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
+        worker->qprio = static_cast<enum spdk_nvme_qprio>(
+            qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
     }
 
     return 0;
@@ -832,7 +892,8 @@ static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
                      struct spdk_nvme_ctrlr_opts *opts)
 {
     /* Update with user specified arbitration configuration */
-    opts->arb_mechanism = static_cast<enum spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
+    opts->arb_mechanism =
+        static_cast<enum spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
 
     printf("Attaching to %s\n", trid->traddr);
 

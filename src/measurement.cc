@@ -63,13 +63,17 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     //     (g_zstore.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_zstore.rw_percentage))) {
     //
-    // log_debug("read ");
     // log_debug("\tSUBMIT IO: io completed {}, current qd {}, offset {}",
     //           ns_ctx->io_completed, ns_ctx->current_queue_depth,
     //           ns_ctx->offset_in_ios);
+
+    ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    ns_ctx->stimes.push_back(ns_ctx->stime);
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                offset_in_ios * entry->io_size_blocks,
                                entry->io_size_blocks, io_complete, task, 0);
+    // log_debug("read {}, stime {}", ns_ctx->io_completed, ns_ctx->stime);
+
     // } else {
     //     log_debug("write");
     //     rc =
@@ -93,6 +97,9 @@ static void task_complete(struct zstore_task *task)
     ns_ctx = task->ns_ctx;
     ns_ctx->current_queue_depth--;
     ns_ctx->io_completed++;
+    ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    ns_ctx->etimes.push_back(ns_ctx->etime);
+    // log_debug("read {}, etime {}", ns_ctx->io_completed, ns_ctx->etime);
 
     spdk_dma_free(task->buf);
     spdk_mempool_put(task_pool, task);
@@ -177,16 +184,16 @@ static int work_fn(void *arg)
         {
             // log_debug("\tfor each : {}", ns_ctx->io_completed);
             check_io(ns_ctx);
+
+            if (ns_ctx->io_completed > append_times) {
+                break;
+            }
         }
 
-        // if (ns_ctx->io_completed > append_times) {
-        //     break;
-        // }
         if (spdk_get_ticks() > tsc_end) {
             log_debug("ticks {}, tsc end {}", spdk_get_ticks(), tsc_end);
             break;
         }
-        // log_debug("one loop: {}", ns_ctx->io_completed);
     }
 
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -196,9 +203,126 @@ static int work_fn(void *arg)
         log_debug("\t io completed {}, current qd {}, offset {}",
                   ns_ctx->io_completed, ns_ctx->current_queue_depth,
                   ns_ctx->offset_in_ios);
+
+        log_debug("\t stimes size {}, etimes size {}", ns_ctx->stimes.size(),
+                  ns_ctx->etimes.size());
+
+        std::vector<u64> deltas1;
+        // std::vector<u64> deltas2;
+        for (int i = 0; i < ns_ctx->stimes.size(); i++) {
+            deltas1.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ns_ctx->etimes[i] - ns_ctx->stimes[i])
+                    .count());
+            // deltas2.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+            //                       ctx->m2.etimes[i] - ctx->m2.stimes[i])
+            //                       .count());
+        }
+        auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        // auto sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
+        auto mean1 = sum1 / deltas1.size();
+        // auto mean2 = sum2 / deltas2.size();
+        auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+                                          deltas1.begin(), 0.0);
+        // auto sq_sum2 = std::inner_product(deltas2.begin(), deltas2.end(),
+        //                                   deltas2.begin(), 0.0);
+        auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        // auto stdev2 = std::sqrt(sq_sum2 / deltas2.size() - mean2 * mean2);
+        log_info("WRITES-1 qd {}, append: mean {} us, std {}",
+                 ns_ctx->current_queue_depth, mean1, stdev1);
+        // log_info("WRITES-2 qd {}, append: mean {} us, std {}", ctx->qd,
+        // mean2,
+        //          stdev2);
+
+        // clearnup
+        deltas1.clear();
+        // deltas2.clear();
+        ns_ctx->stimes.clear();
+        // ctx->m1.etimes.clear();
+        ns_ctx->stimes.clear();
+        // ctx->m2.etimes.clear();
     }
 
     return 0;
+}
+
+static void print_performance(void)
+{
+    float io_per_second, sent_all_io_in_secs;
+    struct worker_thread *worker;
+    struct ns_worker_ctx *ns_ctx;
+
+    TAILQ_FOREACH(worker, &g_workers, link)
+    {
+        TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
+        {
+            io_per_second = (float)ns_ctx->io_completed / g_zstore.time_in_sec;
+            sent_all_io_in_secs = g_zstore.io_count / io_per_second;
+            printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
+                   ns_ctx->entry->name, worker->lcore, io_per_second,
+                   sent_all_io_in_secs, g_zstore.io_count);
+        }
+    }
+    printf("========================================================\n");
+
+    printf("\n");
+}
+
+static void print_latency_statistics(const char *op_name,
+                                     enum spdk_nvme_intel_log_page log_page)
+{
+    struct ctrlr_entry *ctrlr;
+
+    printf("%s Latency Statistics:\n", op_name);
+    printf("========================================================\n");
+    TAILQ_FOREACH(ctrlr, &g_controllers, link)
+    {
+        if (spdk_nvme_ctrlr_is_log_page_supported(ctrlr->ctrlr, log_page)) {
+            // if (spdk_nvme_ctrlr_cmd_get_log_page(
+            //         ctrlr->ctrlr, log_page, SPDK_NVME_GLOBAL_NS_TAG,
+            //         &ctrlr->latency_page,
+            //         sizeof(struct spdk_nvme_intel_rw_latency_page), 0,
+            //         enable_latency_tracking_complete, NULL)) {
+            //     printf("nvme_ctrlr_cmd_get_log_page() failed\n");
+            //     exit(1);
+            // }
+
+            g_zstore.outstanding_commands++;
+        } else {
+            printf("Controller %s: %s latency statistics not supported\n",
+                   ctrlr->name, op_name);
+        }
+    }
+
+    while (g_zstore.outstanding_commands) {
+        TAILQ_FOREACH(ctrlr, &g_controllers, link)
+        {
+            spdk_nvme_ctrlr_process_admin_completions(ctrlr->ctrlr);
+        }
+    }
+
+    TAILQ_FOREACH(ctrlr, &g_controllers, link)
+    {
+        // if (spdk_nvme_ctrlr_is_log_page_supported(ctrlr->ctrlr, log_page)) {
+        //     print_latency_page(ctrlr);
+        // }
+    }
+    printf("\n");
+}
+
+static void print_stats(void)
+{
+    print_performance();
+    // if (g_arbitration.latency_tracking_enable) {
+    //     if (g_arbitration.rw_percentage != 0) {
+    //         print_latency_statistics("Read",
+    //                                  SPDK_NVME_INTEL_LOG_READ_CMD_LATENCY);
+    //     }
+    //     if (g_arbitration.rw_percentage != 100) {
+    //         print_latency_statistics("Write",
+    //                                  SPDK_NVME_INTEL_LOG_WRITE_CMD_LATENCY);
+    //     }
+    // }
 }
 
 int main(int argc, char **argv)
@@ -317,8 +441,7 @@ int main(int argc, char **argv)
     // log_debug("1\n");
     spdk_env_thread_wait_all();
 
-    // print_stats();
-
+    print_stats();
     log_info("zstore exits gracefully");
     zstore_cleanup(task_count);
 

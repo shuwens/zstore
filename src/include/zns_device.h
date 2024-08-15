@@ -24,7 +24,7 @@ const int zone_num = 1;
 u64 zone_dist = 0x80000; // zone size
 
 // const int append_times = 64;
-const int append_times = 1000;
+const int append_times = 10000;
 // const int append_times = 12800;
 // const int append_times = 16000;
 // const int append_times = 12800;
@@ -140,9 +140,10 @@ static struct zstore_context g_zstore = {
     .num_namespaces = 0,
     .num_workers = 0,
     .rw_percentage = 50,
-    .queue_depth = 64,
-    // .time_in_sec = 60,
+    // .queue_depth = 64,
+    .queue_depth = 2,
     .time_in_sec = 600,
+    .tsc_rate = 100000,
     .io_count = 100000,
     // .latency_tracking_enable = 0,
     // .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
@@ -897,13 +898,6 @@ static void zns_dev_init(struct zstore_context *ctx, std::string ip1,
                          std::string port1, std::string ip2, std::string port2)
 {
     int rc = 0;
-    // FIXME
-    // allocate space for times
-    // ctx->stimes.reserve(append_times);
-    // ctx->m1.etimes.reserve(append_times);
-    // ctx->m2.stimes.reserve(append_times);
-    // ctx->m2.etimes.reserve(append_times);
-
     if (ctx->verbose)
         log_info("Successfully started the application\n");
 
@@ -1014,22 +1008,22 @@ static int associate_workers_with_ns(int current_zone)
 
 static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx)
 {
-    log_debug("init ns worker ctx");
     struct spdk_nvme_ctrlr *ctrlr = ns_ctx->entry->nvme.ctrlr;
     struct spdk_nvme_io_qpair_opts opts;
 
-    log_debug("init ns worker ctx2");
     spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
     // opts.qprio = qprio;
 
-    log_debug("init ns worker ctx3");
     ns_ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
     if (!ns_ctx->qpair) {
         printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
         return 1;
     }
 
-    log_debug("init ns worker ctx4");
+    // allocate space for times
+    ns_ctx->stimes.reserve(append_times);
+    ns_ctx->etimes.reserve(append_times);
+
     return 0;
 }
 

@@ -201,6 +201,13 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
+executable(
+	'arbitration',
+	files('src/examples/arbitration.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 
 # executable(
 # 	'nvmf',
