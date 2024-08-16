@@ -451,6 +451,8 @@ static int work_fn(void *arg)
 
     tsc_end =
         spdk_get_ticks() + g_arbitration.time_in_sec * g_arbitration.tsc_rate;
+    // printf("tick %s, time in sec %s, tsc rate %s", spdk_get_ticks(),
+    //        g_arbitration.time_in_sec, g_arbitration.tsc_rate);
 
     /* Submit initial I/O for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -962,6 +964,8 @@ static int associate_workers_with_ns(void)
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
 
+    printf("DEBUG ns %d, workers %d, count %d\n", g_arbitration.num_namespaces,
+           g_arbitration.num_workers, count);
     for (i = 0; i < count; i++) {
         if (entry == NULL) {
             break;
@@ -1139,6 +1143,7 @@ int main(int argc, char **argv)
     }
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
+    printf("DEBUG %d\n", spdk_get_ticks_hz());
 
     if (register_workers() != 0) {
         rc = 1;

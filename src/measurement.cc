@@ -313,16 +313,25 @@ static void print_latency_statistics(const char *op_name,
 static void print_stats(void)
 {
     print_performance();
-    // if (g_arbitration.latency_tracking_enable) {
-    //     if (g_arbitration.rw_percentage != 0) {
+    // if (g_zstore.latency_tracking_enable) {
+    //     if (g_zstore.rw_percentage != 0) {
     //         print_latency_statistics("Read",
     //                                  SPDK_NVME_INTEL_LOG_READ_CMD_LATENCY);
     //     }
-    //     if (g_arbitration.rw_percentage != 100) {
+    //     if (g_zstore.rw_percentage != 100) {
     //         print_latency_statistics("Write",
     //                                  SPDK_NVME_INTEL_LOG_WRITE_CMD_LATENCY);
     //     }
     // }
+}
+
+static void print_configuration(char *program_name)
+{
+    printf("%s run with configuration:\n", program_name);
+    printf("%s -q %d -s %d -w %s -t %d -c %s -m %d -n %d\n", program_name,
+           g_zstore.queue_depth, g_zstore.io_size_bytes, g_zstore.workload_type,
+           g_zstore.time_in_sec, g_zstore.core_mask, g_zstore.max_completions,
+           g_zstore.io_count);
 }
 
 int main(int argc, char **argv)
@@ -417,6 +426,7 @@ int main(int argc, char **argv)
     //     SPDK_ERRLOG("ERROR starting application\n");
     // }
 
+    print_configuration(argv[0]);
     log_info("Initialization complete. Launching workers.\n");
 
     /* Launch all of the secondary workers */
