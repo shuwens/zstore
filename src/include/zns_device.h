@@ -139,16 +139,16 @@ static struct zstore_context g_zstore = {
     .outstanding_commands = 0,
     .num_namespaces = 0,
     .num_workers = 0,
-    .rw_percentage = 50,
-    .queue_depth = 64,
+    // .rw_percentage = 50,
     // .queue_depth = 2,
-    .time_in_sec = 600,
-    .tsc_rate = 100000,
+    .queue_depth = 64,
+    .time_in_sec = 60,
     .io_count = 100000,
     // .latency_tracking_enable = 0,
     // .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     // .arbitration_config = 0,
-    .io_size_bytes = 131072,
+    .io_size_bytes = 4096,
+    // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     .core_mask = "0xf",
@@ -859,7 +859,9 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         }
         if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
             log_info("ns {} is not zns ns", nsid);
-            continue;
+            // continue;
+        } else {
+            log_info("ns {} is zns ns", nsid);
         }
         register_ns(ctrlr, ns);
         // FIXME: why is it getting namespace 1 2 again?

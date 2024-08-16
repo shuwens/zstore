@@ -351,14 +351,11 @@ int main(int argc, char **argv)
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
     opts.core_mask = g_zstore.core_mask;
     // opts.shm_id = g_zstore.shm_id;
-
-    // g_zstore.tsc_rate = spdk_get_ticks_hz();
-    g_zstore.tsc_rate = 10'000'000;
-    log_error("tsc rate {}", g_zstore.tsc_rate);
-
     if (spdk_env_init(&opts) < 0) {
         return 1;
     }
+
+    g_zstore.tsc_rate = spdk_get_ticks_hz();
 
     if (register_workers() != 0) {
         rc = 1;

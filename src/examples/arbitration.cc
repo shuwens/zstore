@@ -113,7 +113,8 @@ static struct arb_context g_arbitration = {
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
-    .io_size_bytes = 131072,
+    .io_size_bytes = 4096,
+    // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     .core_mask = "0xf",
@@ -249,6 +250,7 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         if (ns == NULL) {
             continue;
         }
+        printf("registering ns: %d\n", nsid);
         register_ns(ctrlr, ns);
     }
 
@@ -296,23 +298,24 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         }
     }
 
-    if ((g_arbitration.rw_percentage == 100) ||
-        (g_arbitration.rw_percentage != 0 &&
-         ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-        ns_ctx->stime = std::chrono::high_resolution_clock::now();
-        ns_ctx->stimes.push_back(ns_ctx->stime);
+    // if ((g_arbitration.rw_percentage == 100) ||
+    //     (g_arbitration.rw_percentage != 0 &&
+    //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
+    ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    ns_ctx->stimes.push_back(ns_ctx->stime);
 
-        rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                   offset_in_ios * entry->io_size_blocks,
-                                   entry->io_size_blocks, io_complete, task, 0);
-    } else {
-        ns_ctx->stime = std::chrono::high_resolution_clock::now();
-        ns_ctx->stimes.push_back(ns_ctx->stime);
-        rc =
-            spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                   offset_in_ios * entry->io_size_blocks,
-                                   entry->io_size_blocks, io_complete, task, 0);
-    }
+    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                               offset_in_ios * entry->io_size_blocks,
+                               entry->io_size_blocks, io_complete, task, 0);
+    // } else {
+    //     ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    //     ns_ctx->stimes.push_back(ns_ctx->stime);
+    //     rc =
+    //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                                offset_in_ios * entry->io_size_blocks,
+    //                                entry->io_size_blocks, io_complete, task,
+    //                                0);
+    // }
 
     if (rc != 0) {
         fprintf(stderr, "starting I/O failed\n");
@@ -451,8 +454,11 @@ static int work_fn(void *arg)
 
     tsc_end =
         spdk_get_ticks() + g_arbitration.time_in_sec * g_arbitration.tsc_rate;
-    // printf("tick %s, time in sec %s, tsc rate %s", spdk_get_ticks(),
-    //        g_arbitration.time_in_sec, g_arbitration.tsc_rate);
+    printf("tick %s, tsc end %d, time in sec %s, tsc rate %s\n",
+           spdk_get_ticks(), tsc_end, g_arbitration.time_in_sec,
+           g_arbitration.tsc_rate);
+    // log_debug("ticks {}, tsc end {}, delta {}", spdk_get_ticks(), tsc_end,
+    //           g_zstore.time_in_sec * g_zstore.tsc_rate);
 
     /* Submit initial I/O for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -1125,13 +1131,13 @@ int main(int argc, char **argv)
     unsigned main_core;
     char task_pool_name[30];
     uint32_t task_count = 0;
-    struct spdk_env_opts opts;
 
     rc = parse_args(argc, argv);
     if (rc != 0) {
         return rc;
     }
 
+    struct spdk_env_opts opts;
     spdk_env_opts_init(&opts);
     opts.name = "arb";
     opts.mem_size = g_dpdk_mem;
