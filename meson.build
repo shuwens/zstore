@@ -201,14 +201,31 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
+
+# nvmf arbitration
 executable(
-	'nvmf',
-	files('src/arbitration.cc'),
+	'test_read',
+	files('src/arbitration_read.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'test_write',
+	files('src/arbitration_write.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'test_append',
+	files('src/arbitration_append.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 
+# local
 executable(
 	'arbitration',
 	files('src/examples/arbitration.cc'),
