@@ -146,7 +146,8 @@ static struct zstore_context g_zstore = {
     // .latency_tracking_enable = 0,
     // .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     // .arbitration_config = 0,
-    .io_size_bytes = 131072,
+    // .io_size_bytes = 131072,
+    .io_size_bytes = 4096,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     .core_mask = "0xf",

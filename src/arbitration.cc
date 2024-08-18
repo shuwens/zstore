@@ -2,14 +2,21 @@
  *   Copyright (C) 2016 Intel Corporation.
  *   All rights reserved.
  */
-
 #include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
-#include "spdk/stdinc.h"
 #include "spdk/string.h"
-#include <string>
+#include <bits/stdc++.h>
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
+#include <fmt/core.h>
+#include <stdio.h>
+#include <vector>
+
+using chrono_tp = std::chrono::high_resolution_clock::time_point;
+static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -38,6 +45,12 @@ struct ns_worker_ctx {
     bool is_draining;
     struct spdk_nvme_qpair *qpair;
     TAILQ_ENTRY(ns_worker_ctx) link;
+
+    // latency tracking
+    chrono_tp stime;
+    chrono_tp etime;
+    std::vector<chrono_tp> stimes;
+    std::vector<chrono_tp> etimes;
 };
 
 struct arb_task {
@@ -101,10 +114,12 @@ static struct arb_context g_arbitration = {
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
-    .io_size_bytes = 131072,
+    .io_size_bytes = 4096,
+    // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
-    .core_mask = "0xf",
+    // .core_mask = "0xf",
+    .core_mask = "0x3",
     .workload_type = "randrw",
 };
 
@@ -237,9 +252,14 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         if (ns == NULL) {
             continue;
         }
+
+        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+            printf("ns %d is not zns ns\n", nsid);
+            // continue;
+        } else {
+            printf("ns %d is zns ns\n", nsid);
+        }
         register_ns(ctrlr, ns);
-        if (g_arbitration.num_namespaces == 1)
-            break;
     }
 
     if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR &&
@@ -289,10 +309,15 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // if ((g_arbitration.rw_percentage == 100) ||
     //     (g_arbitration.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
+    ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    ns_ctx->stimes.push_back(ns_ctx->stime);
+
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                offset_in_ios * entry->io_size_blocks,
                                entry->io_size_blocks, io_complete, task, 0);
     // } else {
+    //     ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    //     ns_ctx->stimes.push_back(ns_ctx->stime);
     //     rc =
     //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
     //                                offset_in_ios * entry->io_size_blocks,
@@ -314,6 +339,8 @@ static void task_complete(struct arb_task *task)
     ns_ctx = task->ns_ctx;
     ns_ctx->current_queue_depth--;
     ns_ctx->io_completed++;
+    ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    ns_ctx->etimes.push_back(ns_ctx->etime);
 
     spdk_dma_free(task->buf);
     spdk_mempool_put(task_pool, task);
@@ -369,6 +396,10 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
         printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
         return 1;
     }
+
+    // allocate space for times
+    ns_ctx->stimes.reserve(1000000);
+    ns_ctx->etimes.reserve(1000000);
 
     return 0;
 }
@@ -431,6 +462,8 @@ static int work_fn(void *arg)
 
     tsc_end =
         spdk_get_ticks() + g_arbitration.time_in_sec * g_arbitration.tsc_rate;
+    // printf("tick %s, time in sec %s, tsc rate %s", spdk_get_ticks(),
+    //        g_arbitration.time_in_sec, g_arbitration.tsc_rate);
 
     /* Submit initial I/O for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -455,6 +488,40 @@ static int work_fn(void *arg)
     {
         drain_io(ns_ctx);
         cleanup_ns_worker_ctx(ns_ctx);
+
+        std::vector<uint64_t> deltas1;
+        // std::vector<u64> deltas2;
+        for (int i = 0; i < ns_ctx->stimes.size(); i++) {
+            deltas1.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ns_ctx->etimes[i] - ns_ctx->stimes[i])
+                    .count());
+            // deltas2.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+            //                       ctx->m2.etimes[i] - ctx->m2.stimes[i])
+            //                       .count());
+        }
+        auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        // auto sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
+        auto mean1 = sum1 / deltas1.size();
+        // auto mean2 = sum2 / deltas2.size();
+        auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+                                          deltas1.begin(), 0.0);
+        // auto sq_sum2 = std::inner_product(deltas2.begin(), deltas2.end(),
+        //                                   deltas2.begin(), 0.0);
+        auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        // auto stdev2 = std::sqrt(sq_sum2 / deltas2.size() - mean2 * mean2);
+        printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth, mean1,
+               stdev1);
+        // log_info("WRITES-2 qd {}, append: mean {} us, std {}", ctx->qd,
+        // mean2,
+        //          stdev2);
+
+        // clearnup
+        deltas1.clear();
+        // deltas2.clear();
+        ns_ctx->etimes.clear();
+        // ctx->m1.etimes.clear();
+        ns_ctx->stimes.clear();
     }
 
     return 0;
@@ -827,7 +894,7 @@ static int register_workers(void)
                 static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) + 1);
         }
 
-        worker->qprio = static_cast<spdk_nvme_qprio>(
+        worker->qprio = static_cast<enum spdk_nvme_qprio>(
             qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
     }
 
@@ -858,18 +925,11 @@ static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
     register_ctrlr(ctrlr);
 }
 
-static int register_controllers(void)
+static void zns_dev_init(struct arb_context *ctx, std::string ip1,
+                         std::string port1, std::string ip2, std::string port2)
 {
-    printf("Initializing NVMe Controllers\n");
+    int rc = 0;
 
-    // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
-    //     fprintf(stderr, "spdk_nvme_probe() failed\n");
-    //     return 1;
-    // }
-
-    static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
-    std::string ip1 = "192.168.1.121";
-    std::string port1 = "4420";
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid1 = {};
     snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
@@ -878,13 +938,32 @@ static int register_controllers(void)
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
     trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
 
+    struct spdk_nvme_transport_id trid2 = {};
+    snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
+    snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
+    snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
+    trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
     memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
 
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+    register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
-    // register_ctrlr(ctrlr);
+    printf("Found %d namspaces\n", g_arbitration.num_namespaces);
+}
+
+static int register_controllers(struct arb_context *ctx)
+{
+    printf("Initializing NVMe Controllers\n");
+
+    zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
+    // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
+    //     fprintf(stderr, "spdk_nvme_probe() failed\n");
+    //     return 1;
+    // }
 
     if (g_arbitration.num_namespaces == 0) {
         fprintf(stderr, "No valid namespaces to continue IO testing\n");
@@ -926,7 +1005,9 @@ static int associate_workers_with_ns(void)
     count = g_arbitration.num_namespaces > g_arbitration.num_workers
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
-    count = 1;
+    count = 2;
+    printf("DEBUG ns %d, workers %d, count %d\n", g_arbitration.num_namespaces,
+           g_arbitration.num_workers, count);
     for (i = 0; i < count; i++) {
         if (entry == NULL) {
             break;
@@ -1079,6 +1160,19 @@ static int set_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
     return 0;
 }
 
+static void zstore_cleanup(uint32_t task_count)
+{
+
+    unregister_controllers();
+    cleanup(task_count);
+
+    spdk_env_fini();
+
+    // if (rc != 0) {
+    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
+    // }
+}
+
 int main(int argc, char **argv)
 {
     int rc;
@@ -1104,20 +1198,25 @@ int main(int argc, char **argv)
     }
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
+    printf("DEBUG %d\n", spdk_get_ticks_hz());
 
     if (register_workers() != 0) {
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
-    if (register_controllers() != 0) {
+    struct arb_context ctx = {};
+    if (register_controllers(&ctx) != 0) {
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
     if (associate_workers_with_ns() != 0) {
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
@@ -1138,7 +1237,8 @@ int main(int argc, char **argv)
     if (task_pool == NULL) {
         fprintf(stderr, "could not initialize task pool\n");
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
     print_configuration(argv[0]);
@@ -1165,15 +1265,6 @@ int main(int argc, char **argv)
 
     print_stats();
 
-exit:
-    unregister_controllers();
-    cleanup(task_count);
-
-    spdk_env_fini();
-
-    if (rc != 0) {
-        fprintf(stderr, "%s: errors occurred\n", argv[0]);
-    }
-
+    zstore_cleanup(task_count);
     return rc;
 }
