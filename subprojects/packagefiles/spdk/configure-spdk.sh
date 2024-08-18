@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 
-# TODO: rdma
 debug() {
   echo '===Building SPDK in debug mode...'
-  ./configure --enable-debug --with-shared --without-xnvme
+  ./configure --enable-debug  --with-rdma
 }
 
 release() {
   echo '===Building SPDK in release mode...'
-  ./configure --enable-debug --with-shared --without-xnvme
+  ./configure  --with-rdma
 }
 
 if [ $# -lt 1 ]; then

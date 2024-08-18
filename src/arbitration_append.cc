@@ -6,6 +6,7 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
+#include "spdk/nvme_zns.h"
 #include "spdk/string.h"
 #include <bits/stdc++.h>
 #include <chrono>
@@ -109,7 +110,7 @@ static struct arb_context g_arbitration = {
     .num_namespaces = 0,
     .rw_percentage = 50,
     .queue_depth = 64,
-    .time_in_sec = 60,
+    .time_in_sec = 9,
     .io_count = 100000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
@@ -312,9 +313,18 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // ns_ctx->stime = std::chrono::high_resolution_clock::now();
     // ns_ctx->stimes.push_back(ns_ctx->stime);
 
-    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                               offset_in_ios * entry->io_size_blocks,
-                               entry->io_size_blocks, io_complete, task, 0);
+    // Zone managment
+    const uint64_t zone_dist = 0x80000; // zone size
+    const int current_zone = 4;
+
+    auto zslba = zone_dist * current_zone;
+    rc = spdk_nvme_zns_zone_append(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                                   zslba, entry->io_size_blocks, io_complete,
+                                   task, 0);
+
+    // rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                            offset_in_ios * entry->io_size_blocks,
+    //                            entry->io_size_blocks, io_complete, task, 0);
     // } else {
     //     ns_ctx->stime = std::chrono::high_resolution_clock::now();
     //     ns_ctx->stimes.push_back(ns_ctx->stime);
