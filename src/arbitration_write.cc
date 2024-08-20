@@ -6,6 +6,7 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
+#include "spdk/nvme_zns.h"
 #include "spdk/string.h"
 #include <bits/stdc++.h>
 #include <chrono>
@@ -17,6 +18,7 @@
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+static const uint64_t zone_dist = 0x80000; // zone size
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -45,6 +47,10 @@ struct ns_worker_ctx {
     bool is_draining;
     struct spdk_nvme_qpair *qpair;
     TAILQ_ENTRY(ns_worker_ctx) link;
+
+    uint64_t wp;
+    int current_zone;
+    struct spdk_nvme_zns_zone_report *report;
 
     // latency tracking
     // chrono_tp stime;
@@ -319,12 +325,27 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 
     // ns_ctx->stime = std::chrono::high_resolution_clock::now();
     // ns_ctx->stimes.push_back(ns_ctx->stime);
-    const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 6;
-    auto zslba = zone_dist * current_zone;
+    // auto zslba = zone_dist * current_zone;
+
+    // struct spdk_nvme_zns_zone_desc *zdesc = &(report->descs[i]);
+    // uint64_t wp = ~0ull;
+    // uint64_t zslba = zdesc->zslba;
+
+    // if (zdesc->zs == SPDK_NVME_ZONE_STATE_FULL ||
+    //     zdesc->zs == SPDK_NVME_ZONE_STATE_IOPEN ||
+    //     zdesc->zs == SPDK_NVME_ZONE_STATE_EOPEN) {
+    //     if (zdesc->wp != zslba) {
+    //         wp = zdesc->wp;
+    //     }
+    // }
+
+    // if (wp == ~0ull) {
+    //   continue;
+    // }
 
     rc = spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                                zslba + offset_in_ios * entry->io_size_blocks,
+                                ns_ctx->wp +
+                                    offset_in_ios * entry->io_size_blocks,
                                 entry->io_size_blocks, io_complete, task, 0);
     // }
 
@@ -399,6 +420,57 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
         printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
         return 1;
     }
+
+    // FIXME
+    const int current_zone = 6;
+
+    bool done = false;
+    auto complete = [](void *arg, const struct spdk_nvme_cpl *completion) {
+        bool *done = (bool *)arg;
+        *done = true;
+    };
+    uint32_t nr_zones = 3690;
+    struct spdk_nvme_zns_zone_report *report;
+    uint32_t report_bytes =
+        sizeof(report->descs[0]) * nr_zones + sizeof(*report);
+    report = (struct spdk_nvme_zns_zone_report *)calloc(1, report_bytes);
+    spdk_nvme_zns_report_zones(ns_ctx->entry->nvme.ns, ns_ctx->qpair, report,
+                               report_bytes, 0, SPDK_NVME_ZRA_LIST_ALL, false,
+                               complete, &done);
+    while (!done) {
+        spdk_nvme_qpair_process_completions(ns_ctx->qpair, 0);
+    }
+
+    // get current zone wp
+    struct spdk_nvme_zns_zone_desc *zdesc = &(report->descs[current_zone]);
+    uint64_t wp = ~0ull;
+    uint64_t zslba = zdesc->zslba;
+
+    if (zdesc->zs == SPDK_NVME_ZONE_STATE_FULL ||
+        zdesc->zs == SPDK_NVME_ZONE_STATE_IOPEN ||
+        zdesc->zs == SPDK_NVME_ZONE_STATE_EOPEN) {
+        if (zdesc->wp != zslba) {
+            wp = zdesc->wp;
+        }
+    }
+
+    if (wp == ~0ull) {
+        printf("current zone if empty\n");
+    }
+    ns_ctx->wp = zdesc->wp;
+
+    // uint8_t *buffer =
+    //     (uint8_t *)spdk_zmalloc(Configuration::GetBlockSize(), 4096, NULL,
+    //                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+    // done = false;
+    // spdk_nvme_ns_cmd_read(mNamespace, mIoQueues[0], buffer, zslba, 1,
+    // complete,
+    //                       &done, 0);
+    // while (!done) {
+    //     spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+    // }
+    //
+    // zones[wp] = buffer;
 
     // allocate space for times
     // ns_ctx->stimes.reserve(1000000);

@@ -35,7 +35,7 @@ modprobe mlx4_core
 modprobe mlx4_ib
 modprobe mlx4_en
 
-# ifconfig enp1s0 192.168.100.8 netmask 255.255.255.0 up
+# ifconfig ibp1s0d1 192.168.100.8 netmask 255.255.255.0 up
 # ifconfig eth2 192.168.100.9 netmask 255.255.255.0 up
 
 modprobe nvme-rdma
@@ -67,8 +67,7 @@ scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 12.12.12.2 -s 5520
 
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.121 -s 4420
-scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 12.12.12.2 -s 5520
-
-
+# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 12.12.12.1 -s 5520
+scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 5520
 
 wait
