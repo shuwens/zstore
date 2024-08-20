@@ -131,6 +131,7 @@ custom_libnames = [
   'spdk_blobfs_bdev',
   'spdk_blobfs',
   'spdk_blob_bdev',
+  'spdk_rdma',
 ]
 
 spdk_deps = [
