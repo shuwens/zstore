@@ -922,7 +922,8 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+    // trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     // struct spdk_nvme_transport_id trid2 = {};
     // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
@@ -945,8 +946,9 @@ static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    zns_dev_init(ctx, "12.12.12.2", "5520");
+    zns_dev_init(ctx, "192.168.100.9", "5520");
+    // zns_dev_init(ctx, "12.12.12.2", "5520");
+
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
     //     return 1;
