@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-
 set -xeuo pipefail
+
+# https://www.rdmamojo.com/2014/11/08/working-rdma-ubuntu/
 
 zstore_dir=$(git rev-parse --show-toplevel)
 source $zstore_dir/.env

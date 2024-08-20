@@ -38,8 +38,8 @@ modprobe mlx4_en
 # ifconfig ibp1s0d1 192.168.100.8 netmask 255.255.255.0 up
 # ifconfig eth2 192.168.100.9 netmask 255.255.255.0 up
 
-modprobe nvme-rdma
-# modprobe nvme-tcp
+# modprobe nvme-rdma
+modprobe nvme-tcp
 
 
 ./build/bin/nvmf_tgt -m '[0,1,2,3]' &
@@ -54,8 +54,8 @@ pci1=05:00.0
 scripts/rpc.py bdev_nvme_attach_controller -b nvme0 -t PCIe -a $pci1
 scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
 
-# scripts/rpc.py nvmf_create_transport -t TCP -u 16384 -m 8 -c 8192
-scripts/rpc.py nvmf_create_transport -t RDMA -u 8192 -i 131072 -c 8192
+scripts/rpc.py nvmf_create_transport -t TCP -u 16384 -m 8 -c 8192
+# scripts/rpc.py nvmf_create_transport -t RDMA -u 8192 -i 131072 -c 8192
 
 scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK00000000000001 -d SPDK_Controller1
 sleep 1
@@ -68,6 +68,7 @@ scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.121 -s 4420
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 12.12.12.1 -s 5520
-scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.8 -s 5520
+# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.9 -s 5520
+scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.100.9 -s 5520
 
 wait
