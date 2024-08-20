@@ -100,6 +100,7 @@ custom_libnames = [
 	'spdk_event_vhost_blk',
 	'spdk_event_vhost_scsi',
 	'spdk_event_vmd',
+	# 'spdk_rdma',
 	# dpdk stuff
 	'rte_bus_pci',
 	'rte_compressdev',
@@ -210,13 +211,7 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-executable(
-	'test_write',
-	files('src/arbitration_write.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+
 executable(
 	'test_append',
 	files('src/arbitration_append.cc'),
@@ -234,6 +229,21 @@ executable(
 	install: true,
 )
 
+# rdma
+executable(
+	'rdma_read',
+	files('src/arbitration_rdma_read.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'rdma_append',
+	files('src/arbitration_rdma_append.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 # executable(
 # 	'nvmf',
 # 	files('src/examples/nvmf.cc'),

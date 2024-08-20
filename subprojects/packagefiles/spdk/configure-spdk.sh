@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 
+# ./configure  --prefix=$INSTALL_PATH --with-dpdk=$INSTALL_PATH &&
+
 debug() {
   echo '===Building SPDK in debug mode...'
-  ./configure --enable-debug  --with-rdma
+  ./configure --enable-debug --disable-tests --disable-unit-tests --disable-examples --with-shared --with-rdma
 }
 
 release() {
   echo '===Building SPDK in release mode...'
-  ./configure  --with-rdma
+  ./configure --disable-tests --disable-unit-tests --disable-examples --with-shared --with-rdma
 }
 
 if [ $# -lt 1 ]; then
