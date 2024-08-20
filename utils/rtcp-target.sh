@@ -67,8 +67,8 @@ scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 12.12.12.2 -s 5520
 
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.1.121 -s 4420
-# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 12.12.12.1 -s 5520
+scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 12.12.12.2 -s 5520
 # scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t rdma -a 192.168.100.9 -s 5520
-scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.100.9 -s 5520
+# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 192.168.100.9 -s 5520
 
 wait
