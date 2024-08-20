@@ -47,10 +47,10 @@ struct ns_worker_ctx {
     TAILQ_ENTRY(ns_worker_ctx) link;
 
     // latency tracking
-    // chrono_tp stime;
-    // chrono_tp etime;
-    // std::vector<chrono_tp> stimes;
-    // std::vector<chrono_tp> etimes;
+    chrono_tp stime;
+    chrono_tp etime;
+    std::vector<chrono_tp> stimes;
+    std::vector<chrono_tp> etimes;
 };
 
 struct arb_task {
@@ -110,7 +110,7 @@ static struct arb_context g_arbitration = {
     .rw_percentage = 50,
     .queue_depth = 64,
     .time_in_sec = 9,
-    .io_count = 100000,
+    .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
@@ -309,8 +309,8 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // if ((g_arbitration.rw_percentage == 100) ||
     //     (g_arbitration.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-    // ns_ctx->stime = std::chrono::high_resolution_clock::now();
-    // ns_ctx->stimes.push_back(ns_ctx->stime);
+    ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    ns_ctx->stimes.push_back(ns_ctx->stime);
 
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                offset_in_ios * entry->io_size_blocks,
@@ -339,8 +339,8 @@ static void task_complete(struct arb_task *task)
     ns_ctx = task->ns_ctx;
     ns_ctx->current_queue_depth--;
     ns_ctx->io_completed++;
-    // ns_ctx->etime = std::chrono::high_resolution_clock::now();
-    // ns_ctx->etimes.push_back(ns_ctx->etime);
+    ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    ns_ctx->etimes.push_back(ns_ctx->etime);
 
     spdk_dma_free(task->buf);
     spdk_mempool_put(task_pool, task);
@@ -398,8 +398,8 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
     }
 
     // allocate space for times
-    // ns_ctx->stimes.reserve(1000000);
-    // ns_ctx->etimes.reserve(1000000);
+    ns_ctx->stimes.reserve(1000000);
+    ns_ctx->etimes.reserve(1000000);
 
     return 0;
 }
@@ -489,41 +489,25 @@ static int work_fn(void *arg)
         drain_io(ns_ctx);
         cleanup_ns_worker_ctx(ns_ctx);
 
-        // std::vector<uint64_t> deltas1;
-        // std::vector<u64> deltas2;
-        // for (int i = 0; i < ns_ctx->stimes.size(); i++) {
-        //     deltas1.push_back(
-        //         std::chrono::duration_cast<std::chrono::microseconds>(
-        //             ns_ctx->etimes[i] - ns_ctx->stimes[i])
-        //             .count());
-        //     //
-        //     deltas2.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
-        //     //                       ctx->m2.etimes[i] - ctx->m2.stimes[i])
-        //     //                       .count());
-        // }
-        // auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-        // auto sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
-        // auto mean1 = sum1 / deltas1.size();
-        // auto mean2 = sum2 / deltas2.size();
-        // auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
-        // deltas1.begin(), 0.0);
-        // auto sq_sum2 = std::inner_product(deltas2.begin(), deltas2.end(),
-        //                                   deltas2.begin(), 0.0);
-        // auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-        // auto stdev2 = std::sqrt(sq_sum2 / deltas2.size() - mean2 * mean2);
-        // printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth,
-        // mean1,
-        //        stdev1);
-        // log_info("WRITES-2 qd {}, append: mean {} us, std {}", ctx->qd,
-        // mean2,
-        //          stdev2);
+        std::vector<uint64_t> deltas1;
+        for (int i = 0; i < ns_ctx->stimes.size(); i++) {
+            deltas1.push_back(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    ns_ctx->etimes[i] - ns_ctx->stimes[i])
+                    .count());
+        }
+        auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        auto mean1 = sum1 / deltas1.size();
+        auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+                                          deltas1.begin(), 0.0);
+        auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth, mean1,
+               stdev1);
 
         // clearnup
-        // deltas1.clear();
-        // deltas2.clear();
-        // ns_ctx->etimes.clear();
-        // ctx->m1.etimes.clear();
-        // ns_ctx->stimes.clear();
+        deltas1.clear();
+        ns_ctx->etimes.clear();
+        ns_ctx->stimes.clear();
     }
 
     return 0;
@@ -961,7 +945,8 @@ static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    zns_dev_init(ctx, "192.168.100.9", "5520");
+    // zns_dev_init(ctx, "192.168.100.9", "5520");
+    zns_dev_init(ctx, "12.12.12.2", "5520");
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
     //     return 1;
@@ -1007,7 +992,7 @@ static int associate_workers_with_ns(void)
     count = g_arbitration.num_namespaces > g_arbitration.num_workers
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
-    count = 2;
+    count = 1;
     printf("DEBUG ns %d, workers %d, count %d\n", g_arbitration.num_namespaces,
            g_arbitration.num_workers, count);
     for (i = 0; i < count; i++) {

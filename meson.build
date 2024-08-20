@@ -237,13 +237,19 @@ executable(
 
 # rdma
 executable(
-	'test_rdma',
-	files('src/arbitration_rdma.cc'),
+	'rdma_read',
+	files('src/arbitration_rdma_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
-
+executable(
+	'rdma_append',
+	files('src/arbitration_rdma_append.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 # executable(
 # 	'nvmf',
 # 	files('src/examples/nvmf.cc'),
