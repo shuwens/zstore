@@ -4,12 +4,12 @@
 
 debug() {
   echo '===Building SPDK in debug mode...'
-  ./configure --enable-debug --with-rdma
+  ./configure --enable-debug
 }
 
 release() {
   echo '===Building SPDK in release mode...'
-  ./configure --with-rdma
+  ./configure
 }
 
 if [ $# -lt 1 ]; then
