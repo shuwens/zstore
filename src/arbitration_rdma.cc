@@ -961,7 +961,7 @@ static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    zns_dev_init(ctx, "12.12.12.2", "5520");
+    zns_dev_init(ctx, "192.168.100.9", "5520");
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
     //     return 1;
