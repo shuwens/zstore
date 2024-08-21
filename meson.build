@@ -100,7 +100,7 @@ custom_libnames = [
 	'spdk_event_vhost_blk',
 	'spdk_event_vhost_scsi',
 	'spdk_event_vmd',
-	'spdk_rdma',
+	# 'spdk_rdma',
 	# dpdk stuff
 	'rte_bus_pci',
 	'rte_compressdev',
