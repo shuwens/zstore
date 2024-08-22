@@ -62,7 +62,6 @@ struct worker_thread {
 };
 
 struct arb_context {
-    int shm_id;
     int outstanding_commands;
     int num_namespaces;
     int num_workers;
@@ -71,9 +70,6 @@ struct arb_context {
     int queue_depth;
     int time_in_sec;
     int io_count;
-    uint8_t latency_tracking_enable;
-    uint8_t arbitration_mechanism;
-    uint8_t arbitration_config;
     uint32_t io_size_bytes;
     uint32_t max_completions;
     uint64_t tsc_rate;
@@ -99,7 +95,6 @@ static struct feature features[SPDK_NVME_FEAT_ARBITRATION + 1] = {};
 static struct spdk_nvme_transport_id g_trid = {};
 
 static struct arb_context g_arbitration = {
-    .shm_id = -1,
     .outstanding_commands = 0,
     .num_workers = 0,
     .num_namespaces = 0,
@@ -107,13 +102,8 @@ static struct arb_context g_arbitration = {
     .queue_depth = 64,
     .time_in_sec = 9,
     .io_count = 1000000,
-    .latency_tracking_enable = 0,
-    .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
-    .arbitration_config = 0,
     .io_size_bytes = 4096,
-    // .io_size_bytes = 131072,
     .max_completions = 0,
-    /* Default 4 cores for urgent/high/medium/low */
     // .core_mask = "0xf",
     .core_mask = "0x1",
     .workload_type = "randrw",
@@ -133,12 +123,6 @@ static bool g_dpdk_mem_single_seg = false;
 static void task_complete(struct arb_task *task);
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion);
-
-static void get_arb_feature(struct spdk_nvme_ctrlr *ctrlr);
-
-static int set_arb_feature(struct spdk_nvme_ctrlr *ctrlr);
-
-static const char *print_qprio(enum spdk_nvme_qprio);
 
 static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 {
@@ -181,41 +165,6 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
     TAILQ_INSERT_TAIL(&g_namespaces, entry, link);
 }
 
-static void enable_latency_tracking_complete(void *cb_arg,
-                                             const struct spdk_nvme_cpl *cpl)
-{
-    if (spdk_nvme_cpl_is_error(cpl)) {
-        printf("enable_latency_tracking_complete failed\n");
-    }
-    g_arbitration.outstanding_commands--;
-}
-
-static void set_latency_tracking_feature(struct spdk_nvme_ctrlr *ctrlr,
-                                         bool enable)
-{
-    int res;
-    union spdk_nvme_intel_feat_latency_tracking latency_tracking;
-
-    if (enable) {
-        latency_tracking.bits.enable = 0x01;
-    } else {
-        latency_tracking.bits.enable = 0x00;
-    }
-
-    res = spdk_nvme_ctrlr_cmd_set_feature(
-        ctrlr, SPDK_NVME_INTEL_FEAT_LATENCY_TRACKING, latency_tracking.raw, 0,
-        NULL, 0, enable_latency_tracking_complete, NULL);
-    if (res) {
-        printf("fail to allocate nvme request.\n");
-        return;
-    }
-    g_arbitration.outstanding_commands++;
-
-    while (g_arbitration.outstanding_commands) {
-        spdk_nvme_ctrlr_process_admin_completions(ctrlr);
-    }
-}
-
 static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
 {
     uint32_t nsid;
@@ -236,12 +185,6 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
     entry->ctrlr = ctrlr;
     TAILQ_INSERT_TAIL(&g_controllers, entry, link);
 
-    if ((g_arbitration.latency_tracking_enable != 0) &&
-        spdk_nvme_ctrlr_is_feature_supported(
-            ctrlr, SPDK_NVME_INTEL_FEAT_LATENCY_TRACKING)) {
-        set_latency_tracking_feature(ctrlr, true);
-    }
-
     for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
         ns = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
@@ -256,16 +199,6 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
             printf("ns %d is zns ns\n", nsid);
         }
         register_ns(ctrlr, ns);
-    }
-
-    if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR &&
-        (cap.bits.ams & SPDK_NVME_CAP_AMS_WRR)) {
-        get_arb_feature(ctrlr);
-
-        if (g_arbitration.arbitration_config != 0) {
-            set_arb_feature(ctrlr);
-            get_arb_feature(ctrlr);
-        }
     }
 }
 
@@ -444,8 +377,7 @@ static int work_fn(void *arg)
     struct worker_thread *worker = (struct worker_thread *)arg;
     struct ns_worker_ctx *ns_ctx;
 
-    printf("Starting thread on core %u with %s\n", worker->lcore,
-           print_qprio(worker->qprio));
+    printf("Starting thread on core %u with %s\n", worker->lcore, "what");
 
     /* Allocate a queue pair for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -509,71 +441,15 @@ static int work_fn(void *arg)
     return 0;
 }
 
-static void usage(char *program_name)
-{
-    printf("%s options", program_name);
-    printf("\t\n");
-    printf("\t[-d DPDK huge memory size in MB]\n");
-    printf("\t[-q io depth]\n");
-    printf("\t[-o io size in bytes]\n");
-    printf("\t[-w io pattern type, must be one of\n");
-    printf("\t\t(read, write, randread, randwrite, rw, randrw)]\n");
-    printf("\t[-M rwmixread (100 for reads, 0 for writes)]\n");
-#ifdef DEBUG
-    printf("\t[-L enable debug logging]\n");
-#else
-    printf("\t[-L enable debug logging (flag disabled, must reconfigure with "
-           "--enable-debug)]\n");
-#endif
-    spdk_log_usage(stdout, "\t\t-L");
-    printf("\t[-l enable latency tracking, default: disabled]\n");
-    printf("\t\t(0 - disabled; 1 - enabled)\n");
-    printf("\t[-t time in seconds]\n");
-    printf("\t[-c core mask for I/O submission/completion.]\n");
-    printf("\t\t(default: 0xf - 4 cores)]\n");
-    printf("\t[-m max completions per poll]\n");
-    printf("\t\t(default: 0 - unlimited)\n");
-    printf("\t[-a arbitration mechanism, must be one of below]\n");
-    printf("\t\t(0, 1, 2)]\n");
-    printf("\t\t(0: default round robin mechanism)]\n");
-    printf("\t\t(1: weighted round robin mechanism)]\n");
-    printf("\t\t(2: vendor specific mechanism)]\n");
-    printf("\t[-b enable arbitration user configuration, default: disabled]\n");
-    printf("\t\t(0 - disabled; 1 - enabled)\n");
-    printf("\t[-n subjected IOs for performance comparison]\n");
-    printf("\t[-i shared memory group ID]\n");
-    printf("\t[-r remote NVMe over Fabrics target address]\n");
-    printf("\t[-g use single file descriptor for DPDK memory segments]\n");
-}
-
-static const char *print_qprio(enum spdk_nvme_qprio qprio)
-{
-    switch (qprio) {
-    case SPDK_NVME_QPRIO_URGENT:
-        return "urgent priority queue";
-    case SPDK_NVME_QPRIO_HIGH:
-        return "high priority queue";
-    case SPDK_NVME_QPRIO_MEDIUM:
-        return "medium priority queue";
-    case SPDK_NVME_QPRIO_LOW:
-        return "low priority queue";
-    default:
-        return "invalid priority queue";
-    }
-}
-
 static void print_configuration(char *program_name)
 {
     printf("%s run with configuration:\n", program_name);
-    printf("%s -q %d -s %d -w %s -M %d -l %d -t %d -c %s -m %d -a %d -b %d -n "
-           "%d -i %d\n",
+    printf("%s -q %d -s %d -w %s -M %d -t %d -c %s  -b %d -n "
+           "%d \n",
            program_name, g_arbitration.queue_depth, g_arbitration.io_size_bytes,
            g_arbitration.workload_type, g_arbitration.rw_percentage,
-           g_arbitration.latency_tracking_enable, g_arbitration.time_in_sec,
-           g_arbitration.core_mask, g_arbitration.max_completions,
-           g_arbitration.arbitration_mechanism,
-           g_arbitration.arbitration_config, g_arbitration.io_count,
-           g_arbitration.shm_id);
+           g_arbitration.time_in_sec, g_arbitration.core_mask,
+           g_arbitration.max_completions, g_arbitration.io_count);
 }
 
 static void print_performance(void)
@@ -624,62 +500,7 @@ static void print_latency_page(struct ctrlr_entry *entry)
     }
 }
 
-static void print_latency_statistics(const char *op_name,
-                                     enum spdk_nvme_intel_log_page log_page)
-{
-    struct ctrlr_entry *ctrlr;
-
-    printf("%s Latency Statistics:\n", op_name);
-    printf("========================================================\n");
-    TAILQ_FOREACH(ctrlr, &g_controllers, link)
-    {
-        if (spdk_nvme_ctrlr_is_log_page_supported(ctrlr->ctrlr, log_page)) {
-            if (spdk_nvme_ctrlr_cmd_get_log_page(
-                    ctrlr->ctrlr, log_page, SPDK_NVME_GLOBAL_NS_TAG,
-                    &ctrlr->latency_page,
-                    sizeof(struct spdk_nvme_intel_rw_latency_page), 0,
-                    enable_latency_tracking_complete, NULL)) {
-                printf("nvme_ctrlr_cmd_get_log_page() failed\n");
-                exit(1);
-            }
-
-            g_arbitration.outstanding_commands++;
-        } else {
-            printf("Controller %s: %s latency statistics not supported\n",
-                   ctrlr->name, op_name);
-        }
-    }
-
-    while (g_arbitration.outstanding_commands) {
-        TAILQ_FOREACH(ctrlr, &g_controllers, link)
-        {
-            spdk_nvme_ctrlr_process_admin_completions(ctrlr->ctrlr);
-        }
-    }
-
-    TAILQ_FOREACH(ctrlr, &g_controllers, link)
-    {
-        if (spdk_nvme_ctrlr_is_log_page_supported(ctrlr->ctrlr, log_page)) {
-            print_latency_page(ctrlr);
-        }
-    }
-    printf("\n");
-}
-
-static void print_stats(void)
-{
-    print_performance();
-    if (g_arbitration.latency_tracking_enable) {
-        if (g_arbitration.rw_percentage != 0) {
-            print_latency_statistics("Read",
-                                     SPDK_NVME_INTEL_LOG_READ_CMD_LATENCY);
-        }
-        if (g_arbitration.rw_percentage != 100) {
-            print_latency_statistics("Write",
-                                     SPDK_NVME_INTEL_LOG_WRITE_CMD_LATENCY);
-        }
-    }
-}
+static void print_stats(void) { print_performance(); }
 
 static int parse_args(int argc, char **argv)
 {
@@ -719,16 +540,16 @@ static int parse_args(int argc, char **argv)
             g_dpdk_mem_single_seg = true;
             break;
         case 'h':
-        case '?':
-            usage(argv[0]);
-            return 1;
-        case 'L':
-            rc = spdk_log_set_flag(optarg);
-            if (rc < 0) {
-                fprintf(stderr, "unknown flag\n");
-                usage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
+            // case '?':
+            //     usage(argv[0]);
+            //     return 1;
+            // case 'L':
+            //     rc = spdk_log_set_flag(optarg);
+            //     if (rc < 0) {
+            //         fprintf(stderr, "unknown flag\n");
+            //         usage(argv[0]);
+            //         exit(EXIT_FAILURE);
+            //     }
 #ifdef DEBUG
             spdk_log_set_print_level(SPDK_LOG_DEBUG);
 #endif
@@ -740,12 +561,6 @@ static int parse_args(int argc, char **argv)
                 return val;
             }
             switch (op) {
-            case 'i':
-                g_arbitration.shm_id = val;
-                break;
-            case 'l':
-                g_arbitration.latency_tracking_enable = val;
-                break;
             case 'm':
                 g_arbitration.max_completions = val;
                 break;
@@ -762,17 +577,9 @@ static int parse_args(int argc, char **argv)
                 g_arbitration.rw_percentage = val;
                 mix_specified = true;
                 break;
-            case 'a':
-                g_arbitration.arbitration_mechanism = val;
-                break;
-            case 'b':
-                g_arbitration.arbitration_config = val;
-                break;
-            case 'n':
-                g_arbitration.io_count = val;
                 break;
             default:
-                usage(argv[0]);
+                // usage(argv[0]);
                 return -EINVAL;
             }
         }
@@ -823,32 +630,6 @@ static int parse_args(int argc, char **argv)
         g_arbitration.is_random = 1;
     }
 
-    if (g_arbitration.latency_tracking_enable != 0 &&
-        g_arbitration.latency_tracking_enable != 1) {
-        fprintf(stderr, "-l must be specified to value 0 or 1.\n");
-        return 1;
-    }
-
-    switch (g_arbitration.arbitration_mechanism) {
-    case SPDK_NVME_CC_AMS_RR:
-    case SPDK_NVME_CC_AMS_WRR:
-    case SPDK_NVME_CC_AMS_VS:
-        break;
-    default:
-        fprintf(stderr, "-a must be specified to value 0, 1, or 7.\n");
-        return 1;
-    }
-
-    if (g_arbitration.arbitration_config != 0 &&
-        g_arbitration.arbitration_config != 1) {
-        fprintf(stderr, "-b must be specified to value 0 or 1.\n");
-        return 1;
-    } else if (g_arbitration.arbitration_config == 1 &&
-               g_arbitration.arbitration_mechanism != SPDK_NVME_CC_AMS_WRR) {
-        fprintf(stderr, "-a must be specified to 1 (WRR) together.\n");
-        return 1;
-    }
-
     return 0;
 }
 
@@ -871,11 +652,6 @@ static int register_workers(void)
         TAILQ_INSERT_TAIL(&g_workers, worker, link);
         g_arbitration.num_workers++;
 
-        if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR) {
-            qprio =
-                static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) + 1);
-        }
-
         worker->qprio = static_cast<enum spdk_nvme_qprio>(
             qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
     }
@@ -887,8 +663,9 @@ static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
                      struct spdk_nvme_ctrlr_opts *opts)
 {
     /* Update with user specified arbitration configuration */
-    opts->arb_mechanism =
-        static_cast<enum spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
+    // opts->arb_mechanism =
+    //     static_cast<enum
+    //     spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
 
     printf("Attaching to %s\n", trid->traddr);
 
@@ -902,7 +679,7 @@ static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
     printf("Attached to %s\n", trid->traddr);
 
     /* Update with actual arbitration configuration in use */
-    g_arbitration.arbitration_mechanism = opts->arb_mechanism;
+    // g_arbitration.arbitration_mechanism = opts->arb_mechanism;
 
     register_ctrlr(ctrlr);
 }
@@ -969,11 +746,7 @@ static void unregister_controllers(void)
     TAILQ_FOREACH_SAFE(entry, &g_controllers, link, tmp)
     {
         TAILQ_REMOVE(&g_controllers, entry, link);
-        if (g_arbitration.latency_tracking_enable &&
-            spdk_nvme_ctrlr_is_feature_supported(
-                entry->ctrlr, SPDK_NVME_INTEL_FEAT_LATENCY_TRACKING)) {
-            set_latency_tracking_feature(entry->ctrlr, false);
-        }
+
         spdk_nvme_detach_async(entry->ctrlr, &detach_ctx);
         free(entry);
     }
@@ -1180,7 +953,6 @@ int main(int argc, char **argv)
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
     opts.core_mask = g_arbitration.core_mask;
-    opts.shm_id = g_arbitration.shm_id;
     if (spdk_env_init(&opts) < 0) {
         return 1;
     }

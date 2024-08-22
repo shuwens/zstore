@@ -178,6 +178,14 @@ endforeach
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
+executable(
+	'zstore',
+	files('src/main.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
 # FIXME
 # executable(
 # 	'zns_test',
