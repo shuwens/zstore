@@ -187,17 +187,9 @@ spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 # 	install: true,
 # )
 
-# executable(
-# 	'zstore',
-# 	files('src/main.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
 executable(
 	'measure',
-	files('src/measurement.cc'),
+	files('src/examples/measurement.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -206,7 +198,7 @@ executable(
 # nvmf arbitration
 executable(
 	'test_read',
-	files('src/arbitration_read.cc'),
+	files('src/examples/arbitration_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -214,7 +206,7 @@ executable(
 
 executable(
 	'test_append',
-	files('src/arbitration_append.cc'),
+	files('src/examples/arbitration_append.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -232,25 +224,18 @@ executable(
 # rdma
 executable(
 	'rdma_read',
-	files('src/arbitration_rdma_read.cc'),
+	files('src/examples/arbitration_rdma_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'rdma_append',
-	files('src/arbitration_rdma_append.cc'),
+	files('src/examples/arbitration_rdma_append.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
-# executable(
-# 	'nvmf',
-# 	files('src/examples/nvmf.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
 # executable(
 # 	'multipath',
 # 	files('src/multipath.cc'),

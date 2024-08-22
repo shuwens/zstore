@@ -1,5 +1,5 @@
-#include "include/utils.hpp"
-#include "include/zns_device.h"
+#include "../include/utils.hpp"
+#include "../include/zns_device.h"
 #include "spdk/env.h"
 #include "spdk/nvme.h"
 #include <bits/stdc++.h>

@@ -16,6 +16,7 @@
 #include <vector>
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
+static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -114,8 +115,10 @@ static struct arb_context g_arbitration = {
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
     .io_size_bytes = 4096,
+    // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
+    // .core_mask = "0xf",
     .core_mask = "0x3",
     .workload_type = "randrw",
 };
@@ -249,13 +252,14 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         if (ns == NULL) {
             continue;
         }
+
         if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            printf("ns %d is not zns ns, skipping\n", nsid);
+            printf("ns %d is not zns ns\n", nsid);
             // continue;
         } else {
-            printf("ns %d is zns ns, register ns..\n", nsid);
-            register_ns(ctrlr, ns);
+            printf("ns %d is zns ns\n", nsid);
         }
+        register_ns(ctrlr, ns);
     }
 
     if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR &&
@@ -486,15 +490,16 @@ static int work_fn(void *arg)
         cleanup_ns_worker_ctx(ns_ctx);
 
         // std::vector<uint64_t> deltas1;
-        // // std::vector<u64> deltas2;
+        // std::vector<u64> deltas2;
         // for (int i = 0; i < ns_ctx->stimes.size(); i++) {
         //     deltas1.push_back(
         //         std::chrono::duration_cast<std::chrono::microseconds>(
         //             ns_ctx->etimes[i] - ns_ctx->stimes[i])
         //             .count());
-        // deltas2.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
-        //                       ctx->m2.etimes[i] - ctx->m2.stimes[i])
-        //                       .count());
+        //     //
+        //     deltas2.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+        //     //                       ctx->m2.etimes[i] - ctx->m2.stimes[i])
+        //     //                       .count());
         // }
         // auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
         // auto sum2 = std::accumulate(deltas2.begin(), deltas2.end(), 0.0);
@@ -922,14 +927,45 @@ static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
     register_ctrlr(ctrlr);
 }
 
-static int register_controllers(void)
+static void zns_dev_init(struct arb_context *ctx, std::string ip1,
+                         std::string port1, std::string ip2, std::string port2)
+{
+    int rc = 0;
+
+    // 1. connect nvmf device
+    struct spdk_nvme_transport_id trid1 = {};
+    snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
+    snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
+    snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
+    trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_transport_id trid2 = {};
+    snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
+    snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
+    snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
+    trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_ctrlr_opts opts;
+    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
+    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+
+    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+    register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
+
+    printf("Found %d namspaces\n", g_arbitration.num_namespaces);
+}
+
+static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
-        fprintf(stderr, "spdk_nvme_probe() failed\n");
-        return 1;
-    }
+    zns_dev_init(ctx, "192.168.1.121", "4420", "192.168.1.121", "5520");
+    // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
+    //     fprintf(stderr, "spdk_nvme_probe() failed\n");
+    //     return 1;
+    // }
 
     if (g_arbitration.num_namespaces == 0) {
         fprintf(stderr, "No valid namespaces to continue IO testing\n");
@@ -971,7 +1007,7 @@ static int associate_workers_with_ns(void)
     count = g_arbitration.num_namespaces > g_arbitration.num_workers
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
-
+    count = 2;
     printf("DEBUG ns %d, workers %d, count %d\n", g_arbitration.num_namespaces,
            g_arbitration.num_workers, count);
     for (i = 0; i < count; i++) {
@@ -1126,6 +1162,19 @@ static int set_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
     return 0;
 }
 
+static void zstore_cleanup(uint32_t task_count)
+{
+
+    unregister_controllers();
+    cleanup(task_count);
+
+    spdk_env_fini();
+
+    // if (rc != 0) {
+    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
+    // }
+}
+
 int main(int argc, char **argv)
 {
     int rc;
@@ -1155,17 +1204,21 @@ int main(int argc, char **argv)
 
     if (register_workers() != 0) {
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
-    if (register_controllers() != 0) {
+    struct arb_context ctx = {};
+    if (register_controllers(&ctx) != 0) {
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
     if (associate_workers_with_ns() != 0) {
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
@@ -1186,7 +1239,8 @@ int main(int argc, char **argv)
     if (task_pool == NULL) {
         fprintf(stderr, "could not initialize task pool\n");
         rc = 1;
-        goto exit;
+        zstore_cleanup(task_count);
+        return rc;
     }
 
     print_configuration(argv[0]);
@@ -1213,15 +1267,6 @@ int main(int argc, char **argv)
 
     print_stats();
 
-exit:
-    unregister_controllers();
-    cleanup(task_count);
-
-    spdk_env_fini();
-
-    if (rc != 0) {
-        fprintf(stderr, "%s: errors occurred\n", argv[0]);
-    }
-
+    zstore_cleanup(task_count);
     return rc;
 }
