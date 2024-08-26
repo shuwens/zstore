@@ -54,7 +54,8 @@ struct ns_worker_ctx {
 
 struct arb_task {
     struct ns_worker_ctx *ns_ctx;
-    void *buf;
+    // void *buf;
+    char *buf;
 };
 
 struct worker_thread {
@@ -287,7 +288,11 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         exit(1);
     }
 
-    task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
+    task->buf =
+        (char *)spdk_dma_zmalloc(g_arbitration.io_size_bytes, 4096, NULL);
+    snprintf(task->buf, 4096, "%s:%d", "zstore1:", ns_ctx->count);
+    ns_ctx->count++;
+
     if (!task->buf) {
         spdk_mempool_put(task_pool, task);
         fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
@@ -963,7 +968,8 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(ctx, "12.12.12.2", "4420");
+    // zns_dev_init(ctx, "12.12.12.2", "4420");
+    zns_dev_init(ctx, "12.12.12.2", "5520");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
