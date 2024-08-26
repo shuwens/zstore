@@ -16,10 +16,10 @@ static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 const int zone_num = 1;
 
 // const int append_times = 3;
-const int append_times = 1000;
+// const int append_times = 1000;
 // const int append_times = 16000;
-// const int append_times = 12800;
-// const int append_times = 128000;
+const int append_times = 12800;
+// const int append_times = 128000 * 2;
 
 const int value = 10000000; // Integer value to set in the buffer
 

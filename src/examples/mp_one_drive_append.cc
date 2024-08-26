@@ -317,7 +317,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
     // Zone managment
     const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 32;
+    const int current_zone = 34;
 
     auto zslba = zone_dist * current_zone;
 
@@ -975,8 +975,10 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(ctx, "12.12.12.2", "4420");
+    // zns_dev_init(ctx, "12.12.12.2", "4420");
     // zns_dev_init(ctx, "12.12.12.2", "5520");
+    // multipath
+    zns_dev_init(ctx, "192.168.1.121", "4420");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");

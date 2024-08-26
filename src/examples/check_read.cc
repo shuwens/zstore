@@ -45,7 +45,8 @@ static void zns_measure(void *arg)
     struct spdk_nvme_io_qpair_opts qpair_opts = {};
 
     // std::vector<int> qds{2, 64};
-    std::vector<int> qds{2, 4, 8, 16, 32, 64};
+    // std::vector<int> qds{2, 4, 8, 16, 32, 64};
+    std::vector<int> qds{64};
 
     for (auto qd : qds) {
         log_info("\nStarting measurment with queue depth {}, append times {}\n",
@@ -129,7 +130,7 @@ static void zns_measure(void *arg)
 
         // ctx->current_lba = 0;
         // ctx->current_lba = 15728640; // zone 30
-        ctx->current_lba = 16252928; // zone 31
+        ctx->current_lba = ctx->current_zone * 0x80000; // zone 31
 
         log_info("current lba for read is {}", ctx->current_lba);
         log_info("read with z_append:");
@@ -192,6 +193,7 @@ int main(int argc, char **argv)
 
     struct ZstoreContext ctx = {};
     ctx.current_zone = current_zone;
+    log_info("Reading zone {}", current_zone);
     // ctx.verbose = true;
 
     rc = spdk_app_start(&opts, zns_measure, &ctx);
