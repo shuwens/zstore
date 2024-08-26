@@ -219,10 +219,16 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-
 executable(
 	'mpsd_read',
 	files('src/examples/mp_one_drive_read.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'check_read',
+	files('src/examples/check_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,

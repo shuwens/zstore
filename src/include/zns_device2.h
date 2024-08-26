@@ -486,9 +486,9 @@ static void __complete(void *arg, const struct spdk_nvme_cpl *cpl)
 int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
 {
     struct ZstoreContext *ctx = static_cast<struct ZstoreContext *>(arg);
-    log_debug("static cast");
+    // log_debug("static cast");
     // if (ctx->verbose)
-    log_info("z_read: slba {}, size {}", slba, size);
+    // log_info("z_read: slba {}, size {}", slba, size);
 
     ERROR_ON_NULL(ctx->qpair, 1);
     ERROR_ON_NULL(buffer, 1);
@@ -537,9 +537,9 @@ int z_read(void *arg, uint64_t slba, void *buffer, uint64_t size)
         slba_start = slba + lbas_processed;
     }
     while (ctx->num_queued) {
-        // if (ctx->verbose)
-        log_info("qpair process completion: queued {}, qd {}", ctx->num_queued,
-                 ctx->qd);
+        if (ctx->verbose)
+            log_info("qpair process completion: queued {}, qd {}",
+                     ctx->num_queued, ctx->qd);
 
         spdk_nvme_qpair_process_completions(ctx->qpair, 0);
     }
