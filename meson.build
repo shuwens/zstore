@@ -203,6 +203,23 @@ executable(
 	install: true,
 )
 
+# nvmf multipath signle drive
+executable(
+	'mpsd_append',
+	files('src/examples/mp_one_drive_append.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
+executable(
+	'mpsd_read',
+	files('src/examples/mp_one_drive_read.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
 # nvmf arbitration
 executable(
 	'test_read',
