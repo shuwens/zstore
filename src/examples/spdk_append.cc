@@ -1,5 +1,5 @@
-#include "include/utils.hpp"
-#include "include/zns_device.h"
+#include "../include/utils.hpp"
+#include "../include/zns_device2.h"
 #include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/log.h"
@@ -100,54 +100,61 @@ static void test_start(void *arg1)
     // working
     int rc = 0;
 
-    rc = z_get_zone_head(ctx, ctx->current_zone, &ctx->current_lba);
-    assert(rc == 0);
+    // rc = z_get_zone_head(ctx, ctx->current_zone, &ctx->current_lba);
+    // assert(rc == 0);
     log_info("current zone: {}, current lba {}", ctx->current_zone,
              ctx->current_lba);
 
-    log_info("writing with z_append:");
-    log_debug("here");
-    for (int i = 0; i < append_times; i++) {
-        log_debug("1");
-        char **wbuf = (char **)calloc(1, sizeof(char **));
-        rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
-                                  "test_zstore1:", value + i);
-        assert(rc == 0);
-        // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
-        log_debug("2");
-
-        // printf("write: %d\n", value + i);
-        rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
-        assert(rc == 0);
-
-        for (int i = 0; i < 30; i++) {
-            // log_debug("{}", i);
-            // assert((char *)(pattern_read_zstore)[i] ==
-            //        (char *)(*pattern_zstore)[i]);
-            printf("%d-th write %c\n", i, (char *)(*wbuf)[i]);
-        }
-    }
+    // log_info("writing with z_append:");
+    // log_debug("here");
+    // for (int i = 0; i < append_times; i++) {
+    //     log_debug("1");
+    //     char **wbuf = (char **)calloc(1, sizeof(char **));
+    //     rc = write_zstore_pattern(wbuf, ctx, ctx->info.lba_size,
+    //                               "test_zstore1:", value + i);
+    //     assert(rc == 0);
+    //     // snprintf(*wbuf, 4096, "zstore1:%d", value + i);
+    //     log_debug("2");
+    //
+    //     // printf("write: %d\n", value + i);
+    //     rc = z_append(ctx, ctx->zslba, *wbuf, ctx->info.lba_size);
+    //     assert(rc == 0);
+    //
+    //     for (int i = 0; i < 30; i++) {
+    //         // log_debug("{}", i);
+    //         // assert((char *)(pattern_read_zstore)[i] ==
+    //         //        (char *)(*pattern_zstore)[i]);
+    //         printf("%d-th write %c\n", i, (char *)(*wbuf)[i]);
+    //     }
+    // }
 
     // log_info("append lbs for loop");
     // for (auto &i : ctx->append_lbas) {
     //     log_info("append lbs: {}", i);
     // }
 
-    log_info("read with z_append:");
+    ctx->current_lba = 0;
+    // ctx->current_lba = 15728640; // zone 30
+    // ctx->current_lba = 16252928; // zone 31
+
+    log_info("reading.... {}", ctx->current_lba);
     for (int i = 0; i < append_times; i++) {
         log_info("z_append: {}", i);
         char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
+        log_debug("1");
 
         rc = z_read(ctx, ctx->current_lba + i, rbuf, 4096);
+        log_debug("2");
         assert(rc == 0);
 
+        printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
+
         // for (int i = 0; i < ctx->info.lba_size; i++) {
-        for (int i = 0; i < 30; i++) {
-            // log_debug("{}", i);
-            // assert((char *)(pattern_read_zstore)[i] ==
-            //        (char *)(*pattern_zstore)[i]);
-            printf("%d-th read %c\n", i, (char *)(rbuf)[i]);
-        }
+        // for (int i = 0; i < 30; i++) {
+        //     // log_debug("{}", i);
+        //     // assert((char *)(pattern_read_zstore)[i] ==
+        //     //        (char *)(*pattern_zstore)[i]);
+        // }
     }
 
     // read_zone(ctx);

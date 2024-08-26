@@ -164,15 +164,37 @@ struct ZstoreContext {
     // specific parameters we control
     int qd = 0;
     u64 current_zone;
-
     bool verbose = false;
+
+    // tmp values that matters in the run
+    u64 current_lba = 0;
+    std::vector<uint32_t> append_lbas;
+
     // --------------------------------------
 
     // spdk things we populate
-    // DeviceManager m1;
-    // DeviceManager m2;
+    struct spdk_nvme_ctrlr *ctrlr = nullptr;
+    struct spdk_nvme_transport_id g_trid = {};
+    struct spdk_nvme_ns *ns = nullptr;
+    struct spdk_nvme_qpair *qpair = nullptr;
+    char *write_buff = nullptr;
+    char *read_buff = nullptr;
+    uint32_t buff_size;
 
-    // bool done = false;
+    // device related
+    bool device_support_meta = true;
+    DeviceInfo info;
+    u64 zslba;
+
+    bool done = false;
+    u64 num_queued = 0;
+    u64 num_completed = 0;
+    u64 num_success = 0;
+    u64 num_fail = 0;
+
+    u64 total_us = 0;
+
+    bool zstore_open = false;
 
     std::atomic<int> count; // atomic count for concurrency
 };

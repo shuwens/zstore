@@ -824,6 +824,7 @@ static int parse_args(int argc, char **argv)
         !strcmp(workload_type, "rw")) {
         g_arbitration.is_random = 0;
     } else {
+        printf("workload is random\n");
         g_arbitration.is_random = 1;
     }
 

@@ -15,6 +15,8 @@
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
+bool starting_lba = false;
+
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
     struct spdk_nvme_intel_rw_latency_page latency_page;
@@ -290,7 +292,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 
     task->buf =
         (char *)spdk_dma_zmalloc(g_arbitration.io_size_bytes, 4096, NULL);
-    snprintf(task->buf, 4096, "%s:%d", "zstore1:", ns_ctx->count);
+    snprintf(task->buf, 4096, "%s:%d", "zstore1", ns_ctx->count);
     ns_ctx->count++;
 
     if (!task->buf) {
@@ -315,7 +317,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
     // Zone managment
     const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 28;
+    const int current_zone = 31;
 
     auto zslba = zone_dist * current_zone;
 
@@ -370,6 +372,10 @@ static void task_complete(struct arb_task *task)
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
 {
     task_complete((struct arb_task *)ctx);
+    if (!starting_lba) {
+        printf("Starting lba is: %d\n", completion->cdw0);
+        starting_lba = true;
+    }
 }
 
 static void check_io(struct ns_worker_ctx *ns_ctx)
@@ -412,6 +418,7 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
     // ns_ctx->stimes.reserve(1000000);
     // ns_ctx->etimes.reserve(1000000);
 
+    ns_ctx->count = 0;
     return 0;
 }
 

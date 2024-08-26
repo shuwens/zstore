@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <vector>
 
+bool check = false;
+
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
@@ -46,16 +48,18 @@ struct ns_worker_ctx {
     struct spdk_nvme_qpair *qpair;
     TAILQ_ENTRY(ns_worker_ctx) link;
 
+    uint64_t count;
     // latency tracking
-    chrono_tp stime;
-    chrono_tp etime;
-    std::vector<chrono_tp> stimes;
-    std::vector<chrono_tp> etimes;
+    // chrono_tp stime;
+    // chrono_tp etime;
+    // std::vector<chrono_tp> stimes;
+    // std::vector<chrono_tp> etimes;
 };
 
 struct arb_task {
     struct ns_worker_ctx *ns_ctx;
-    void *buf;
+    // void *buf;
+    char *buf;
 };
 
 struct worker_thread {
@@ -288,7 +292,13 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         exit(1);
     }
 
-    task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
+    // void *temp_buffer =
+    //     (char *)spdk_zmalloc(true_size, alligned_size, NULL,
+    //                          SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+    // char *rbuf = (char *)z_calloc(ctx, ctx->info.lba_size, sizeof(char *));
+
+    task->buf = (char *)spdk_zmalloc(g_arbitration.io_size_bytes, 4096, NULL,
+                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     if (!task->buf) {
         spdk_mempool_put(task_pool, task);
         fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
@@ -309,20 +319,33 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // if ((g_arbitration.rw_percentage == 100) ||
     //     (g_arbitration.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-    ns_ctx->stime = std::chrono::high_resolution_clock::now();
-    ns_ctx->stimes.push_back(ns_ctx->stime);
+    // ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    // ns_ctx->stimes.push_back(ns_ctx->stime);
 
+    const uint64_t zone_dist = 0x80000; // zone size
+    const int current_zone = 30;
+
+    auto zslba = zone_dist * current_zone;
+
+    if (!check) {
+        printf("starting lba 15204352, zslba +count is %d \n",
+               zslba + ns_ctx->count);
+        check = true;
+    }
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                               offset_in_ios * entry->io_size_blocks,
-                               entry->io_size_blocks, io_complete, task, 0);
+                               zslba + ns_ctx->count, entry->io_size_blocks,
+                               io_complete, task, 0);
+    ns_ctx->count++;
+
     // } else {
     //     ns_ctx->stime = std::chrono::high_resolution_clock::now();
     //     ns_ctx->stimes.push_back(ns_ctx->stime);
     //     rc =
-    //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair,
+    //         task->buf,
     //                                offset_in_ios * entry->io_size_blocks,
-    //                                entry->io_size_blocks, io_complete, task,
-    //                                0);
+    //                                entry->io_size_blocks, io_complete,
+    //                                task, 0);
     // }
 
     if (rc != 0) {
@@ -339,8 +362,10 @@ static void task_complete(struct arb_task *task)
     ns_ctx = task->ns_ctx;
     ns_ctx->current_queue_depth--;
     ns_ctx->io_completed++;
-    ns_ctx->etime = std::chrono::high_resolution_clock::now();
-    ns_ctx->etimes.push_back(ns_ctx->etime);
+    // ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    // ns_ctx->etimes.push_back(ns_ctx->etime);
+
+    printf("Read %d: %s\n", ns_ctx->count, (char *)task->buf);
 
     spdk_dma_free(task->buf);
     spdk_mempool_put(task_pool, task);
@@ -398,8 +423,10 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
     }
 
     // allocate space for times
-    ns_ctx->stimes.reserve(1000000);
-    ns_ctx->etimes.reserve(1000000);
+    // ns_ctx->stimes.reserve(1000000);
+    // ns_ctx->etimes.reserve(1000000);
+
+    ns_ctx->count = 0;
 
     return 0;
 }
@@ -489,25 +516,26 @@ static int work_fn(void *arg)
         drain_io(ns_ctx);
         cleanup_ns_worker_ctx(ns_ctx);
 
-        std::vector<uint64_t> deltas1;
-        for (int i = 0; i < ns_ctx->stimes.size(); i++) {
-            deltas1.push_back(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    ns_ctx->etimes[i] - ns_ctx->stimes[i])
-                    .count());
-        }
-        auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-        auto mean1 = sum1 / deltas1.size();
-        auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
-                                          deltas1.begin(), 0.0);
-        auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-        printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth, mean1,
-               stdev1);
-
-        // clearnup
-        deltas1.clear();
-        ns_ctx->etimes.clear();
-        ns_ctx->stimes.clear();
+        // std::vector<uint64_t> deltas1;
+        // for (int i = 0; i < ns_ctx->stimes.size(); i++) {
+        //     deltas1.push_back(
+        //         std::chrono::duration_cast<std::chrono::microseconds>(
+        //             ns_ctx->etimes[i] - ns_ctx->stimes[i])
+        //             .count());
+        // }
+        // auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        // auto mean1 = sum1 / deltas1.size();
+        // auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+        //                                   deltas1.begin(), 0.0);
+        // auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+        // printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth,
+        // mean1,
+        //        stdev1);
+        //
+        // // clearnup
+        // deltas1.clear();
+        // ns_ctx->etimes.clear();
+        // ns_ctx->stimes.clear();
     }
 
     return 0;
@@ -824,8 +852,10 @@ static int parse_args(int argc, char **argv)
         !strcmp(workload_type, "rw")) {
         g_arbitration.is_random = 0;
     } else {
+        printf("is random\n");
         g_arbitration.is_random = 1;
     }
+    g_arbitration.is_random = 0;
 
     if (g_arbitration.latency_tracking_enable != 0 &&
         g_arbitration.latency_tracking_enable != 1) {

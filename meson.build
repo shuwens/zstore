@@ -203,6 +203,14 @@ executable(
 	install: true,
 )
 
+executable(
+	'spdk_read',
+	files('src/examples/spdk_append.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
 # nvmf multipath signle drive
 executable(
 	'mpsd_append',
