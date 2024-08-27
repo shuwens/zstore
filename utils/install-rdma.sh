@@ -31,19 +31,4 @@ sudo modprobe mlx4_core
 sudo modprobe mlx4_ib
 sudo modprobe mlx4_en
 
-
-
 sudo opensm
-
-# cd $zstore_dir/subprojects/spdk
-#
-# if pidof nvmf_tgt; then
-# 	scripts/rpc.py spdk_kill_instance SIGTERM >/dev/null || true
-# 	scripts/rpc.py spdk_kill_instance SIGKILL >/dev/null || true
-# 	pkill -f nvmf_tgt || true
-# 	pkill -f reactor_0 || true
-# 	sleep 3
-# fi
-#
-# HUGEMEM=4096 ./scripts/setup.sh
-

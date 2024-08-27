@@ -35,12 +35,9 @@ modprobe mlx4_core
 modprobe mlx4_ib
 modprobe mlx4_en
 
-# ifconfig ibp1s0d1 192.168.100.8 netmask 255.255.255.0 up
-# ifconfig eth2 192.168.100.9 netmask 255.255.255.0 up
+ifconfig ibp1s0d1 192.168.100.9 netmask 255.255.255.0 up
 
 modprobe nvme-rdma
-# modprobe nvme-tcp
-
 
 ./build/bin/nvmf_tgt -m '[0,1,2,3]' &
 sleep 3
