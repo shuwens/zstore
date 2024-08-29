@@ -195,13 +195,7 @@ executable(
 # 	install: true,
 # )
 
-executable(
-	'measure',
-	files('src/examples/measurement.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+
 
 # reads from the drive
 executable(

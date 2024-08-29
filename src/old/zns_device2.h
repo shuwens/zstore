@@ -5,7 +5,7 @@
 #include "spdk/nvme_zns.h"
 #include "spdk/nvmf_spec.h"
 #include "utils.hpp"
-#include "zns_utils2.h"
+#include "zns_utils.h"
 #include <atomic>
 #include <chrono>
 #include <fstream>
