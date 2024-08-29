@@ -15,7 +15,7 @@ sudo apt-get -y --force-yes install libibverbs1 ibverbs-utils \
 sudo apt-get install -y libmlx4-1 infiniband-diags ibutils ibverbs-utils rdmacm-utils perftest
 sudo apt-get install -y tgt
 # sudo apt-get install -y targetcli
-sudo apt-get install -y open-iscsi-utils open-iscsi
+# sudo apt-get install -y open-iscsi-utils open-iscsi
 
 
 # RDMA stack modules
