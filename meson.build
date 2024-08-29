@@ -203,6 +203,7 @@ executable(
 	install: true,
 )
 
+# reads from the drive
 executable(
 	'spdk_read',
 	files('src/examples/spdk_append.cc'),

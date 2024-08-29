@@ -501,7 +501,7 @@ static int work_fn(void *arg)
         auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
                                           deltas1.begin(), 0.0);
         auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-        printf("qd: %d, mean %f, std %f\n", ns_ctx->current_queue_depth, mean1,
+        printf("qd: %d, mean %f, std %f\n", ns_ctx->io_completed, mean1,
                stdev1);
 
         // clearnup
@@ -593,8 +593,10 @@ static void print_performance(void)
             io_per_second =
                 (float)ns_ctx->io_completed / g_arbitration.time_in_sec;
             sent_all_io_in_secs = g_arbitration.io_count / io_per_second;
-            printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
-                   ns_ctx->entry->name, worker->lcore, io_per_second,
+            // printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
+            //        ns_ctx->entry->name, worker->lcore, io_per_second,
+            //        sent_all_io_in_secs, g_arbitration.io_count);
+            printf("%8.2f IO/s %8.2f secs/%d ios\n", io_per_second,
                    sent_all_io_in_secs, g_arbitration.io_count);
         }
     }
@@ -924,8 +926,8 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
 
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
-    // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
+    // trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     // struct spdk_nvme_transport_id trid2 = {};
     // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
@@ -949,9 +951,9 @@ static int register_controllers(struct arb_context *ctx)
     printf("Initializing NVMe Controllers\n");
 
     // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
+    zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(ctx, "12.12.12.2", "5520");
+    // zns_dev_init(ctx, "12.12.12.2", "5520");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
@@ -1191,7 +1193,6 @@ int main(int argc, char **argv)
     }
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
-    printf("DEBUG %d\n", spdk_get_ticks_hz());
 
     if (register_workers() != 0) {
         rc = 1;
