@@ -4,6 +4,7 @@
 #include "include/common.h"
 #include "include/device.h"
 #include "include/segment.h"
+#include "include/utils.hpp"
 #include "messages_and_functions.cc"
 #include "segment.cc"
 #include <algorithm>
@@ -656,6 +657,7 @@ void ZstoreController::Init(bool need_env)
     // zns_dev_init("192.168.100.9", "5520");
     // TCP
     zns_dev_init("12.12.12.2", "5520");
+    log_debug("1");
 
     // TODO:
     // if (associate_workers_with_ns() != 0) {
@@ -680,7 +682,8 @@ void ZstoreController::Init(bool need_env)
                                 o2->GetDeviceTransportAddress()) < 0;
               });
 
-    InitErasureCoding();
+    // InitErasureCoding();
+
     // Adjust the capacity for user data = total capacity - footer size
     // The L2P table information at the end of the segment
     // Each block needs (LBA + timestamp + stripe ID, 20 bytes) for L2P table
@@ -715,6 +718,8 @@ void ZstoreController::Init(bool need_env)
                                numZonesReservedPerDevice);
     }
 
+    log_debug("2");
+
     mStorageSpaceThresholdForGcInSegments = numZonesReservedPerDevice / 2;
     mAvailableStorageSpaceInSegments =
         numZonesNeededPerDevice + numZonesReservedPerDevice;
@@ -729,6 +734,7 @@ void ZstoreController::Init(bool need_env)
 
     mReadContextPool = new ReadContextPool(512, mRequestContextPoolForSegments);
 
+    log_debug("3");
     // Initialize address map
     mAddressMap = new PhysicalAddr[Configuration::GetStorageSpaceInBytes() /
                                    Configuration::GetBlockSize()];
@@ -739,6 +745,7 @@ void ZstoreController::Init(bool need_env)
                                 Configuration::GetBlockSize(),
               defaultAddr);
 
+    log_debug("4");
     // Create poll groups for the io threads and perform initialization
     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
@@ -756,6 +763,7 @@ void ZstoreController::Init(bool need_env)
         mDevices[i]->ConnectIoPairs();
     }
 
+    log_debug("5");
     // Preallocate segments
     mNumOpenSegments = Configuration::GetNumOpenSegments();
 
@@ -799,21 +807,27 @@ void ZstoreController::Init(bool need_env)
     //                    nullptr);
     //     }
     // } else {
-    initIoThread();
+    log_debug("6");
+
+    // initIoThread(); // broken
     initDispatchThread();
     initIndexThread();
     initCompletionThread();
     initHttpThread();
+
     // }
 
-    for (uint32_t i = 0; i < mNumOpenSegments; ++i) {
-        createSegmentIfNeeded(&mOpenSegments[i], i);
-    }
+    log_debug("7");
+    // for (uint32_t i = 0; i < mNumOpenSegments; ++i) {
+    //     createSegmentIfNeeded(&mOpenSegments[i], i);
+    // }
 
+    log_debug("8");
     // init Gc
     initGc();
 
     Configuration::PrintConfigurations();
+    log_info("ZstoreController Init finish");
 }
 
 ZstoreController::~ZstoreController()
