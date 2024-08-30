@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     }
 
     log_debug("1");
-    rc = spdk_env_thread_launch_pinned(used_core + 1, http_server_fn, NULL);
+    // rc = spdk_env_thread_launch_pinned(used_core + 1, http_server_fn, NULL);
     log_debug("launch civetweb {}", rc);
 
     log_debug("1");
