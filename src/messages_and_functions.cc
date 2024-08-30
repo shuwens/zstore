@@ -1,8 +1,8 @@
 #include "include/messages_and_functions.h"
-#include "device.h"
 #include "include/common.h"
+#include "include/device.h"
+#include "include/segment.h"
 #include "include/zstore_controller.h"
-#include "segment.h"
 #include "spdk/thread.h"
 #include <queue>
 #include <sys/time.h>
@@ -87,7 +87,7 @@ static void handleUserContext(RequestContext *context)
                        context);
         }
     } else if (status == READ_REAPING) {
-        ctrl->RemoveRequestFromGcEpochIfNecessary(context);
+        // ctrl->RemoveRequestFromGcEpochIfNecessary(context);
         status = READ_COMPLETE;
         if (context->cb_fn != nullptr) {
             context->cb_fn(context->cb_args);
@@ -234,69 +234,69 @@ void handleEventCompletion(void *args)
     handleEventCompletion2(args, nullptr);
 }
 
-int handleEventsDispatch(void *args)
-{
-    bool busy = false;
-    ZstoreController *ctrl = (ZstoreController *)args;
-
-    uint32_t count = 0;
-    std::queue<RequestContext *> &writeQ = ctrl->GetWriteQueue();
-    while (!writeQ.empty()) {
-        RequestContext *ctx = writeQ.front();
-        ctrl->WriteInDispatchThread(ctx);
-
-        if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
-            busy = true;
-            writeQ.pop();
-        } else {
-            break;
-        }
-    }
-
-    count = 0;
-    std::queue<RequestContext *> &readPrepareQ = ctrl->GetReadPrepareQueue();
-    while (!readPrepareQ.empty()) {
-        RequestContext *ctx = readPrepareQ.front();
-        ctrl->ReadInDispatchThread(ctx);
-        readPrepareQ.pop();
-        busy = true;
-    }
-
-    count = 0;
-    std::queue<RequestContext *> &readReapingQ = ctrl->GetReadReapingQueue();
-    while (!readReapingQ.empty()) {
-        RequestContext *ctx = readReapingQ.front();
-        ctrl->ReadInDispatchThread(ctx);
-
-        uint32_t recordedOffset = ctx->curOffset;
-        if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
-            busy = true;
-            readReapingQ.pop();
-        } else {
-            break;
-        }
-    }
-
-    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-}
+// int handleEventsDispatch(void *args)
+// {
+//     bool busy = false;
+//     ZstoreController *ctrl = (ZstoreController *)args;
+//
+//     uint32_t count = 0;
+//     std::queue<RequestContext *> &writeQ = ctrl->GetWriteQueue();
+//     while (!writeQ.empty()) {
+//         RequestContext *ctx = writeQ.front();
+//         ctrl->WriteInDispatchThread(ctx);
+//
+//         if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
+//             busy = true;
+//             writeQ.pop();
+//         } else {
+//             break;
+//         }
+//     }
+//
+//     count = 0;
+//     std::queue<RequestContext *> &readPrepareQ = ctrl->GetReadPrepareQueue();
+//     while (!readPrepareQ.empty()) {
+//         RequestContext *ctx = readPrepareQ.front();
+//         ctrl->ReadInDispatchThread(ctx);
+//         readPrepareQ.pop();
+//         busy = true;
+//     }
+//
+//     count = 0;
+//     std::queue<RequestContext *> &readReapingQ = ctrl->GetReadReapingQueue();
+//     while (!readReapingQ.empty()) {
+//         RequestContext *ctx = readReapingQ.front();
+//         ctrl->ReadInDispatchThread(ctx);
+//
+//         uint32_t recordedOffset = ctx->curOffset;
+//         if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
+//             busy = true;
+//             readReapingQ.pop();
+//         } else {
+//             break;
+//         }
+//     }
+//
+//     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+// }
 
 int handleBackgroundTasks(void *args)
 {
-    ZstoreController *raidController = (ZstoreController *)args;
+    ZstoreController *zstoreController = (ZstoreController *)args;
     bool hasProgress = false;
-    hasProgress |= raidController->ProceedGc();
-    hasProgress |= raidController->CheckSegments();
+    // hasProgress |= zstoreController->ProceedGc();
+    hasProgress |= zstoreController->CheckSegments();
 
     return hasProgress ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
 int dispatchWorker(void *args)
 {
-    ZstoreController *raidController = (ZstoreController *)args;
-    struct spdk_thread *thread = raidController->GetDispatchThread();
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    struct spdk_thread *thread = zstoreController->GetDispatchThread();
     spdk_set_thread(thread);
-    spdk_poller_register(handleEventsDispatch, raidController, 1);
-    spdk_poller_register(handleBackgroundTasks, raidController, 1);
+    // spdk_poller_register(handleEventsDispatch, zstoreController, 1);
+    spdk_poller_register(handleBackgroundTasks, zstoreController, 1);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
@@ -304,8 +304,8 @@ int dispatchWorker(void *args)
 
 int ecWorker(void *args)
 {
-    ZstoreController *raidController = (ZstoreController *)args;
-    struct spdk_thread *thread = raidController->GetEcThread();
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    struct spdk_thread *thread = zstoreController->GetHttpThread();
     spdk_set_thread(thread);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -314,8 +314,8 @@ int ecWorker(void *args)
 
 int indexWorker(void *args)
 {
-    ZstoreController *raidController = (ZstoreController *)args;
-    struct spdk_thread *thread = raidController->GetIndexThread();
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    struct spdk_thread *thread = zstoreController->GetIndexThread();
     printf("Index: %p\n", thread);
     spdk_set_thread(thread);
     while (true) {
@@ -325,8 +325,8 @@ int indexWorker(void *args)
 
 int completionWorker(void *args)
 {
-    ZstoreController *raidController = (ZstoreController *)args;
-    struct spdk_thread *thread = raidController->GetCompletionThread();
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    struct spdk_thread *thread = zstoreController->GetCompletionThread();
     spdk_set_thread(thread);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -349,10 +349,10 @@ void registerIoCompletionRoutine(void *arg1, void *arg2)
 
 void registerDispatchRoutine(void *arg1, void *arg2)
 {
-    ZstoreController *raidController =
+    ZstoreController *zstoreController =
         reinterpret_cast<ZstoreController *>(arg1);
-    spdk_poller_register(handleEventsDispatch, raidController, 1);
-    spdk_poller_register(handleBackgroundTasks, raidController, 1);
+    // spdk_poller_register(handleEventsDispatch, zstoreController, 1);
+    spdk_poller_register(handleBackgroundTasks, zstoreController, 1);
 }
 
 void enqueueRequest2(void *arg1, void *arg2)
@@ -514,37 +514,37 @@ void tryDrainController(void *args)
     DrainArgs *drainArgs = (DrainArgs *)args;
     drainArgs->ctrl->CheckSegments();
     drainArgs->ctrl->ReclaimContexts();
-    drainArgs->ctrl->ProceedGc();
+    // drainArgs->ctrl->ProceedGc();
     drainArgs->success = drainArgs->ctrl->GetNumInflightRequests() == 0 &&
                          !drainArgs->ctrl->ExistsGc();
 
     drainArgs->ready = true;
 }
 
-void progressGcIndexUpdate2(void *arg1, void *arg2)
-{
-    ZstoreController *ctrl = reinterpret_cast<ZstoreController *>(arg1);
-    GcTask *task = ctrl->GetGcTask();
-    std::vector<uint64_t> lbas;
-    std::vector<std::pair<PhysicalAddr, PhysicalAddr>> pbas;
+// void progressGcIndexUpdate2(void *arg1, void *arg2)
+// {
+//     ZstoreController *ctrl = reinterpret_cast<ZstoreController *>(arg1);
+//     GcTask *task = ctrl->GetGcTask();
+//     std::vector<uint64_t> lbas;
+//     std::vector<std::pair<PhysicalAddr, PhysicalAddr>> pbas;
+//
+//     auto it = task->mappings.begin();
+//     uint32_t count = 0;
+//     while (it != task->mappings.end()) {
+//         lbas.emplace_back(it->first);
+//         pbas.emplace_back(it->second);
+//
+//         it = task->mappings.erase(it);
+//
+//         count += 1;
+//         if (count == 256)
+//             break;
+//     }
+//     ctrl->GcBatchUpdateIndex(lbas, pbas);
+//     task->stage = INDEX_UPDATING_BATCH;
+// }
 
-    auto it = task->mappings.begin();
-    uint32_t count = 0;
-    while (it != task->mappings.end()) {
-        lbas.emplace_back(it->first);
-        pbas.emplace_back(it->second);
-
-        it = task->mappings.erase(it);
-
-        count += 1;
-        if (count == 256)
-            break;
-    }
-    ctrl->GcBatchUpdateIndex(lbas, pbas);
-    task->stage = INDEX_UPDATING_BATCH;
-}
-
-void progressGcIndexUpdate(void *args)
-{
-    progressGcIndexUpdate2(args, nullptr);
-}
+// void progressGcIndexUpdate(void *args)
+// {
+//     progressGcIndexUpdate2(args, nullptr);
+// }

@@ -2,62 +2,25 @@
 #include "include/messages_and_functions.h"
 #include "include/zone.h"
 #include "include/zstore_controller.h"
+#include "spdk/nvme.h"
 #include <rte_errno.h>
 #include <sys/time.h>
 
-#include "spdk/nvme.h"
-
-// callbacks for io completions, in IO threads
+// callbacks for io completions
 static void writeComplete(void *arg, const struct spdk_nvme_cpl *completion)
 {
-    struct timeval s, e;
-    gettimeofday(&s, 0);
     RequestContext *slot = (RequestContext *)arg;
 
     if (spdk_nvme_cpl_is_error(completion)) {
         slot->PrintStats();
         fprintf(stderr, "I/O error status: %s\n",
                 spdk_nvme_cpl_get_status_string(&completion->status));
-        fprintf(stderr,
-                "Write I/O failed, aborting run. zone %u offset %u size %u"
-                " io.offset %lu io.size %u\n",
-                slot->zoneId, slot->offset, slot->size, slot->ioContext.offset,
-                slot->ioContext.size);
+        fprintf(stderr, "Write I/O failed, aborting run\n");
         assert(0);
         exit(1);
     }
 
-    if (Configuration::GetEnableIOLatencyTest()) {
-        gettimeofday(&slot->timeB, 0);
-    }
-
-    uint32_t blockSize = Configuration::GetBlockSize();
-    slot->successBytes += slot->ioContext.size * blockSize;
-    slot->zone->AdvancePos(slot->ioContext.size);
-    StatsRecorder::getInstance()->timeProcess(StatsType::WRITE_LAT,
-                                              slot->timeA);
-
-    debug_warn(
-        "write complete %d slot %p offset %u size %u slot->zone->pos %u\n",
-        slot->successBytes, slot, slot->offset, slot->size,
-        slot->zone->GetPos());
-    if (slot->status != WRITE_REAPING) {
-        debug_error(
-            "slot %p status %d success %u zone %p curOffset %u offset %u\n",
-            slot, slot->status, slot->successBytes, slot->zone, slot->curOffset,
-            slot->offset);
-    }
-    assert(slot->status == WRITE_REAPING);
-    debug_w("queue");
-    gettimeofday(&e, 0);
-    if (slot->ctrl == nullptr) {
-        debug_error(
-            "write complete %d slot %p offset %u size %u slot->zone->pos %u\n",
-            slot->successBytes, slot, slot->offset, slot->size,
-            slot->zone->GetPos());
-        assert(0);
-    }
-    slot->ctrl->MarkIoThreadZoneWriteCompleteTime(s, e);
+    slot->successBytes += Configuration::GetStripeUnitSize();
     slot->Queue();
 };
 
@@ -72,17 +35,8 @@ static void readComplete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    // TODO change to unit size
-    //  slot->successBytes += Configuration::GetBlockSize();
-    if (Configuration::GetEnableIOLatencyTest()) {
-        gettimeofday(&slot->timeB, 0);
-    }
-    uint32_t blockSize = Configuration::GetBlockSize();
-    slot->successBytes += slot->ioContext.size * blockSize;
-    debug_warn("read complete %d slot %p\n", slot->successBytes, slot);
-    assert(slot->status == READ_REAPING);
+    slot->successBytes += Configuration::GetStripeUnitSize();
     slot->Queue();
-    debug_w("queue");
 };
 
 static void resetComplete(void *arg, const struct spdk_nvme_cpl *completion)
@@ -95,8 +49,6 @@ static void resetComplete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    debug_warn("reset complete %d slot %p\n", slot->successBytes, slot);
-    assert(slot->status == RESET_REAPING);
     slot->Queue();
 };
 
@@ -109,8 +61,6 @@ static void finishComplete(void *arg, const struct spdk_nvme_cpl *completion)
         fprintf(stderr, "Finish I/O failed, aborting run\n");
         exit(1);
     }
-    debug_warn("finish complete %d slot %p\n", slot->successBytes, slot);
-    assert(slot->status == FINISH_REAPING);
     slot->Queue();
 };
 
@@ -124,24 +74,12 @@ static void appendComplete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    if (Configuration::GetEnableIOLatencyTest()) {
-        gettimeofday(&slot->timeB, 0);
-    }
-
-    uint32_t blockSize = Configuration::GetBlockSize();
-    slot->successBytes += slot->ioContext.size * blockSize;
-    slot->zone->AdvancePos(slot->ioContext.size);
-
+    slot->successBytes += Configuration::GetStripeUnitSize();
     slot->offset = slot->offset & completion->cdw0;
-    debug_warn("append complete %d slot %p\n", slot->successBytes, slot);
-    assert(slot->status == WRITE_REAPING);
     slot->Queue();
 };
 
-inline uint64_t Device::bytes2Block(uint64_t bytes)
-{
-    return bytes / Configuration::GetBlockSize(); //>> 12;
-}
+inline uint64_t Device::bytes2Block(uint64_t bytes) { return bytes >> 12; }
 
 inline uint64_t Device::bytes2ZoneNum(uint64_t bytes)
 {
@@ -152,18 +90,12 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
 {
     mController = ctrlr;
     mNamespace = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
-    if (spdk_nvme_ns_get_md_size(mNamespace) == 0) {
-        Configuration::SetDeviceSupportMetadata(false);
-    }
 
     mZoneSize = spdk_nvme_zns_ns_get_zone_size_sectors(mNamespace);
     mNumZones = spdk_nvme_zns_ns_get_num_zones(mNamespace);
-    if (mZoneSize == 2ull * 1024 * 256) {
-        mZoneCapacity = 1077 * 256; // hard-coded here since it is ZN540; update
-                                    // this for emulated SSDs
-    } else {
-        mZoneCapacity = mZoneSize;
-    }
+    mZoneCapacity =
+        1077 *
+        256; // hard-coded here since it is ZN540; update this for emulated SSDs
     printf("Zone size: %lu, zone cap: %lu, num of zones: %u\n", mZoneSize,
            mZoneCapacity, mNumZones);
 
@@ -177,8 +109,6 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
             spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
         assert(mIoQueues[i]);
     }
-    mReadCounts.clear();
-    mTotalReadCounts = 0;
 }
 
 void Device::ConnectIoPairs()
@@ -290,7 +220,6 @@ void Device::FinishZone(Zone *zone, void *ctx)
     slot->ioContext.flags = 0;
 
     if (Configuration::GetBypassDevice()) {
-        debug_e("Bypass finish zone");
         slot->Queue();
         return;
     }
@@ -305,113 +234,64 @@ void Device::FinishZone(Zone *zone, void *ctx)
 void Device::Write(uint64_t offset, uint32_t size, void *ctx)
 {
     RequestContext *slot = (RequestContext *)ctx;
-    uint32_t blockSize = Configuration::GetBlockSize();
-    uint32_t metadataSize = Configuration::GetMetadataSize();
-    slot->ioContext.data = (uint8_t *)slot->data + slot->curOffset * blockSize;
-    slot->ioContext.metadata =
-        (uint8_t *)slot->meta + slot->curOffset * metadataSize;
+    slot->ioContext.data = slot->data;
+    slot->ioContext.metadata = slot->meta;
     slot->ioContext.offset = bytes2Block(offset);
     slot->ioContext.size = bytes2Block(size);
     slot->ioContext.cb = writeComplete;
     slot->ioContext.ctx = ctx;
     slot->ioContext.flags = 0;
 
-    slot->ioOffset = slot->curOffset;
-
     if (Configuration::GetBypassDevice()) {
-        debug_e("Bypass write zone");
-        slot->successBytes += size;
+        slot->successBytes += Configuration::GetBlockSize();
         slot->Queue();
         return;
     }
 
-    //  if (Configuration::GetEventFrameworkEnabled()) {
-    //    issueIo2(zoneWrite2, slot);
-    //  } else {
-    //    issueIo(zoneWrite, slot);
-    //  }
-
-    BufferCopyArgs *bcArgs = new BufferCopyArgs;
-    bcArgs->dev = this;
-    bcArgs->slot = slot;
     if (Configuration::GetEventFrameworkEnabled()) {
-        event_call(Configuration::GetCompletionThreadCoreId(), bufferCopy2,
-                   bcArgs, nullptr);
+        issueIo2(zoneWrite2, slot);
     } else {
-        thread_send_msg(slot->ctrl->GetCompletionThread(), bufferCopy, bcArgs);
+        issueIo(zoneWrite, slot);
     }
 }
 
 void Device::Append(uint64_t offset, uint32_t size, void *ctx)
 {
     RequestContext *slot = (RequestContext *)ctx;
-    slot->ioContext.data =
-        slot->data + slot->curOffset * Configuration::GetBlockSize();
-    slot->ioContext.metadata =
-        slot->meta + slot->curOffset * Configuration::GetMetadataSize();
+    slot->ioContext.data = slot->data;
+    slot->ioContext.metadata = slot->meta;
     slot->ioContext.offset = bytes2Block(offset);
     slot->ioContext.size = bytes2Block(size);
     slot->ioContext.cb = appendComplete;
     slot->ioContext.ctx = ctx;
     slot->ioContext.flags = 0;
 
-    slot->ioOffset = slot->curOffset;
-
     if (Configuration::GetBypassDevice()) {
-        debug_e("Bypass append zone");
         slot->offset = 0;
         slot->successBytes += Configuration::GetBlockSize();
         slot->Queue();
         return;
     }
 
-    BufferCopyArgs *bcArgs = new BufferCopyArgs;
-    bcArgs->dev = this;
-    bcArgs->slot = slot;
     if (Configuration::GetEventFrameworkEnabled()) {
-        event_call(Configuration::GetCompletionThreadCoreId(), bufferCopy2,
-                   bcArgs, nullptr);
+        issueIo2(zoneAppend2, slot);
     } else {
-        thread_send_msg(slot->ctrl->GetCompletionThread(), bufferCopy, bcArgs);
+        issueIo(zoneAppend, slot);
     }
-    //  if (Configuration::GetEventFrameworkEnabled()) {
-    //    issueIo2(zoneAppend2, slot);
-    //  } else {
-    //    issueIo(zoneAppend, slot);
-    //  }
 }
 
 void Device::Read(uint64_t offset, uint32_t size, void *ctx)
 {
-    uint32_t blockSize = Configuration::GetBlockSize();
-    uint32_t metadataSize = Configuration::GetMetadataSize();
     RequestContext *slot = (RequestContext *)ctx;
-    slot->ioContext.data = slot->data + slot->curOffset * blockSize;
-    slot->ioContext.metadata = slot->meta + slot->curOffset * metadataSize;
+    slot->ioContext.data = slot->data;
+    slot->ioContext.metadata = slot->meta;
     slot->ioContext.offset = bytes2Block(offset);
     slot->ioContext.size = bytes2Block(size);
     slot->ioContext.cb = readComplete;
     slot->ioContext.ctx = ctx;
     slot->ioContext.flags = 0;
 
-    slot->ioOffset = slot->curOffset;
-
-    {
-        mReadCounts[slot->ioContext.size]++;
-        mTotalReadCounts++;
-        mTotalReadSizes += size;
-        if (mTotalReadCounts == 100000 || mTotalReadCounts % 1000000 == 0) {
-            printf("Read counts: ");
-            for (auto it = mReadCounts.begin(); it != mReadCounts.end(); ++it) {
-                printf("%u: %lu, ", it->first, it->second);
-            }
-            printf("\n");
-            printf("Read sizes: %lu\n", mTotalReadSizes);
-        }
-    }
-
     if (Configuration::GetBypassDevice()) {
-        debug_e("Bypass read zone");
         slot->successBytes += Configuration::GetBlockSize();
         slot->Queue();
         return;
@@ -427,8 +307,6 @@ void Device::Read(uint64_t offset, uint32_t size, void *ctx)
 void Device::AddAvailableZone(Zone *zone) { mAvailableZones.insert(zone); }
 
 uint64_t Device::GetZoneCapacity() { return mZoneCapacity; }
-
-uint64_t Device::GetZoneSize() { return mZoneSize; }
 
 uint32_t Device::GetNumZones() { return mNumZones; }
 

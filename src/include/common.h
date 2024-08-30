@@ -12,18 +12,11 @@
 #include <spdk/thread.h>
 #include <unordered_set>
 #include <vector>
-// #include "debug.h"
-
-#include <queue>
-#include <set>
 
 class Segment;
 class ZstoreController;
-class Zone;
 struct RequestContext;
 struct GcTask;
-
-class Device;
 
 inline uint64_t round_up(uint64_t value, uint64_t align)
 {
@@ -73,25 +66,16 @@ struct Metadata {
 
 enum ContextStatus {
     WRITE_REAPING,
-    // 0
     WRITE_INDEX_UPDATING,
-    WRITE_INDEX_UPDATED, // useless
+    WRITE_INDEX_UPDATED,
     WRITE_COMPLETE,
     READ_PREPARE,
     READ_INDEX_QUERYING,
-    // 5
     READ_REAPING,
     READ_COMPLETE,
     DEGRADED_READ_REAPING,
     DEGRADED_READ_META,
     DEGRADED_READ_SUB,
-    // 10
-    WRITE_INDEX_REAPING,
-    WRITE_INDEX_COMPLETE,
-    WRITE_INDEX_WAITING,
-    READ_INDEX_REAPING,
-    READ_INDEX_COMPLETE,
-    // 15
     RESET_REAPING,
     RESET_COMPLETE,
     FINISH_REAPING,
@@ -113,8 +97,6 @@ struct StripeWriteContext {
     std::vector<RequestContext *> ioContext;
     uint32_t targetBytes;
     uint32_t successBytes;
-    uint32_t metaTargetBytes;
-    uint32_t totalTargetBytes;
 };
 
 struct ReadContext {
@@ -159,7 +141,6 @@ struct RequestContext {
     uint32_t successBytes;
     uint32_t targetBytes;
     uint32_t curOffset;
-    uint32_t ioOffset;
     zns_raid_request_complete cb_fn;
     void *cb_args;
 
@@ -168,7 +149,6 @@ struct RequestContext {
     // Used inside a Segment write/read
     ZstoreController *ctrl;
     Segment *segment;
-    Zone *zone;
     uint32_t zoneId;
     uint32_t stripeId;
     uint32_t offset;
@@ -179,12 +159,9 @@ struct RequestContext {
     uint64_t timestamp;
 
     struct timeval timeA;
-    struct timeval timeB;
-    struct timeval timeC;
 
     // context during request process
-    std::vector<std::pair<RequestContext *, std::pair<uint64_t, uint32_t>>>
-        associatedRequests;
+    RequestContext *associatedRequest;
     StripeWriteContext *associatedStripe;
     ReadContext *associatedRead;
 
@@ -204,36 +181,14 @@ struct RequestContext {
     } ioContext;
 
     GcTask *gcTask;
-    std::vector<uint64_t> lbaArray;
     std::vector<PhysicalAddr> pbaArray;
-    uint32_t
-        pbaInBlk; // used by index map, but need to be transferred to pbaArray
-    std::vector<PhysicalAddr> backupPbaArray;
-    uint32_t nValid =
-        0; // valid blocks; 0 for normal reads, < read size for partial gc reads
-    uint64_t validBits = 0;
-    uint32_t bufferSize; // for recording partial writes
 
     void Clear();
     void Queue();
     PhysicalAddr GetPba();
-    void UpdateContinousPba();
     double GetElapsedTime();
     void PrintStats();
     void CopyFrom(const RequestContext &o);
-    // debug
-    // void addMsg(std::string s);
-    void printMsg();
-    uint32_t numMsg();
-    // std::queue<std::string> mMsg;
-    // std::set<std::string> mMsgSet;
-    uint32_t mMsgSize = 16;
-    int lockInt = 0;
-};
-
-struct BufferCopyArgs {
-    Device *dev;
-    RequestContext *slot;
 };
 
 // Data is an array: index is offset, value is the stripe Id in the
@@ -263,7 +218,6 @@ struct GcTask {
     Segment *outputSegment;
     uint32_t maxZoneId;
     uint32_t maxOffset;
-    uint32_t readUnitSize;
 
     uint8_t *dataBuffer;
     uint8_t *metaBuffer;
@@ -274,16 +228,11 @@ struct GcTask {
     uint32_t numWriteSubmitted;
     uint32_t numWriteFinish;
     uint32_t numReads;
-    uint32_t numUnitReads;
-    uint32_t numUnitWrites;
 
     uint32_t curZoneId;
     uint32_t nextOffset;
 
     uint32_t numBuffers;
-    // debug for GC
-    // std::vector<std::string> debugMessages;
-    uint32_t debugInvalidated;
 
     std::map<uint64_t, std::pair<PhysicalAddr, PhysicalAddr>> mappings;
 };
@@ -336,16 +285,11 @@ struct StripeWriteContextPool {
     bool checkStripeAvailable(StripeWriteContext *stripe);
 };
 
-uint64_t simpleHash(uint8_t *data);
-
 double GetTimestampInUs();
 double timestamp();
 double gettimediff(struct timeval s, struct timeval e);
-uint64_t getRss();
 
 void InitErasureCoding();
-void DecodeStripe(uint32_t offset, uint32_t stripeId, uint8_t **stripe,
-                  bool *alive, uint32_t n, uint32_t k, uint32_t decodeZid,
-                  uint32_t unitSize);
+void DecodeStripe(uint32_t offset, uint8_t **stripe, bool *alive, uint32_t n,
+                  uint32_t k, uint32_t decodeZid, uint32_t unitSize);
 void EncodeStripe(uint8_t **stripe, uint32_t n, uint32_t k, uint32_t unitSize);
-void DumpLatencies(std::map<uint32_t, uint32_t> &latCnt, const char *name);

@@ -1,7 +1,11 @@
 #include "include/zstore_controller.h"
+#include "common.cc"
+#include "device.cc"
 #include "include/common.h"
 #include "include/device.h"
 #include "include/segment.h"
+#include "messages_and_functions.cc"
+#include "segment.cc"
 #include <algorithm>
 #include <isa-l.h>
 #include <rte_errno.h>
@@ -1191,88 +1195,88 @@ bool ZstoreController::scheduleGc()
     return true;
 }
 
-bool ZstoreController::ProceedGc()
-{
-    bool hasProgress = false;
-    if (!Configuration::GetEnableGc()) {
-        return hasProgress;
-    }
-
-    if (mGcTask.stage == IDLE) { // IDLE
-        if (scheduleGc()) {
-            hasProgress = true;
-            mGcTask.stage = INIT;
-        }
-    }
-
-    if (mGcTask.stage == INIT) {
-        initializeGcTask();
-    }
-
-    if (mGcTask.stage == REWRITING) {
-        hasProgress |= progressGcWriter();
-        hasProgress |= progressGcReader();
-
-        if (mGcTask.curZoneId == mGcTask.maxZoneId) {
-            if (mGcTask.numWriteSubmitted == mGcTask.numReads &&
-                mGcTask.numWriteFinish == mGcTask.numWriteSubmitted) {
-                assert(mGcTask.mappings.size() == mGcTask.numWriteFinish);
-                mGcTask.stage = REWRITE_COMPLETE;
-            }
-        }
-    }
-
-    if (mGcTask.stage == REWRITE_COMPLETE) {
-        hasProgress = true;
-        mGcTask.stage = INDEX_UPDATING;
-
-        if (!Configuration::GetEventFrameworkEnabled()) {
-            thread_send_msg(mIndexThread, progressGcIndexUpdate, this);
-        } else {
-            event_call(Configuration::GetIndexThreadCoreId(),
-                       progressGcIndexUpdate2, this, nullptr);
-        }
-    }
-
-    if (mGcTask.stage == INDEX_UPDATING_BATCH) {
-        if (mGcTask.mappings.size() != 0) {
-            hasProgress = true;
-            mGcTask.stage = INDEX_UPDATING;
-            if (!Configuration::GetEventFrameworkEnabled()) {
-                thread_send_msg(mIndexThread, progressGcIndexUpdate, this);
-            } else {
-                event_call(Configuration::GetIndexThreadCoreId(),
-                           progressGcIndexUpdate2, this, nullptr);
-            }
-        } else { // Finish updating all mappings
-            hasProgress = true;
-            mGcTask.stage = INDEX_UPDATE_COMPLETE;
-        }
-    }
-
-    if (mGcTask.stage == INDEX_UPDATE_COMPLETE) {
-        if (mReadsInCurrentGcEpoch.empty()) {
-            hasProgress = true;
-            mGcTask.inputSegment->Reset(nullptr);
-            mGcTask.stage = RESETTING_INPUT_SEGMENT;
-        }
-    }
-
-    if (mGcTask.stage == RESETTING_INPUT_SEGMENT) {
-        if (mGcTask.inputSegment->IsResetDone()) {
-            auto zones = mGcTask.inputSegment->GetZones();
-            for (uint32_t i = 0; i < zones.size(); ++i) {
-                mDevices[i]->ReturnZone(zones[i]);
-            }
-            mSealedSegments.erase(mGcTask.inputSegment);
-            delete mGcTask.inputSegment;
-            mAvailableStorageSpaceInSegments += 1;
-            mGcTask.stage = IDLE;
-        }
-    }
-
-    return hasProgress;
-}
+// bool ZstoreController::ProceedGc()
+// {
+//     bool hasProgress = false;
+//     if (!Configuration::GetEnableGc()) {
+//         return hasProgress;
+//     }
+//
+//     if (mGcTask.stage == IDLE) { // IDLE
+//         if (scheduleGc()) {
+//             hasProgress = true;
+//             mGcTask.stage = INIT;
+//         }
+//     }
+//
+//     if (mGcTask.stage == INIT) {
+//         initializeGcTask();
+//     }
+//
+//     if (mGcTask.stage == REWRITING) {
+//         hasProgress |= progressGcWriter();
+//         hasProgress |= progressGcReader();
+//
+//         if (mGcTask.curZoneId == mGcTask.maxZoneId) {
+//             if (mGcTask.numWriteSubmitted == mGcTask.numReads &&
+//                 mGcTask.numWriteFinish == mGcTask.numWriteSubmitted) {
+//                 assert(mGcTask.mappings.size() == mGcTask.numWriteFinish);
+//                 mGcTask.stage = REWRITE_COMPLETE;
+//             }
+//         }
+//     }
+//
+//     if (mGcTask.stage == REWRITE_COMPLETE) {
+//         hasProgress = true;
+//         mGcTask.stage = INDEX_UPDATING;
+//
+//         // if (!Configuration::GetEventFrameworkEnabled()) {
+//         thread_send_msg(mIndexThread, progressGcIndexUpdate, this);
+//         // } else {
+//         //     event_call(Configuration::GetIndexThreadCoreId(),
+//         //                progressGcIndexUpdate2, this, nullptr);
+//         // }
+//     }
+//
+//     if (mGcTask.stage == INDEX_UPDATING_BATCH) {
+//         if (mGcTask.mappings.size() != 0) {
+//             hasProgress = true;
+//             mGcTask.stage = INDEX_UPDATING;
+//             // if (!Configuration::GetEventFrameworkEnabled()) {
+//             thread_send_msg(mIndexThread, progressGcIndexUpdate, this);
+//             // } else {
+//             //     event_call(Configuration::GetIndexThreadCoreId(),
+//             //                progressGcIndexUpdate2, this, nullptr);
+//             // }
+//         } else { // Finish updating all mappings
+//             hasProgress = true;
+//             mGcTask.stage = INDEX_UPDATE_COMPLETE;
+//         }
+//     }
+//
+//     if (mGcTask.stage == INDEX_UPDATE_COMPLETE) {
+//         if (mReadsInCurrentGcEpoch.empty()) {
+//             hasProgress = true;
+//             mGcTask.inputSegment->Reset(nullptr);
+//             mGcTask.stage = RESETTING_INPUT_SEGMENT;
+//         }
+//     }
+//
+//     if (mGcTask.stage == RESETTING_INPUT_SEGMENT) {
+//         if (mGcTask.inputSegment->IsResetDone()) {
+//             auto zones = mGcTask.inputSegment->GetZones();
+//             for (uint32_t i = 0; i < zones.size(); ++i) {
+//                 mDevices[i]->ReturnZone(zones[i]);
+//             }
+//             mSealedSegments.erase(mGcTask.inputSegment);
+//             delete mGcTask.inputSegment;
+//             mAvailableStorageSpaceInSegments += 1;
+//             mGcTask.stage = IDLE;
+//         }
+//     }
+//
+//     return hasProgress;
+// }
 
 void ZstoreController::Drain()
 {
