@@ -101,7 +101,7 @@ static TAILQ_HEAD(,
 static struct feature features[SPDK_NVME_FEAT_ARBITRATION + 1] = {};
 static struct spdk_nvme_transport_id g_trid = {};
 
-static struct arb_context g_arbitration = {
+static struct arb_context g_zstore = {
     .outstanding_commands = 0,
     .num_workers = 0,
     .num_namespaces = 0,
@@ -120,7 +120,7 @@ static int g_dpdk_mem = 0;
 static bool g_dpdk_mem_single_seg = false;
 
 /*
- * For weighted round robin arbitration mechanism, the smaller value between
+ * For weighted round robin zstore mechanism, the smaller value between
  * weight and burst will be picked to execute the commands in one queue.
  */
 #define USER_SPECIFIED_HIGH_PRIORITY_WEIGHT 32

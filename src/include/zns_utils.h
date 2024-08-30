@@ -27,17 +27,15 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 
     cdata = spdk_nvme_ctrlr_get_data(ctrlr);
 
-    if (spdk_nvme_ns_get_size(ns) < g_arbitration.io_size_bytes ||
-        spdk_nvme_ns_get_extended_sector_size(ns) >
-            g_arbitration.io_size_bytes ||
-        g_arbitration.io_size_bytes %
-            spdk_nvme_ns_get_extended_sector_size(ns)) {
+    if (spdk_nvme_ns_get_size(ns) < g_zstore.io_size_bytes ||
+        spdk_nvme_ns_get_extended_sector_size(ns) > g_zstore.io_size_bytes ||
+        g_zstore.io_size_bytes % spdk_nvme_ns_get_extended_sector_size(ns)) {
         printf("WARNING: controller %-20.20s (%-20.20s) ns %u has invalid "
                "ns size %" PRIu64 " / block size %u for I/O size %u\n",
                cdata->mn, cdata->sn, spdk_nvme_ns_get_id(ns),
                spdk_nvme_ns_get_size(ns),
                spdk_nvme_ns_get_extended_sector_size(ns),
-               g_arbitration.io_size_bytes);
+               g_zstore.io_size_bytes);
         return;
     }
 
@@ -50,14 +48,13 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
     entry->nvme.ctrlr = ctrlr;
     entry->nvme.ns = ns;
 
-    entry->size_in_ios =
-        spdk_nvme_ns_get_size(ns) / g_arbitration.io_size_bytes;
+    entry->size_in_ios = spdk_nvme_ns_get_size(ns) / g_zstore.io_size_bytes;
     entry->io_size_blocks =
-        g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
+        g_zstore.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
 
     snprintf(entry->name, 44, "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
 
-    g_arbitration.num_namespaces++;
+    g_zstore.num_namespaces++;
     TAILQ_INSERT_TAIL(&g_namespaces, entry, link);
 }
 
@@ -113,7 +110,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         exit(1);
     }
 
-    task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
+    task->buf = spdk_dma_zmalloc(g_zstore.io_size_bytes, 0x200, NULL);
     if (!task->buf) {
         spdk_mempool_put(task_pool, task);
         log_error("task->buf spdk_dma_zmalloc failed");
@@ -122,7 +119,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 
     task->ns_ctx = ns_ctx;
 
-    if (g_arbitration.is_random) {
+    if (g_zstore.is_random) {
         offset_in_ios = rand_r(&seed) % entry->size_in_ios;
     } else {
         offset_in_ios = ns_ctx->offset_in_ios++;
@@ -131,9 +128,9 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
         }
     }
 
-    // if ((g_arbitration.rw_percentage == 100) ||
-    //     (g_arbitration.rw_percentage != 0 &&
-    //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
+    // if ((g_zstore.rw_percentage == 100) ||
+    //     (g_zstore.rw_percentage != 0 &&
+    //      ((rand_r(&seed) % 100) < g_zstore.rw_percentage))) {
     ns_ctx->stime = std::chrono::high_resolution_clock::now();
     ns_ctx->stimes.push_back(ns_ctx->stime);
 
@@ -189,7 +186,7 @@ static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
 static void check_io(struct ns_worker_ctx *ns_ctx)
 {
     spdk_nvme_qpair_process_completions(ns_ctx->qpair,
-                                        g_arbitration.max_completions);
+                                        g_zstore.max_completions);
 }
 
 static void submit_io(struct ns_worker_ctx *ns_ctx, int queue_depth)
@@ -284,15 +281,14 @@ static int work_fn(void *arg)
         }
     }
 
-    tsc_end =
-        spdk_get_ticks() + g_arbitration.time_in_sec * g_arbitration.tsc_rate;
+    tsc_end = spdk_get_ticks() + g_zstore.time_in_sec * g_zstore.tsc_rate;
     // printf("tick %s, time in sec %s, tsc rate %s", spdk_get_ticks(),
-    //        g_arbitration.time_in_sec, g_arbitration.tsc_rate);
+    //        g_zstore.time_in_sec, g_zstore.tsc_rate);
 
     /* Submit initial I/O for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     {
-        submit_io(ns_ctx, g_arbitration.queue_depth);
+        submit_io(ns_ctx, g_zstore.queue_depth);
     }
 
     while (1) {
@@ -342,10 +338,9 @@ static void print_configuration(char *program_name)
     printf("%s run with configuration:\n", program_name);
     printf("%s -q %d -s %d -w %s -M %d -t %d -c %s  -b %d -n "
            "%d \n",
-           program_name, g_arbitration.queue_depth, g_arbitration.io_size_bytes,
-           g_arbitration.workload_type, g_arbitration.rw_percentage,
-           g_arbitration.time_in_sec, g_arbitration.core_mask,
-           g_arbitration.max_completions, g_arbitration.io_count);
+           program_name, g_zstore.queue_depth, g_zstore.io_size_bytes,
+           g_zstore.workload_type, g_zstore.rw_percentage, g_zstore.time_in_sec,
+           g_zstore.core_mask, g_zstore.max_completions, g_zstore.io_count);
 }
 
 static void print_performance(void)
@@ -358,12 +353,11 @@ static void print_performance(void)
     {
         TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
         {
-            io_per_second =
-                (float)ns_ctx->io_completed / g_arbitration.time_in_sec;
-            sent_all_io_in_secs = g_arbitration.io_count / io_per_second;
+            io_per_second = (float)ns_ctx->io_completed / g_zstore.time_in_sec;
+            sent_all_io_in_secs = g_zstore.io_count / io_per_second;
             printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
                    ns_ctx->entry->name, worker->lcore, io_per_second,
-                   sent_all_io_in_secs, g_arbitration.io_count);
+                   sent_all_io_in_secs, g_zstore.io_count);
         }
     }
     printf("========================================================\n");
@@ -414,7 +408,7 @@ static int parse_args(int argc, char **argv)
            -1) {
         switch (op) {
         case 'c':
-            g_arbitration.core_mask = optarg;
+            g_zstore.core_mask = optarg;
             break;
         case 'd':
             g_dpdk_mem = spdk_strtol(optarg, 10);
@@ -424,7 +418,7 @@ static int parse_args(int argc, char **argv)
             }
             break;
         case 'w':
-            g_arbitration.workload_type = optarg;
+            g_zstore.workload_type = optarg;
             break;
         case 'r':
             if (spdk_nvme_transport_id_parse(&g_trid, optarg) != 0) {
@@ -458,19 +452,19 @@ static int parse_args(int argc, char **argv)
             }
             switch (op) {
             case 'm':
-                g_arbitration.max_completions = val;
+                g_zstore.max_completions = val;
                 break;
             case 'q':
-                g_arbitration.queue_depth = val;
+                g_zstore.queue_depth = val;
                 break;
             case 'o':
-                g_arbitration.io_size_bytes = val;
+                g_zstore.io_size_bytes = val;
                 break;
             case 't':
-                g_arbitration.time_in_sec = val;
+                g_zstore.time_in_sec = val;
                 break;
             case 'M':
-                g_arbitration.rw_percentage = val;
+                g_zstore.rw_percentage = val;
                 mix_specified = true;
                 break;
                 break;
@@ -481,7 +475,7 @@ static int parse_args(int argc, char **argv)
         }
     }
 
-    workload_type = g_arbitration.workload_type;
+    workload_type = g_zstore.workload_type;
 
     if (strcmp(workload_type, "read") && strcmp(workload_type, "write") &&
         strcmp(workload_type, "randread") &&
@@ -493,12 +487,12 @@ static int parse_args(int argc, char **argv)
     }
 
     if (!strcmp(workload_type, "read") || !strcmp(workload_type, "randread")) {
-        g_arbitration.rw_percentage = 100;
+        g_zstore.rw_percentage = 100;
     }
 
     if (!strcmp(workload_type, "write") ||
         !strcmp(workload_type, "randwrite")) {
-        g_arbitration.rw_percentage = 0;
+        g_zstore.rw_percentage = 0;
     }
 
     if (!strcmp(workload_type, "read") || !strcmp(workload_type, "randread") ||
@@ -511,8 +505,7 @@ static int parse_args(int argc, char **argv)
     }
 
     if (!strcmp(workload_type, "rw") || !strcmp(workload_type, "randrw")) {
-        if (g_arbitration.rw_percentage < 0 ||
-            g_arbitration.rw_percentage > 100) {
+        if (g_zstore.rw_percentage < 0 || g_zstore.rw_percentage > 100) {
             fprintf(stderr, "-M must be specified to value from 0 to 100 "
                             "for rw or randrw.\n");
             return 1;
@@ -521,9 +514,9 @@ static int parse_args(int argc, char **argv)
 
     if (!strcmp(workload_type, "read") || !strcmp(workload_type, "write") ||
         !strcmp(workload_type, "rw")) {
-        g_arbitration.is_random = 0;
+        g_zstore.is_random = 0;
     } else {
-        g_arbitration.is_random = 1;
+        g_zstore.is_random = 1;
     }
 
     return 0;
@@ -546,7 +539,7 @@ static int register_workers(void)
         TAILQ_INIT(&worker->ns_ctx);
         worker->lcore = i;
         TAILQ_INSERT_TAIL(&g_workers, worker, link);
-        g_arbitration.num_workers++;
+        g_zstore.num_workers++;
 
         worker->qprio = static_cast<enum spdk_nvme_qprio>(
             qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
@@ -558,10 +551,10 @@ static int register_workers(void)
 static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
                      struct spdk_nvme_ctrlr_opts *opts)
 {
-    /* Update with user specified arbitration configuration */
+    /* Update with user specified zstore configuration */
     // opts->arb_mechanism =
     //     static_cast<enum
-    //     spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
+    //     spdk_nvme_cc_ams>(g_zstore.zstore_mechanism);
 
     printf("Attaching to %s\n", trid->traddr);
 
@@ -574,8 +567,8 @@ static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
 {
     printf("Attached to %s\n", trid->traddr);
 
-    /* Update with actual arbitration configuration in use */
-    // g_arbitration.arbitration_mechanism = opts->arb_mechanism;
+    /* Update with actual zstore configuration in use */
+    // g_zstore.zstore_mechanism = opts->arb_mechanism;
 
     register_ctrlr(ctrlr);
 }
@@ -609,7 +602,7 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
-    printf("Found %d namspaces\n", g_arbitration.num_namespaces);
+    printf("Found %d namspaces\n", g_zstore.num_namespaces);
 }
 
 static int register_controllers(struct arb_context *ctx)
@@ -626,7 +619,7 @@ static int register_controllers(struct arb_context *ctx)
     //     return 1;
     // }
 
-    if (g_arbitration.num_namespaces == 0) {
+    if (g_zstore.num_namespaces == 0) {
         fprintf(stderr, "No valid namespaces to continue IO testing\n");
         return 1;
     }
@@ -659,11 +652,11 @@ static int associate_workers_with_ns(void)
     struct ns_worker_ctx *ns_ctx;
     int i, count;
 
-    count = g_arbitration.num_namespaces > g_arbitration.num_workers
-                ? g_arbitration.num_namespaces
-                : g_arbitration.num_workers;
-    log_info("DEBUG ns {}, workers {}, count {}", g_arbitration.num_namespaces,
-             g_arbitration.num_workers, count);
+    count = g_zstore.num_namespaces > g_zstore.num_workers
+                ? g_zstore.num_namespaces
+                : g_zstore.num_workers;
+    log_info("DEBUG ns {}, workers {}, count {}", g_zstore.num_namespaces,
+             g_zstore.num_workers, count);
 
     count = 1;
     log_info("Hard code worker count to {} so we only use {} worker", count,
@@ -711,7 +704,7 @@ static void get_feature_completion(void *cb_arg,
         feature->valid = true;
     }
 
-    g_arbitration.outstanding_commands--;
+    g_zstore.outstanding_commands--;
 }
 
 static int get_feature(struct spdk_nvme_ctrlr *ctrlr, uint8_t fid)
@@ -732,9 +725,9 @@ static void get_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
 {
     get_feature(ctrlr, SPDK_NVME_FEAT_ARBITRATION);
 
-    g_arbitration.outstanding_commands++;
+    g_zstore.outstanding_commands++;
 
-    while (g_arbitration.outstanding_commands) {
+    while (g_zstore.outstanding_commands) {
         spdk_nvme_ctrlr_process_admin_completions(ctrlr);
     }
 
@@ -742,9 +735,9 @@ static void get_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
         union spdk_nvme_cmd_cdw11 arb;
         arb.feat_arbitration.raw = features[SPDK_NVME_FEAT_ARBITRATION].result;
 
-        printf("Current Arbitration Configuration\n");
+        printf("Current zstore Configuration\n");
         printf("===========\n");
-        printf("Arbitration Burst:           ");
+        printf("zstore Burst:           ");
         if (arb.feat_arbitration.bits.ab ==
             SPDK_NVME_ARBITRATION_BURST_UNLIMITED) {
             printf("no limit\n");
@@ -772,10 +765,10 @@ static void set_feature_completion(void *cb_arg,
         printf("set_feature(0x%02X) failed\n", fid);
         feature->valid = false;
     } else {
-        printf("Set Arbitration Feature Successfully\n");
+        printf("Set zstore Feature Successfully\n");
     }
 
-    g_arbitration.outstanding_commands--;
+    g_zstore.outstanding_commands--;
 }
 
 static int set_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
@@ -786,7 +779,7 @@ static int set_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
     cmd.opc = SPDK_NVME_OPC_SET_FEATURES;
     cmd.cdw10_bits.set_features.fid = SPDK_NVME_FEAT_ARBITRATION;
 
-    g_arbitration.outstanding_commands = 0;
+    g_zstore.outstanding_commands = 0;
 
     if (features[SPDK_NVME_FEAT_ARBITRATION].valid) {
         cmd.cdw11_bits.feat_arbitration.bits.ab =
@@ -803,19 +796,18 @@ static int set_arb_feature(struct spdk_nvme_ctrlr *ctrlr)
                                         set_feature_completion,
                                         &features[SPDK_NVME_FEAT_ARBITRATION]);
     if (ret) {
-        printf("Set Arbitration Feature: Failed 0x%x\n", ret);
+        printf("Set zstore Feature: Failed 0x%x\n", ret);
         return 1;
     }
 
-    g_arbitration.outstanding_commands++;
+    g_zstore.outstanding_commands++;
 
-    while (g_arbitration.outstanding_commands) {
+    while (g_zstore.outstanding_commands) {
         spdk_nvme_ctrlr_process_admin_completions(ctrlr);
     }
 
     if (!features[SPDK_NVME_FEAT_ARBITRATION].valid) {
-        printf(
-            "Set Arbitration Feature failed and use default configuration\n");
+        printf("Set zstore Feature failed and use default configuration\n");
     }
 
     return 0;

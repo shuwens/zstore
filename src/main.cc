@@ -26,12 +26,12 @@ int main(int argc, char **argv)
     opts.name = "arb";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = g_arbitration.core_mask;
+    opts.core_mask = g_zstore.core_mask;
     if (spdk_env_init(&opts) < 0) {
         return 1;
     }
 
-    g_arbitration.tsc_rate = spdk_get_ticks_hz();
+    g_zstore.tsc_rate = spdk_get_ticks_hz();
 
     if (register_workers() != 0) {
         rc = 1;
@@ -59,10 +59,10 @@ int main(int argc, char **argv)
      * number of attached active namespaces, queue depth and number
      * of cores (workers) involved in the IO perations.
      */
-    task_count = g_arbitration.num_namespaces > g_arbitration.num_workers
-                     ? g_arbitration.num_namespaces
-                     : g_arbitration.num_workers;
-    task_count *= g_arbitration.queue_depth;
+    task_count = g_zstore.num_namespaces > g_zstore.num_workers
+                     ? g_zstore.num_namespaces
+                     : g_zstore.num_workers;
+    task_count *= g_zstore.queue_depth;
 
     task_pool =
         spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
@@ -77,6 +77,7 @@ int main(int argc, char **argv)
     print_configuration(argv[0]);
 
     log_info("Initialization complete. Launching workers.");
+    // https://github.com/fallfish/zapraid/blob/main/zapraid_prototype/src/raid_controller.cc
 
     /* Launch all of the secondary workers */
     main_core = spdk_env_get_current_core();
