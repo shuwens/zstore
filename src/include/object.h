@@ -28,7 +28,7 @@ struct ObjectMetadata {
 //
 // Log entry
 //
-struct LogEntry{
+struct LogEntry {
     std::string key;
     u32 seq;
     u32 chunk_seq;

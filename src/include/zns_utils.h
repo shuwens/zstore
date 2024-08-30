@@ -89,10 +89,10 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         }
 
         if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            printf("ns %d is not zns ns\n", nsid);
+            log_info("ns {} is not zns ns", nsid);
             // continue;
         } else {
-            printf("ns %d is zns ns\n", nsid);
+            log_info("ns {} is zns ns", nsid);
         }
         register_ns(ctrlr, ns);
     }
@@ -109,14 +109,14 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 
     task = (struct arb_task *)spdk_mempool_get(task_pool);
     if (!task) {
-        fprintf(stderr, "Failed to get task from task_pool\n");
+        log_error("Failed to get task from task_pool");
         exit(1);
     }
 
     task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
     if (!task->buf) {
         spdk_mempool_put(task_pool, task);
-        fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
+        log_error("task->buf spdk_dma_zmalloc failed");
         exit(1);
     }
 
@@ -151,7 +151,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // }
 
     if (rc != 0) {
-        fprintf(stderr, "starting I/O failed\n");
+        log_error("starting I/O failed");
     } else {
         ns_ctx->current_queue_depth++;
     }
@@ -218,7 +218,7 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
 
     ns_ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
     if (!ns_ctx->qpair) {
-        printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
+        log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
         return 1;
     }
 
@@ -273,13 +273,13 @@ static int work_fn(void *arg)
     struct worker_thread *worker = (struct worker_thread *)arg;
     struct ns_worker_ctx *ns_ctx;
 
-    printf("Starting thread on core %u with %s\n", worker->lcore, "what");
+    log_info("Starting thread on core {} with {}", worker->lcore, "what");
 
     /* Allocate a queue pair for each namespace. */
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     {
         if (init_ns_worker_ctx(ns_ctx, worker->qprio) != 0) {
-            printf("ERROR: init_ns_worker_ctx() failed\n");
+            log_error("ERROR: init_ns_worker_ctx() failed");
             return 1;
         }
     }
@@ -662,9 +662,13 @@ static int associate_workers_with_ns(void)
     count = g_arbitration.num_namespaces > g_arbitration.num_workers
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
+    log_info("DEBUG ns {}, workers {}, count {}", g_arbitration.num_namespaces,
+             g_arbitration.num_workers, count);
+
     count = 1;
-    printf("DEBUG ns %d, workers %d, count %d\n", g_arbitration.num_namespaces,
-           g_arbitration.num_workers, count);
+    log_info("Hard code worker count to {} so we only use {} worker", count,
+             count);
+
     for (i = 0; i < count; i++) {
         if (entry == NULL) {
             break;

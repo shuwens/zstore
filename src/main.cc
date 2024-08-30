@@ -1,11 +1,13 @@
+#include "include/request_handler.h"
 #include "include/zns_device.h"
 #include "include/zns_utils.h"
+#include "include/zstore.h"
 #include "spdk/env.h"
-#include "spdk/log.h"
-#include "spdk/nvme.h"
-#include "spdk/nvme_intel.h"
-#include "spdk/string.h"
+#include "src/include/utils.hpp"
 
+// Threading model is the following:
+// * we need one thread per ns/ns worker/SSD
+// * we need one thread which handles civetweb tasks
 int main(int argc, char **argv)
 {
     int rc;
@@ -30,7 +32,6 @@ int main(int argc, char **argv)
     }
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
-    printf("DEBUG %d\n", spdk_get_ticks_hz());
 
     if (register_workers() != 0) {
         rc = 1;
@@ -67,7 +68,7 @@ int main(int argc, char **argv)
         spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
                             0, SPDK_ENV_SOCKET_ID_ANY);
     if (task_pool == NULL) {
-        fprintf(stderr, "could not initialize task pool\n");
+        log_error("could not initialize task pool");
         rc = 1;
         zstore_cleanup(task_count);
         return rc;
@@ -75,24 +76,37 @@ int main(int argc, char **argv)
 
     print_configuration(argv[0]);
 
-    printf("Initialization complete. Launching workers.\n");
+    log_info("Initialization complete. Launching workers.");
 
     /* Launch all of the secondary workers */
     main_core = spdk_env_get_current_core();
+    log_info("main core is: {}", main_core);
     main_worker = NULL;
+    int used_core = 0;
     TAILQ_FOREACH(worker, &g_workers, link)
     {
         if (worker->lcore != main_core) {
+            if (used_core < worker->lcore)
+                used_core = worker->lcore;
+            log_info("launch work fn on core: {}", worker->lcore);
             spdk_env_thread_launch_pinned(worker->lcore, work_fn, worker);
         } else {
+            if (used_core < worker->lcore)
+                used_core = worker->lcore;
             assert(main_worker == NULL);
             main_worker = worker;
         }
     }
 
+    log_debug("1");
+    rc = spdk_env_thread_launch_pinned(used_core + 1, http_server_fn, NULL);
+    log_debug("launch civetweb {}", rc);
+
+    log_debug("1");
     assert(main_worker != NULL);
     rc = work_fn(main_worker);
 
+    log_debug("1");
     spdk_env_thread_wait_all();
 
     print_stats();

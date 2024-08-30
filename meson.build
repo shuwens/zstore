@@ -183,6 +183,7 @@ executable(
 	files('src/main.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
+	include_directories: incdir,
 	install: true,
 )
 
@@ -194,8 +195,6 @@ executable(
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-
-
 
 # reads from the drive
 executable(

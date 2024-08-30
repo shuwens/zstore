@@ -1,15 +1,11 @@
-// Simple example program on how to use Embedded C++ interface.
-
+#pragma once
+#include "CivetServer.h"
 #include "global.h"
 #include "helper.h"
-// #include "../include/item.h"
 #include "utils.hpp"
-#include "zstore.h"
-
-#include "CivetServer.h"
+// #include "zstore.h"
 #include <cstring>
 #include <unistd.h>
-// #include "../include/backend.h"
 
 #define EVP_MAX_MD_SIZE 64 /* SHA512 */
 

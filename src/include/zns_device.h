@@ -1,6 +1,5 @@
 #pragma once
 #include "spdk/env.h"
-#include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
@@ -9,7 +8,6 @@
 #include "spdk/stdinc.h"
 #include "spdk/string.h"
 #include "utils.hpp"
-// #include "zns_utils.h"
 #include <atomic>
 #include <bits/stdc++.h>
 #include <chrono>
