@@ -1,10 +1,10 @@
 #pragma once
 
+#include "device.h"
+#include "object.h"
 #include <map>
 #include <mutex>
 #include <string>
-
-#include "object.h"
 
 constexpr u64 zone_dist = 0x80000;
 
@@ -14,6 +14,8 @@ constexpr u64 zone_dist = 0x80000;
 // typedef lba
 
 static struct mg_context *g_ctx; /* Set by start_civetweb() */
+
+static std::vector<Device *> g_devices;
 
 // object tables, used only by zstore
 // key -> tuple of <zns target, lba>

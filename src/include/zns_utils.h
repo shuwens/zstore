@@ -1,4 +1,6 @@
 #pragma once
+#include "device.h"
+#include "global.h"
 #include "spdk/endian.h"
 #include "spdk/env.h"
 #include "spdk/log.h"
@@ -58,7 +60,8 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
     TAILQ_INSERT_TAIL(&g_namespaces, entry, link);
 }
 
-static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
+static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
+                           struct spdk_nvme_transport_id *trid)
 {
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
@@ -76,7 +79,7 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
              cdata->sn);
 
     entry->ctrlr = ctrlr;
-    TAILQ_INSERT_TAIL(&g_controllers, entry, link);
+    // TAILQ_INSERT_TAIL(&g_controllers, entry, link);
 
     for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
@@ -92,6 +95,11 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
             log_info("ns {} is zns ns", nsid);
         }
         register_ns(ctrlr, ns);
+
+        Device *device = new Device();
+        device->Init(ctrlr, nsid);
+        device->SetDeviceTransportAddress(trid->traddr);
+        g_devices.emplace_back(device);
     }
 }
 
@@ -548,33 +556,33 @@ static int register_workers(void)
     return 0;
 }
 
-static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                     struct spdk_nvme_ctrlr_opts *opts)
-{
-    /* Update with user specified zstore configuration */
-    // opts->arb_mechanism =
-    //     static_cast<enum
-    //     spdk_nvme_cc_ams>(g_zstore.zstore_mechanism);
+// static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
+//                      struct spdk_nvme_ctrlr_opts *opts)
+// {
+//     /* Update with user specified zstore configuration */
+//     // opts->arb_mechanism =
+//     //     static_cast<enum
+//     //     spdk_nvme_cc_ams>(g_zstore.zstore_mechanism);
+//
+//     printf("Attaching to %s\n", trid->traddr);
+//
+//     return true;
+// }
 
-    printf("Attaching to %s\n", trid->traddr);
+// static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id
+// *trid,
+//                       struct spdk_nvme_ctrlr *ctrlr,
+//                       const struct spdk_nvme_ctrlr_opts *opts)
+// {
+//     printf("Attached to %s\n", trid->traddr);
+//
+//     /* Update with actual zstore configuration in use */
+//     // g_zstore.zstore_mechanism = opts->arb_mechanism;
+//
+//     register_ctrlr(ctrlr);
+// }
 
-    return true;
-}
-
-static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                      struct spdk_nvme_ctrlr *ctrlr,
-                      const struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Attached to %s\n", trid->traddr);
-
-    /* Update with actual zstore configuration in use */
-    // g_zstore.zstore_mechanism = opts->arb_mechanism;
-
-    register_ctrlr(ctrlr);
-}
-
-static void zns_dev_init(struct arb_context *ctx, std::string ip1,
-                         std::string port1)
+static void zns_dev_init(std::string ip1, std::string port1)
 {
     int rc = 0;
 
@@ -599,33 +607,33 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
     memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
 
-    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)), &trid1);
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
     printf("Found %d namspaces\n", g_zstore.num_namespaces);
 }
 
-static int register_controllers(struct arb_context *ctx)
-{
-    printf("Initializing NVMe Controllers\n");
-
-    // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    // TCP
-    zns_dev_init(ctx, "12.12.12.2", "5520");
-
-    // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
-    //     fprintf(stderr, "spdk_nvme_probe() failed\n");
-    //     return 1;
-    // }
-
-    if (g_zstore.num_namespaces == 0) {
-        fprintf(stderr, "No valid namespaces to continue IO testing\n");
-        return 1;
-    }
-
-    return 0;
-}
+// static int register_controllers(struct arb_context *ctx)
+// {
+//     printf("Initializing NVMe Controllers\n");
+//
+//     // RDMA
+//     // zns_dev_init(ctx, "192.168.100.9", "5520");
+//     // TCP
+//     zns_dev_init(ctx, "12.12.12.2", "5520");
+//
+//     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
+//     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
+//     //     return 1;
+//     // }
+//
+//     if (g_zstore.num_namespaces == 0) {
+//         fprintf(stderr, "No valid namespaces to continue IO testing\n");
+//         return 1;
+//     }
+//
+//     return 0;
+// }
 
 static void unregister_controllers(void)
 {

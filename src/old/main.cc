@@ -1,22 +1,17 @@
 #include "include/request_handler.h"
 #include "include/zns_device.h"
 #include "include/zns_utils.h"
-#include "include/zstore_controller.h"
+#include "include/zstore.h"
 #include "spdk/env.h"
 #include "src/include/utils.hpp"
-
-#include "src/zstore_controller.cc"
 
 // NOTE currently we are using spdk threading. We might want to move to
 // event/reactor/poller framework.
 // https://spdk.io/doc/event.html
 
-ZstoreController gZstoreController;
-
 // Threading model is the following:
 // * we need one thread per ns/ns worker/SSD
 // * we need one thread which handles civetweb tasks
-//
 int main(int argc, char **argv)
 {
     int rc;
@@ -24,26 +19,42 @@ int main(int argc, char **argv)
     unsigned main_core;
     char task_pool_name[30];
     uint32_t task_count = 0;
-    // struct spdk_env_opts opts;
+    struct spdk_env_opts opts;
 
-    // rc = parse_args(argc, argv);
-    // if (rc != 0) {
-    //     return rc;
-    // }
+    rc = parse_args(argc, argv);
+    if (rc != 0) {
+        return rc;
+    }
 
-    // spdk_env_opts_init(&opts);
-    // opts.name = "arb";
-    // opts.mem_size = g_dpdk_mem;
-    // opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    // opts.core_mask = g_zstore.core_mask;
-    // if (spdk_env_init(&opts) < 0) {
-    //     return 1;
-    // }
-
-    // gZstoreController = new ZstoreController;
-    gZstoreController.Init(true);
+    spdk_env_opts_init(&opts);
+    opts.name = "arb";
+    opts.mem_size = g_dpdk_mem;
+    opts.hugepage_single_segments = g_dpdk_mem_single_seg;
+    opts.core_mask = g_zstore.core_mask;
+    if (spdk_env_init(&opts) < 0) {
+        return 1;
+    }
 
     g_zstore.tsc_rate = spdk_get_ticks_hz();
+
+    if (register_workers() != 0) {
+        rc = 1;
+        zstore_cleanup(task_count);
+        return rc;
+    }
+
+    struct arb_context ctx = {};
+    if (register_controllers(&ctx) != 0) {
+        rc = 1;
+        zstore_cleanup(task_count);
+        return rc;
+    }
+
+    if (associate_workers_with_ns() != 0) {
+        rc = 1;
+        zstore_cleanup(task_count);
+        return rc;
+    }
 
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
 
