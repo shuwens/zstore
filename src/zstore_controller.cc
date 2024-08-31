@@ -54,8 +54,8 @@ void ZstoreController::initHttpThread()
     struct spdk_cpuset cpumask;
     spdk_cpuset_zero(&cpumask);
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(), true);
-    mHttpThread = spdk_thread_create("ECThread", &cpumask);
-    printf("Create EC processing thread %s %lu\n",
+    mHttpThread = spdk_thread_create("HttpThread", &cpumask);
+    printf("Create HTTP processing thread %s %lu\n",
            spdk_thread_get_name(mHttpThread), spdk_thread_get_id(mHttpThread));
     int rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
                                            ecWorker, this);
@@ -120,6 +120,7 @@ void ZstoreController::initDispatchThread()
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
+    log_debug("init Io thread {}", Configuration::GetNumIoThreads());
     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
         spdk_cpuset_zero(&cpumask);
@@ -657,7 +658,6 @@ void ZstoreController::Init(bool need_env)
     // zns_dev_init("192.168.100.9", "5520");
     // TCP
     zns_dev_init("12.12.12.2", "5520");
-    log_debug("1");
 
     // TODO:
     // if (associate_workers_with_ns() != 0) {
@@ -718,8 +718,6 @@ void ZstoreController::Init(bool need_env)
                                numZonesReservedPerDevice);
     }
 
-    log_debug("2");
-
     mStorageSpaceThresholdForGcInSegments = numZonesReservedPerDevice / 2;
     mAvailableStorageSpaceInSegments =
         numZonesNeededPerDevice + numZonesReservedPerDevice;
@@ -734,7 +732,6 @@ void ZstoreController::Init(bool need_env)
 
     mReadContextPool = new ReadContextPool(512, mRequestContextPoolForSegments);
 
-    log_debug("3");
     // Initialize address map
     mAddressMap = new PhysicalAddr[Configuration::GetStorageSpaceInBytes() /
                                    Configuration::GetBlockSize()];
@@ -745,7 +742,6 @@ void ZstoreController::Init(bool need_env)
                                 Configuration::GetBlockSize(),
               defaultAddr);
 
-    log_debug("4");
     // Create poll groups for the io threads and perform initialization
     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
@@ -763,7 +759,6 @@ void ZstoreController::Init(bool need_env)
         mDevices[i]->ConnectIoPairs();
     }
 
-    log_debug("5");
     // Preallocate segments
     mNumOpenSegments = Configuration::GetNumOpenSegments();
 
@@ -788,7 +783,7 @@ void ZstoreController::Init(bool need_env)
     //         mDevices[i]->EraseWholeDevice();
     //     }
     // } else if (Configuration::GetRebootMode() == 1) {
-    //     restart();
+    // restart();
     // } else { // needs rebuild; rebootMode = 2
     //     // Suppose drive 0 is broken
     //     mDevices[0]->EraseWholeDevice();
@@ -807,9 +802,9 @@ void ZstoreController::Init(bool need_env)
     //                    nullptr);
     //     }
     // } else {
-    log_debug("6");
 
-    // initIoThread(); // broken
+    log_debug("7");
+    initIoThread(); // broken
     initDispatchThread();
     initIndexThread();
     initCompletionThread();

@@ -63,6 +63,7 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
                            struct spdk_nvme_transport_id *trid)
 {
+    log_info("register ctrlr ");
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
     struct ctrlr_entry *entry =
@@ -79,7 +80,7 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
              cdata->sn);
 
     entry->ctrlr = ctrlr;
-    // TAILQ_INSERT_TAIL(&g_controllers, entry, link);
+    TAILQ_INSERT_TAIL(&g_controllers, entry, link);
 
     for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
@@ -585,6 +586,7 @@ static int register_workers(void)
 static void zns_dev_init(std::string ip1, std::string port1)
 {
     int rc = 0;
+    log_info("zns dev init");
 
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid1 = {};
@@ -592,7 +594,6 @@ static void zns_dev_init(std::string ip1, std::string port1)
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-
     trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
     // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
@@ -606,6 +607,8 @@ static void zns_dev_init(std::string ip1, std::string port1)
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
     memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+
+    log_info("2222");
 
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)), &trid1);
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));

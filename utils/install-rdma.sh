@@ -2,6 +2,9 @@
 set -xeuo pipefail
 
 # https://www.rdmamojo.com/2014/11/08/working-rdma-ubuntu/
+# https://gist.github.com/hokiegeek2/96c07d4b0de71a641c45fcf105a2fce0
+# https://kb.linbit.com/enabling-rdma-support-in-linux
+# https://gist.github.com/hookenz/61af2a46aa0004d856e48c7afbb79e5c
 
 zstore_dir=$(git rev-parse --show-toplevel)
 source $zstore_dir/.env
