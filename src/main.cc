@@ -11,7 +11,7 @@
 // event/reactor/poller framework.
 // https://spdk.io/doc/event.html
 
-ZstoreController gZstoreController;
+ZstoreController *gZstoreController;
 
 // Threading model is the following:
 // * we need one thread per ns/ns worker/SSD
@@ -40,8 +40,8 @@ int main(int argc, char **argv)
     //     return 1;
     // }
 
-    // gZstoreController = new ZstoreController;
-    gZstoreController.Init(true);
+    gZstoreController = new ZstoreController;
+    gZstoreController->Init(true);
 
     g_zstore.tsc_rate = spdk_get_ticks_hz();
 

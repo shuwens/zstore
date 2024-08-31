@@ -234,51 +234,51 @@ void handleEventCompletion(void *args)
     handleEventCompletion2(args, nullptr);
 }
 
-// int handleEventsDispatch(void *args)
-// {
-//     bool busy = false;
-//     ZstoreController *ctrl = (ZstoreController *)args;
-//
-//     uint32_t count = 0;
-//     std::queue<RequestContext *> &writeQ = ctrl->GetWriteQueue();
-//     while (!writeQ.empty()) {
-//         RequestContext *ctx = writeQ.front();
-//         ctrl->WriteInDispatchThread(ctx);
-//
-//         if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
-//             busy = true;
-//             writeQ.pop();
-//         } else {
-//             break;
-//         }
-//     }
-//
-//     count = 0;
-//     std::queue<RequestContext *> &readPrepareQ = ctrl->GetReadPrepareQueue();
-//     while (!readPrepareQ.empty()) {
-//         RequestContext *ctx = readPrepareQ.front();
-//         ctrl->ReadInDispatchThread(ctx);
-//         readPrepareQ.pop();
-//         busy = true;
-//     }
-//
-//     count = 0;
-//     std::queue<RequestContext *> &readReapingQ = ctrl->GetReadReapingQueue();
-//     while (!readReapingQ.empty()) {
-//         RequestContext *ctx = readReapingQ.front();
-//         ctrl->ReadInDispatchThread(ctx);
-//
-//         uint32_t recordedOffset = ctx->curOffset;
-//         if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
-//             busy = true;
-//             readReapingQ.pop();
-//         } else {
-//             break;
-//         }
-//     }
-//
-//     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-// }
+int handleEventsDispatch(void *args)
+{
+    bool busy = false;
+    ZstoreController *ctrl = (ZstoreController *)args;
+
+    uint32_t count = 0;
+    std::queue<RequestContext *> &writeQ = ctrl->GetWriteQueue();
+    while (!writeQ.empty()) {
+        RequestContext *ctx = writeQ.front();
+        ctrl->WriteInDispatchThread(ctx);
+
+        if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
+            busy = true;
+            writeQ.pop();
+        } else {
+            break;
+        }
+    }
+
+    count = 0;
+    std::queue<RequestContext *> &readPrepareQ = ctrl->GetReadPrepareQueue();
+    while (!readPrepareQ.empty()) {
+        RequestContext *ctx = readPrepareQ.front();
+        ctrl->ReadInDispatchThread(ctx);
+        readPrepareQ.pop();
+        busy = true;
+    }
+
+    count = 0;
+    std::queue<RequestContext *> &readReapingQ = ctrl->GetReadReapingQueue();
+    while (!readReapingQ.empty()) {
+        RequestContext *ctx = readReapingQ.front();
+        ctrl->ReadInDispatchThread(ctx);
+
+        uint32_t recordedOffset = ctx->curOffset;
+        if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
+            busy = true;
+            readReapingQ.pop();
+        } else {
+            break;
+        }
+    }
+
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
 
 int handleBackgroundTasks(void *args)
 {
@@ -295,7 +295,7 @@ int dispatchWorker(void *args)
     ZstoreController *zstoreController = (ZstoreController *)args;
     struct spdk_thread *thread = zstoreController->GetDispatchThread();
     spdk_set_thread(thread);
-    // spdk_poller_register(handleEventsDispatch, zstoreController, 1);
+    spdk_poller_register(handleEventsDispatch, zstoreController, 1);
     spdk_poller_register(handleBackgroundTasks, zstoreController, 1);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -351,7 +351,7 @@ void registerDispatchRoutine(void *arg1, void *arg2)
 {
     ZstoreController *zstoreController =
         reinterpret_cast<ZstoreController *>(arg1);
-    // spdk_poller_register(handleEventsDispatch, zstoreController, 1);
+    spdk_poller_register(handleEventsDispatch, zstoreController, 1);
     spdk_poller_register(handleBackgroundTasks, zstoreController, 1);
 }
 

@@ -1061,52 +1061,51 @@ std::queue<RequestContext *> &ZstoreController::GetReadReapingQueue()
     return mReadReapingQueue;
 }
 
-// void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
-// {
-//     if (mAvailableStorageSpaceInSegments <= 1) {
-//         return;
-//     }
-//
-//     static uint32_t tick = 0;
-//     static uint32_t lastTick = 0;
-//     static uint32_t last = 0;
-//     static uint32_t stucks = 0;
-//
-//     uint32_t blockSize = Configuration::GetBlockSize();
-//     uint32_t curOffset = ctx->curOffset;
-//     uint32_t size = ctx->size;
-//     uint32_t numBlocks = size / blockSize;
-//
-//     if (curOffset == 0 && ctx->timestamp == ~0ull) {
-//         ctx->timestamp = ++mGlobalTimestamp;
-//         ctx->pbaArray.resize(numBlocks);
-//     }
-//
-//     uint32_t pos = ctx->curOffset;
-//     for (; pos < numBlocks; pos += 1) {
-//         uint32_t openGroupId = 0;
-//         bool success = false;
-//
-//         for (uint32_t trys = 0; trys < mNumOpenSegments; trys += 1) {
-//             success = mOpenSegments[openGroupId]->Append(ctx, pos);
-//             if (mOpenSegments[openGroupId]->IsFull()) {
-//                 mSegmentsToSeal.emplace_back(mOpenSegments[openGroupId]);
-//                 mOpenSegments[openGroupId] = nullptr;
-//                 createSegmentIfNeeded(&mOpenSegments[openGroupId],
-//                 openGroupId);
-//             }
-//             if (success) {
-//                 break;
-//             }
-//             openGroupId = (openGroupId + 1) % mNumOpenSegments;
-//         }
-//
-//         if (!success) {
-//             break;
-//         }
-//     }
-//     ctx->curOffset = pos;
-// }
+void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
+{
+    if (mAvailableStorageSpaceInSegments <= 1) {
+        return;
+    }
+
+    static uint32_t tick = 0;
+    static uint32_t lastTick = 0;
+    static uint32_t last = 0;
+    static uint32_t stucks = 0;
+
+    uint32_t blockSize = Configuration::GetBlockSize();
+    uint32_t curOffset = ctx->curOffset;
+    uint32_t size = ctx->size;
+    uint32_t numBlocks = size / blockSize;
+
+    if (curOffset == 0 && ctx->timestamp == ~0ull) {
+        ctx->timestamp = ++mGlobalTimestamp;
+        ctx->pbaArray.resize(numBlocks);
+    }
+
+    uint32_t pos = ctx->curOffset;
+    for (; pos < numBlocks; pos += 1) {
+        uint32_t openGroupId = 0;
+        bool success = false;
+
+        for (uint32_t trys = 0; trys < mNumOpenSegments; trys += 1) {
+            success = mOpenSegments[openGroupId]->Append(ctx, pos);
+            if (mOpenSegments[openGroupId]->IsFull()) {
+                mSegmentsToSeal.emplace_back(mOpenSegments[openGroupId]);
+                mOpenSegments[openGroupId] = nullptr;
+                createSegmentIfNeeded(&mOpenSegments[openGroupId], openGroupId);
+            }
+            if (success) {
+                break;
+            }
+            openGroupId = (openGroupId + 1) % mNumOpenSegments;
+        }
+
+        if (!success) {
+            break;
+        }
+    }
+    ctx->curOffset = pos;
+}
 
 bool ZstoreController::LookupIndex(uint64_t lba, PhysicalAddr *pba)
 {
@@ -1120,55 +1119,54 @@ bool ZstoreController::LookupIndex(uint64_t lba, PhysicalAddr *pba)
     }
 }
 
-// void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
-// {
-//     uint64_t slba = ctx->lba;
-//     int size = ctx->size;
-//     void *data = ctx->data;
-//     uint32_t numBlocks = size / Configuration::GetBlockSize();
-//
-//     if (ctx->status == READ_PREPARE) {
-//         if (mGcTask.stage != INDEX_UPDATE_COMPLETE) {
-//             // For any reads that may read the input segment,
-//             // track its progress such that the GC will
-//             // not delete input segment before they finishes
-//             mReadsInCurrentGcEpoch.insert(ctx);
-//         }
-//
-//         ctx->status = READ_INDEX_QUERYING;
-//         ctx->pbaArray.resize(numBlocks);
-//         if (!Configuration::GetEventFrameworkEnabled()) {
-//             QueryPbaArgs *args =
-//                 (QueryPbaArgs *)calloc(1, sizeof(QueryPbaArgs));
-//             args->ctrl = this;
-//             args->ctx = ctx;
-//             thread_send_msg(mIndexThread, queryPba, args);
-//         } else {
-//             event_call(Configuration::GetIndexThreadCoreId(), queryPba2,
-//             this,
-//                        ctx);
-//         }
-//     } else if (ctx->status == READ_REAPING) {
-//         uint32_t i = ctx->curOffset;
-//         for (; i < numBlocks; ++i) {
-//             Segment *segment = ctx->pbaArray[i].segment;
-//             if (segment == nullptr) {
-//                 uint8_t *block =
-//                     (uint8_t *)data + i * Configuration::GetBlockSize();
-//                 memset(block, 0, Configuration::GetBlockSize());
-//                 ctx->successBytes += Configuration::GetBlockSize();
-//                 if (ctx->successBytes == ctx->targetBytes) {
-//                     ctx->Queue();
-//                 }
-//             } else {
-//                 if (!segment->Read(ctx, i, ctx->pbaArray[i])) {
-//                     break;
-//                 }
-//             }
-//         }
-//         ctx->curOffset = i;
-//     }
-// }
+void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
+{
+    uint64_t slba = ctx->lba;
+    int size = ctx->size;
+    void *data = ctx->data;
+    uint32_t numBlocks = size / Configuration::GetBlockSize();
+
+    if (ctx->status == READ_PREPARE) {
+        if (mGcTask.stage != INDEX_UPDATE_COMPLETE) {
+            // For any reads that may read the input segment,
+            // track its progress such that the GC will
+            // not delete input segment before they finishes
+            mReadsInCurrentGcEpoch.insert(ctx);
+        }
+
+        ctx->status = READ_INDEX_QUERYING;
+        ctx->pbaArray.resize(numBlocks);
+        if (!Configuration::GetEventFrameworkEnabled()) {
+            QueryPbaArgs *args =
+                (QueryPbaArgs *)calloc(1, sizeof(QueryPbaArgs));
+            args->ctrl = this;
+            args->ctx = ctx;
+            thread_send_msg(mIndexThread, queryPba, args);
+        } else {
+            event_call(Configuration::GetIndexThreadCoreId(), queryPba2, this,
+                       ctx);
+        }
+    } else if (ctx->status == READ_REAPING) {
+        uint32_t i = ctx->curOffset;
+        for (; i < numBlocks; ++i) {
+            Segment *segment = ctx->pbaArray[i].segment;
+            if (segment == nullptr) {
+                uint8_t *block =
+                    (uint8_t *)data + i * Configuration::GetBlockSize();
+                memset(block, 0, Configuration::GetBlockSize());
+                ctx->successBytes += Configuration::GetBlockSize();
+                if (ctx->successBytes == ctx->targetBytes) {
+                    ctx->Queue();
+                }
+            } else {
+                if (!segment->Read(ctx, i, ctx->pbaArray[i])) {
+                    break;
+                }
+            }
+        }
+        ctx->curOffset = i;
+    }
+}
 
 bool ZstoreController::scheduleGc()
 {
