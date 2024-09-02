@@ -6,8 +6,9 @@
 #include <mutex>
 #include <string>
 
-constexpr u64 zone_dist = 0x80000;
+static bool verbose = false;
 
+constexpr u64 zone_dist = 0x80000;
 // These data struct are not supposed to be global like this, but this is the
 // simple way to do it. So sue me.
 

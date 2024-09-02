@@ -120,7 +120,8 @@ void ZstoreController::initDispatchThread()
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
-    log_debug("init Io thread {}", Configuration::GetNumIoThreads());
+    if (verbose)
+        log_debug("init Io thread {}", Configuration::GetNumIoThreads());
     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
         spdk_cpuset_zero(&cpumask);
@@ -803,7 +804,8 @@ void ZstoreController::Init(bool need_env)
     //     }
     // } else {
 
-    log_debug("7");
+    if (verbose)
+        log_debug("7");
     initIoThread(); // broken
     initDispatchThread();
     initIndexThread();
@@ -812,12 +814,14 @@ void ZstoreController::Init(bool need_env)
 
     // }
 
-    log_debug("7");
+    if (verbose)
+        log_debug("7");
     // for (uint32_t i = 0; i < mNumOpenSegments; ++i) {
     //     createSegmentIfNeeded(&mOpenSegments[i], i);
     // }
 
-    log_debug("8");
+    if (verbose)
+        log_debug("8");
     // init Gc
     initGc();
 
@@ -912,6 +916,8 @@ void ZstoreController::Write(uint64_t offset, uint32_t size, void *data,
         event_call(Configuration::GetReceiverThreadCoreId(), executeRequest,
                    req, nullptr);
     } else {
+        if (verbose)
+            log_debug("Controller write");
         Execute(offset, size, data, true, cb_fn, cb_args);
     }
 }
@@ -1017,6 +1023,8 @@ void ZstoreController::Execute(uint64_t offset, uint32_t size, void *data,
     }
 
     if (!Configuration::GetEventFrameworkEnabled()) {
+        if (verbose)
+            log_debug("thread send enqueue requst");
         thread_send_msg(mDispatchThread, enqueueRequest, ctx);
     } else {
         event_call(Configuration::GetDispatchThreadCoreId(), enqueueRequest2,
@@ -1028,6 +1036,8 @@ void ZstoreController::Execute(uint64_t offset, uint32_t size, void *data,
 
 void ZstoreController::EnqueueWrite(RequestContext *ctx)
 {
+    if (verbose)
+        log_debug("controller EnqueueWrite: {}", mWriteQueue.size());
     mWriteQueue.push(ctx);
 }
 

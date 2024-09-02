@@ -12,8 +12,13 @@
 // https://spdk.io/doc/event.html
 
 // a simple test program to ZapRAID
-// uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
-uint64_t gSize = 5;
+uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
+// uint64_t gSize = 5;
+// uint64_t gSize = 1;
+
+// uint32_t qDepth = 1;
+uint32_t qDepth = 64;
+
 uint64_t gRequestSize = 4096;
 bool gSequential = false;
 bool gSkewed = false;
@@ -37,7 +42,6 @@ struct timeval tv1;
 
 uint8_t *buffer_pool;
 
-uint32_t qDepth = 1;
 bool gVerify = false;
 uint8_t *bitmap = nullptr;
 uint32_t gNumOpenSegments = 1;
@@ -541,9 +545,7 @@ int main(int argc, char **argv)
 
     setbuf(stderr, nullptr);
     uint32_t blockSize = Configuration::GetBlockSize();
-
     Configuration::SetStorageSpaceInBytes(gSize * blockSize);
-
     Configuration::SetL2PTableSizeInBytes(gL2PTableSize);
 
     {
@@ -644,71 +646,58 @@ int main(int argc, char **argv)
     uint64_t writtenBytes = 0;
     printf("Start writing...\n");
 
-    if (Configuration::GetRebootMode() == 0) {
-        if (gTraceFile != "") {
-            // testTrace();
-        } else if (gTestGc) {
-            // testGc();
-        } else {
-            struct timeval s, e;
-            gettimeofday(&s, NULL);
-            uint64_t totalSize = 0;
-            log_debug("for loop...");
-            for (uint64_t i = 0; i < gSize; i += 1) {
-                log_debug("{}...", i);
-                gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
-                sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
-                gettimeofday(&gBuckets[i].s, NULL);
-                gZstoreController->Write(i * blockSize, 1 * blockSize,
-                                         gBuckets[i].buffer, nullptr, nullptr);
-
-                totalSize += 4096;
-            }
-            log_debug("1...");
-
-            // Make a new segment of 100 MiB on purpose (for the crash recovery
-            // exps)
-            uint64_t numSegs =
-                gSize / (gZstoreController->GetDataRegionSize() * 3);
-            uint64_t toFill = 0;
-            if (gSize % (gZstoreController->GetDataRegionSize() * 3) >
-                100 * 256) {
-                toFill = (numSegs + 1) *
-                             (gZstoreController->GetDataRegionSize() * 3) +
-                         100 * 256 - gSize;
-            } else {
-                toFill = gSize % (gZstoreController->GetDataRegionSize() * 3);
-            }
-            log_debug("here :2...");
-
-            log_debug("for loop 2: {}...", toFill);
-            for (uint64_t i = 0; i < toFill; i += 1) {
-                gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
-                sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
-                gettimeofday(&gBuckets[i].s, NULL);
-                gZstoreController->Write(i * blockSize, 1 * blockSize,
-                                         gBuckets[i].buffer, nullptr, nullptr);
-
-                totalSize += 4096;
-            }
-            log_debug("3...");
-
-            if (gCrash) { // inject crash
-                // Configuration::SetInjectCrash();
-                // sleep(5);
-            } else {
-                gZstoreController->Drain();
-            }
-
-            log_debug("4...");
-            gettimeofday(&e, NULL);
-            double mb = totalSize / 1024 / 1024;
-            double elapsed = e.tv_sec - s.tv_sec + e.tv_usec / 1000000. -
-                             s.tv_usec / 1000000.;
-            printf("Total: %.2f MiB, Throughput: %.2f MiB/s\n", mb,
-                   mb / elapsed);
-        }
+    struct timeval s, e;
+    gettimeofday(&s, NULL);
+    uint64_t totalSize = 0;
+    log_debug("for loop...");
+    for (uint64_t i = 0; i < gSize; i += 1) {
+        log_debug("{}-th write...", i);
+        gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
+        sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
+        gettimeofday(&gBuckets[i].s, NULL);
+        gZstoreController->Read(i * blockSize, 1 * blockSize,
+                                gBuckets[i].buffer, nullptr, nullptr);
+        totalSize += 4096;
     }
+    log_debug("1...");
+
+    gZstoreController->Drain();
+
+    // Make a new segment of 100 MiB on purpose (for the crash recovery
+    // exps)
+    uint64_t numSegs = gSize / (gZstoreController->GetDataRegionSize() * 3);
+    uint64_t toFill = 0;
+    if (gSize % (gZstoreController->GetDataRegionSize() * 3) > 100 * 256) {
+        toFill = (numSegs + 1) * (gZstoreController->GetDataRegionSize() * 3) +
+                 100 * 256 - gSize;
+    } else {
+        toFill = gSize % (gZstoreController->GetDataRegionSize() * 3);
+    }
+    log_debug("here :2...");
+
+    log_debug("for loop 2: {}...", toFill);
+    for (uint64_t i = 0; i < toFill; i += 1) {
+        gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
+        sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
+        gettimeofday(&gBuckets[i].s, NULL);
+        gZstoreController->Read(i * blockSize, 1 * blockSize,
+                                gBuckets[i].buffer, nullptr, nullptr);
+
+        totalSize += 4096;
+    }
+    log_debug("3...");
+
+    gZstoreController->Drain();
+
+    log_debug("4...");
+    gettimeofday(&e, NULL);
+    double mb = totalSize / 1024 / 1024;
+    double elapsed =
+        e.tv_sec - s.tv_sec + e.tv_usec / 1000000. - s.tv_usec / 1000000.;
+    printf("Total: %.2f MiB, Throughput: %.2f MiB/s\n", mb, mb / elapsed);
+
+    double total = totalSize / 4096;
+    printf("Total: %.2f IOs, Throughput: %.2f IOPS\n", total, total / elapsed);
 
     //  validate();
     delete gZstoreController;

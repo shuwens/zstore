@@ -357,8 +357,12 @@ void registerDispatchRoutine(void *arg1, void *arg2)
 
 void enqueueRequest2(void *arg1, void *arg2)
 {
+    if (verbose)
+        log_debug("enqueue requst2");
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     if (ctx->req_type == 'W') {
+        if (verbose)
+            log_debug("Enqueue Write");
         ctx->ctrl->EnqueueWrite(ctx);
     } else {
         if (ctx->status == READ_PREPARE) {
@@ -416,6 +420,8 @@ void zoneWrite2(void *arg1, void *arg2)
             ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.metadata, ioCtx.offset,
             ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags, 0, 0);
     } else {
+        if (verbose)
+            log_debug("WRITE: ");
         rc = spdk_nvme_ns_cmd_write(ioCtx.ns, ioCtx.qpair, ioCtx.data,
                                     ioCtx.offset, ioCtx.size, ioCtx.cb,
                                     ioCtx.ctx, ioCtx.flags);
@@ -466,6 +472,8 @@ void zoneAppend2(void *arg1, void *arg2)
             ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.metadata, ioCtx.offset,
             ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags, 0, 0);
     } else {
+        if (verbose)
+            log_debug("APPEND: ");
         rc = spdk_nvme_zns_zone_append(ioCtx.ns, ioCtx.qpair, ioCtx.data,
                                        ioCtx.offset, ioCtx.size, ioCtx.cb,
                                        ioCtx.ctx, ioCtx.flags);
