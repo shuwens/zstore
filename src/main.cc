@@ -12,7 +12,8 @@
 // https://spdk.io/doc/event.html
 
 // a simple test program to ZapRAID
-uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
+// uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
+uint64_t gSize = 5;
 uint64_t gRequestSize = 4096;
 bool gSequential = false;
 bool gSkewed = false;
@@ -44,6 +45,491 @@ uint64_t gL2PTableSize = 0;
 std::map<uint32_t, uint32_t> latCnt;
 
 ZstoreController *gZstoreController;
+
+struct LatencyBucket {
+    struct timeval s, e;
+    uint8_t *buffer;
+    bool done;
+    void print()
+    {
+        double elapsed =
+            e.tv_sec - s.tv_sec + e.tv_usec / 1000000. - s.tv_usec / 1000000.;
+        printf("%f\n", elapsed);
+    }
+};
+
+void readCallback(void *arg)
+{
+    LatencyBucket *b = (LatencyBucket *)arg;
+    b->done = true;
+}
+
+void setdone(void *arg)
+{
+    bool *done = (bool *)arg;
+    *done = true;
+}
+
+void validate()
+{
+    uint8_t *readValidateBuffer = buffer_pool;
+    char buffer[Configuration::GetBlockSize()];
+    char tmp[Configuration::GetBlockSize()];
+    printf("Validating...\n");
+    struct timeval s, e;
+    gettimeofday(&s, NULL);
+    //  Configuration::SetEnableDegradedRead(true);
+    for (uint64_t i = 0; i < gSize; ++i) {
+        LatencyBucket b;
+        gettimeofday(&b.s, NULL);
+        bool done;
+        done = false;
+        gZstoreController->Read(
+            i * Configuration::GetBlockSize(), Configuration::GetBlockSize(),
+            readValidateBuffer +
+                i % gNumBuffers * Configuration::GetBlockSize(),
+            setdone, &done);
+        while (!done) {
+            std::this_thread::yield();
+        }
+        sprintf(buffer, "temp%lu", i * 7);
+        if (strcmp(buffer,
+                   (char *)readValidateBuffer +
+                       i % gNumBuffers * Configuration::GetBlockSize()) != 0) {
+            printf("Mismatch %lu\n", i);
+            assert(0);
+            break;
+        }
+    }
+    printf("Read finish\n");
+    //  gZstoreController->Drain();
+    gettimeofday(&e, NULL);
+    double mb = (double)gSize * Configuration::GetBlockSize() / 1024 / 1024;
+    double elapsed =
+        e.tv_sec - s.tv_sec + e.tv_usec / 1000000. - s.tv_usec / 1000000.;
+    printf("Throughput: %.2fMiB/s\n", mb / elapsed);
+    printf("Validate successful!\n");
+}
+
+LatencyBucket *gBuckets;
+static void latency_puncher(void *arg)
+{
+    LatencyBucket *b = (LatencyBucket *)arg;
+    gettimeofday(&(b->e), NULL);
+    //  delete b->buffer;
+    //  b->print();
+}
+
+static void write_complete(void *arg)
+{
+    std::atomic<int> *ongoing = (std::atomic<int> *)arg;
+    (*ongoing)--;
+}
+
+// uint64_t gLba = 0;
+//
+// static void write_complete_no_atomic(void *arg)
+//{
+//   uint64_t *finished = (uint64_t*)arg;
+//   (*finished)++;
+////  fprintf(stderr, "no atomic\n");
+////
+////  gZstoreController->Write(gLba * 4096, 4096,
+////      gBuckets[0].buffer,
+////      write_complete_no_atomic, arg);
+////  gLba += 1;
+//}
+
+struct trace_ctx {
+    //  std::atomic<int> ongoing;
+    //  uint64_t started;
+    //  uint64_t finished;
+    std::atomic<uint64_t> started;
+    std::atomic<uint64_t> finished;
+    std::mutex mtx;
+    std::map<uint64_t, int> lbaLock;
+    std::map<uint64_t, int> lbaReadWrite;
+}; // gTraceCtx;
+
+struct trace_input_ctx {
+    struct timeval tv;
+    struct trace_ctx *ctx = nullptr;
+    uint64_t lba;  // in 4KiB
+    uint32_t size; // in bytes
+};
+
+static void write_complete_trace(void *arg)
+{
+    struct trace_input_ctx *ctx = (struct trace_input_ctx *)arg;
+    struct timeval s, e;
+    gettimeofday(&e, 0);
+    if (gUseLbaLock) {
+        ctx->ctx->mtx.lock();
+        for (uint64_t dlba = 0; dlba < ctx->size / 4096; dlba++) {
+            ctx->ctx->lbaLock[ctx->lba + dlba]--;
+            if (ctx->ctx->lbaLock[ctx->lba + dlba] == 0) {
+                ctx->ctx->lbaLock.erase(ctx->lba + dlba);
+                ctx->ctx->lbaReadWrite.erase(ctx->lba + dlba);
+            }
+        }
+        ctx->ctx->mtx.unlock();
+    }
+    ctx->ctx->finished++;
+    uint64_t timeInUs =
+        (e.tv_sec - ctx->tv.tv_sec) * 1000000 + e.tv_usec - ctx->tv.tv_usec;
+    latCnt[timeInUs]++;
+    delete ctx;
+}
+
+// lba in 4KiB
+// size in bytes
+struct trace_input_ctx *trace_ctx_add_lba(struct trace_ctx *tctx, uint64_t lba,
+                                          uint32_t size, bool isWrite)
+{
+    struct trace_input_ctx *ctx = new struct trace_input_ctx;
+    // assignment
+    ctx->ctx = tctx;
+    ctx->lba = lba;
+    ctx->size = size;
+    gettimeofday(&ctx->tv, 0);
+
+    // add lba
+    if (gUseLbaLock) {
+        ctx->ctx->mtx.lock();
+        for (uint64_t dlba = 0; dlba < size / 4096; dlba++) {
+            ctx->ctx->lbaLock[lba + dlba]++;
+            ctx->ctx->lbaReadWrite[lba + dlba] = isWrite;
+        }
+        ctx->ctx->mtx.unlock();
+    }
+    return ctx;
+}
+
+// void testTrace()
+// {
+//     latCnt.clear();
+//     uint32_t blockSize = Configuration::GetBlockSize();
+//
+//     struct trace_ctx tctx;
+//     tctx.started = 0;
+//     tctx.finished = 0;
+//     uint64_t numLines = 0;
+//
+//     Trace trace;
+//     std::filebuf fb;
+//     std::istream *ist;
+//     if (!fb.open(gTraceFile.c_str(), std::ios::in)) {
+//         std::cerr << "Input file error: " << gTraceFile << std::endl;
+//         exit(1);
+//     }
+//     ist = new std::istream(&fb);
+//
+//     uint64_t lba, size, ts;
+//     bool isWrite;
+//     char line2[200];
+//     char *readBuffer = new char[gNumBuffers * blockSize];
+//     uint64_t bufferIdx, writtenBytes = 0;
+//     printf("file opened %s %p\n", gTraceFile.c_str(), ist);
+//
+//     while (trace.readNextRequestFstream(*ist, ts, isWrite, lba, size, line2))
+//     {
+//         // offset and length are in units of 4KiB blocks
+//         if (numLines % 1000000 == 0) {
+//             printf("trace %lu\n", numLines);
+//         }
+//
+//         size *= blockSize;
+//         if (lba >= gSize) {
+//             printf("lba %lu >= gSize %lu\n", lba, gSize);
+//         }
+//         lba %= gSize;
+//         if (gTestMode) {
+//             if (size >= 16384)
+//                 continue;
+//         }
+//
+//         // get buffer
+//         assert(gNumBuffers >= size / blockSize);
+//
+//         // try spliting the request because there is a bug
+//         uint64_t left = size;
+//         uint64_t wlba = lba;
+//         while (left > 0) {
+//             uint64_t wsize = (left >= gWriteSizeUnit) ? gWriteSizeUnit :
+//             left;
+//
+//             bufferIdx = wlba % (gNumBuffers - wsize / blockSize + 1);
+//             gBuckets[bufferIdx].buffer = buffer_pool + bufferIdx * blockSize;
+//
+//             while (tctx.started >= qDepth + tctx.finished) {
+//                 std::this_thread::yield();
+//             }
+//
+//             while (true) {
+//                 bool start = true;
+//                 if (gUseLbaLock) {
+//                     tctx.mtx.lock();
+//                     for (uint64_t dlba = 0; dlba < wsize / 4096; dlba++) {
+//                         // the read and writes should be together; read and
+//                         // write should not multiplex
+//                         if (tctx.lbaLock.count(wlba + dlba) &&
+//                             tctx.lbaReadWrite.count(wlba + dlba) &&
+//                             tctx.lbaReadWrite[wlba + dlba] != isWrite) {
+//                             start = false;
+//                             break;
+//                         }
+//                     }
+//                     tctx.mtx.unlock();
+//                 }
+//                 if (!start) {
+//                     std::this_thread::yield();
+//                 } else {
+//                     break;
+//                 }
+//             }
+//
+//             struct trace_input_ctx *input_ctx =
+//                 trace_ctx_add_lba(&tctx, wlba, wsize, isWrite);
+//
+//             tctx.started++;
+//             if (isWrite) {
+//                 gZstoreController->Write(
+//                     wlba * blockSize, wsize, gBuckets[bufferIdx].buffer,
+//                     write_complete_trace, (void *)input_ctx);
+//             } else {
+//                 gZstoreController->Read(wlba * blockSize, wsize, readBuffer,
+//                                         write_complete_trace,
+//                                         (void *)input_ctx);
+//             }
+//
+//             writtenBytes += wsize;
+//             wlba += wsize / blockSize;
+//             left -= wsize;
+//         }
+//
+//         numLines++;
+//
+//         if (numLines % 200000 == 100000) {
+//             struct timeval tv2;
+//             gettimeofday(&tv2, NULL);
+//             uint64_t timeInUs =
+//                 (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec -
+//                 tv1.tv_usec;
+//             printf("Read/Written %.2lf MiB, Throughput: %.2f MiB/s\n",
+//                    writtenBytes / 1024.0 / 1024,
+//                    (double)writtenBytes / timeInUs * 1000000 / 1024 / 1024);
+//             //      printf("cpu: %d\n", sched_getcpu());
+//         }
+//     }
+//
+//     //  printf("started %lu finished %lu\n", tctx.started, tctx.finished);
+//     printf("started %lu finished %lu\n", tctx.started.load(),
+//            tctx.finished.load());
+//     struct timeval e1, e2;
+//     gettimeofday(&e1, NULL);
+//     while (tctx.started > tctx.finished) {
+//         gettimeofday(&e2, NULL);
+//         if (e2.tv_sec > e1.tv_sec) {
+//             //      printf("started %lu finished %lu\n", tctx.started,
+//             //      tctx.finished);
+//             printf("started %lu finished %lu\n", tctx.started.load(),
+//                    tctx.finished.load());
+//             e1 = e2;
+//         }
+//         std::this_thread::yield();
+//     }
+//
+//     printf("--- wait for stats --- %lu lines\n", numLines);
+//
+//     {
+//         struct timeval tv2;
+//         gettimeofday(&tv2, NULL);
+//         uint64_t timeInUs =
+//             (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+//         printf("Read/Written %.2lf MiB, Throughput: %.2f MiB/s\n",
+//                writtenBytes / 1024.0 / 1024,
+//                (double)writtenBytes / timeInUs * 1000000 / 1024 / 1024);
+//     }
+//
+//     DumpLatencies(latCnt, "trace latency");
+//
+//     printf("--- read/write finished --- %lu lines\n", numLines);
+// }
+
+// void testGc()
+// {
+//     uint32_t blockSize = Configuration::GetBlockSize();
+//     std::atomic<int> ongoing(0);
+//     uint64_t totalFinished = 0, totalStarted = 0;
+//     uint64_t writtenBytes = 0;
+//
+//     // for sequential
+//     uint64_t lastLba = 0;
+//
+//     // for skewed
+//     std::queue<uint64_t> lbas;
+//     const int queueSize = 1000000;
+//     bool fileFinished = false;
+//     std::string line;
+//     std::filebuf fb;
+//     std::istream *ist = nullptr;
+//
+//     if (gSkewed) {
+//         if (!fb.open(gAccessTrace.c_str(), std::ios::in)) {
+//             std::cerr << "Input file error: " << gTraceFile << std::endl;
+//             exit(1);
+//         }
+//         ist = new std::istream(&fb);
+//         while (std::getline(*ist, line)) {
+//             lbas.push(std::stoull(line));
+//             if (lbas.size() > queueSize) {
+//                 break;
+//             }
+//         }
+//
+//         if (lbas.size() < queueSize) {
+//             fileFinished = true;
+//         }
+//     }
+//
+//     while (writtenBytes < gTrafficSize) {
+//         // will change the size later
+//         uint32_t size = gRequestSize; // (rand() % 8 + 1) * blockSize;
+//         if (gHybridSize && rand() % 4 == 3) {
+//             size *= 4; // hybrid 75% 4-KiB writes and 25% 16-KiB writes
+//         }
+//         uint64_t lba;
+//         if (gSequential) {
+//             lba = (lastLba + gRequestSize / blockSize) % gWss;
+//             lastLba = lba;
+//         } else if (gSkewed) {
+//             if (lbas.size() == 0)
+//                 break;
+//             lba = lbas.front();
+//             assert(lba < gWss);
+//             lbas.pop();
+//         } else {
+//             lba = rand() % gWss;
+//             if (gWss - lba < size / blockSize) {
+//                 lba = gWss - size / blockSize;
+//             }
+//         }
+//
+//         uint32_t bufferIdx;
+//         if (gSkewed) {
+//             if (!fileFinished && lbas.size() < queueSize / 2) {
+//                 while (std::getline(*ist, line)) {
+//                     lbas.push(std::stoull(line));
+//                     if (lbas.size() >= queueSize) {
+//                         break;
+//                     }
+//                 }
+//                 if (lbas.size() < queueSize) {
+//                     fileFinished = true;
+//                 }
+//             }
+//         }
+//
+//         // put random numbers
+//         if (gVerify) {
+//             bufferIdx = lba;
+//             for (uint64_t wlba = lba; wlba < lba + size / blockSize; ++wlba)
+//             {
+//                 bitmap[wlba] = 1;
+//                 gBuckets[wlba].buffer = buffer_pool + wlba * blockSize;
+//                 if (rand() % 256 < 8) {
+//                     for (int blkIdx = 0; blkIdx < size; ++blkIdx) {
+//                         gBuckets[bufferIdx].buffer[blkIdx] = rand() % 256;
+//                     }
+//                 }
+//             }
+//         } else {
+//             bufferIdx = lba % gNumBuffers;
+//             if (gNumBuffers - bufferIdx < size / blockSize) {
+//                 bufferIdx = gNumBuffers - size / blockSize;
+//             }
+//             gBuckets[bufferIdx].buffer = buffer_pool + bufferIdx * blockSize;
+//         }
+//
+//         while (ongoing >= qDepth) {
+//             std::this_thread::yield();
+//         }
+//         ongoing++;
+//         //    while (totalStarted >= totalFinished + qDepth) {
+//         //      std::this_thread::yield();
+//         //    }
+//         //    totalStarted++;
+//
+//         //    printf("write %lu %u buffer %p bufferIdx %d\n", lba, size,
+//         //        gBuckets[bufferIdx].buffer, bufferIdx);
+//         gZstoreController->Write(lba * blockSize, size,
+//                                  gBuckets[bufferIdx].buffer, write_complete,
+//                                  &ongoing);
+//
+//         writtenBytes += size;
+//
+//         if (writtenBytes / blockSize % 100000 == 0) {
+//             struct timeval tv2;
+//             gettimeofday(&tv2, NULL);
+//             uint64_t timeInUs =
+//                 (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec -
+//                 tv1.tv_usec;
+//             printf("GC %lu Written %.2lf MiB, Throughput: %.2f MiB/s\n",
+//                    timeInUs, writtenBytes / 1024.0 / 1024,
+//                    (double)writtenBytes / timeInUs * 1000000 / 1024 / 1024);
+//         }
+//     }
+//
+//     while (ongoing > 0) {
+//         std::this_thread::yield();
+//     }
+//     //  while (totalFinished < totalStarted) {
+//     //    std::this_thread::yield();
+//     //  }
+//
+//     {
+//         struct timeval tv2;
+//         gettimeofday(&tv2, NULL);
+//         uint64_t timeInUs =
+//             (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+//         printf("GC %lu Written %.2lf MiB, Throughput: %.2f MiB/s\n",
+//         timeInUs,
+//                writtenBytes / 1024.0 / 1024,
+//                (double)writtenBytes / timeInUs * 1000000 / 1024 / 1024);
+//     }
+//     printf("--- write finished --- (wss %lu)\n", gWss);
+//
+//     if (gVerify) {
+//         uint8_t *readBuffer = (uint8_t *)spdk_zmalloc(
+//             blockSize, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+//
+//         for (uint64_t rlba = 0; rlba < gWss; ++rlba) {
+//             if (bitmap[rlba] == 0) {
+//                 continue;
+//             }
+//             ongoing++;
+//             gZstoreController->Read(rlba * blockSize, blockSize, readBuffer,
+//                                     write_complete, &ongoing);
+//             while (ongoing > 0) {
+//                 std::this_thread::yield();
+//             }
+//
+//             for (int j = 0; j < blockSize; ++j) {
+//                 if (readBuffer[j] != gBuckets[rlba].buffer[j]) {
+//                     printf("Mismatch at lba(%lu) %d read %d vs %d\n", rlba,
+//                     j,
+//                            readBuffer[j], gBuckets[rlba].buffer[j]);
+//                     assert(0);
+//                 }
+//             }
+//         }
+//         spdk_free(readBuffer);
+//     }
+//     printf("--- verification finished ---\n");
+//     if (gSkewed) {
+//         delete ist;
+//     }
+// }
 
 // Threading model is the following:
 // * we need one thread per ns/ns worker/SSD
@@ -124,93 +610,106 @@ int main(int argc, char **argv)
         }
     }
 
-    log_error("here ");
-
     gZstoreController = new ZstoreController;
     gZstoreController->Init(false);
 
-    struct worker_thread *worker, *main_worker;
-    unsigned main_core;
-    char task_pool_name[30];
-    uint32_t task_count = 0;
-    // struct spdk_env_opts opts;
+    gBuckets = new LatencyBucket[gSize];
 
-    // rc = parse_args(argc, argv);
-    // if (rc != 0) {
-    //     return rc;
-    // }
-
-    // spdk_env_opts_init(&opts);
-    // opts.name = "arb";
-    // opts.mem_size = g_dpdk_mem;
-    // opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    // opts.core_mask = g_zstore.core_mask;
-    // if (spdk_env_init(&opts) < 0) {
-    //     return 1;
-    // }
-
-    g_zstore.tsc_rate = spdk_get_ticks_hz();
-
-    snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
-
-    /*
-     * The task_count will be dynamically calculated based on the
-     * number of attached active namespaces, queue depth and number
-     * of cores (workers) involved in the IO perations.
-     */
-    task_count = g_zstore.num_namespaces > g_zstore.num_workers
-                     ? g_zstore.num_namespaces
-                     : g_zstore.num_workers;
-    task_count *= g_zstore.queue_depth;
-
-    task_pool =
-        spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
-                            0, SPDK_ENV_SOCKET_ID_ANY);
-    if (task_pool == NULL) {
-        log_error("could not initialize task pool");
-        rc = 1;
-        zstore_cleanup(task_count);
-        return rc;
+    // for write verification
+    if (gVerify) {
+        gNumBuffers = gWss;
+        bitmap = new uint8_t[gNumBuffers];
+        memset(bitmap, 0, gNumBuffers);
+    }
+    buffer_pool = new uint8_t[gNumBuffers * blockSize];
+    //  buffer_pool = (uint8_t*)spdk_zmalloc(
+    //      gNumBuffers * blockSize, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY,
+    //      SPDK_MALLOC_DMA);
+    if (buffer_pool == nullptr) {
+        printf("Failed to allocate buffer pool\n");
+        return -1;
     }
 
-    print_configuration(argv[0]);
+    //  if (!gVerify) {
+    //    // by default, 512MiB data
+    //    for (uint64_t i = 0; i < (uint64_t)gNumBuffers * blockSize; ++i) {
+    //      if (i % (blockSize * gNumBuffers / 4) == 0) {
+    //        printf("Init %lu\n", i);
+    //      }
+    //      if (i % 4096 == 0) buffer_pool[i] = rand() % 256;
+    //    }
+    //  }
 
-    log_info("Initialization complete. Launching workers.");
-    // https://github.com/fallfish/zapraid/blob/main/zapraid_prototype/src/raid_controller.cc
+    gettimeofday(&tv1, NULL);
+    uint64_t writtenBytes = 0;
+    printf("Start writing...\n");
 
-    /* Launch all of the secondary workers */
-    main_core = spdk_env_get_current_core();
-    log_info("main core is: {}", main_core);
-    main_worker = NULL;
-    int used_core = 0;
-    TAILQ_FOREACH(worker, &g_workers, link)
-    {
-        if (worker->lcore != main_core) {
-            if (used_core < worker->lcore)
-                used_core = worker->lcore;
-            log_info("launch work fn on core: {}", worker->lcore);
-            spdk_env_thread_launch_pinned(worker->lcore, work_fn, worker);
+    if (Configuration::GetRebootMode() == 0) {
+        if (gTraceFile != "") {
+            // testTrace();
+        } else if (gTestGc) {
+            // testGc();
         } else {
-            if (used_core < worker->lcore)
-                used_core = worker->lcore;
-            assert(main_worker == NULL);
-            main_worker = worker;
+            struct timeval s, e;
+            gettimeofday(&s, NULL);
+            uint64_t totalSize = 0;
+            log_debug("for loop...");
+            for (uint64_t i = 0; i < gSize; i += 1) {
+                log_debug("{}...", i);
+                gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
+                sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
+                gettimeofday(&gBuckets[i].s, NULL);
+                gZstoreController->Write(i * blockSize, 1 * blockSize,
+                                         gBuckets[i].buffer, nullptr, nullptr);
+
+                totalSize += 4096;
+            }
+            log_debug("1...");
+
+            // Make a new segment of 100 MiB on purpose (for the crash recovery
+            // exps)
+            uint64_t numSegs =
+                gSize / (gZstoreController->GetDataRegionSize() * 3);
+            uint64_t toFill = 0;
+            if (gSize % (gZstoreController->GetDataRegionSize() * 3) >
+                100 * 256) {
+                toFill = (numSegs + 1) *
+                             (gZstoreController->GetDataRegionSize() * 3) +
+                         100 * 256 - gSize;
+            } else {
+                toFill = gSize % (gZstoreController->GetDataRegionSize() * 3);
+            }
+            log_debug("here :2...");
+
+            log_debug("for loop 2: {}...", toFill);
+            for (uint64_t i = 0; i < toFill; i += 1) {
+                gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
+                sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
+                gettimeofday(&gBuckets[i].s, NULL);
+                gZstoreController->Write(i * blockSize, 1 * blockSize,
+                                         gBuckets[i].buffer, nullptr, nullptr);
+
+                totalSize += 4096;
+            }
+            log_debug("3...");
+
+            if (gCrash) { // inject crash
+                // Configuration::SetInjectCrash();
+                // sleep(5);
+            } else {
+                gZstoreController->Drain();
+            }
+
+            log_debug("4...");
+            gettimeofday(&e, NULL);
+            double mb = totalSize / 1024 / 1024;
+            double elapsed = e.tv_sec - s.tv_sec + e.tv_usec / 1000000. -
+                             s.tv_usec / 1000000.;
+            printf("Total: %.2f MiB, Throughput: %.2f MiB/s\n", mb,
+                   mb / elapsed);
         }
     }
 
-    log_debug("1");
-    // rc = spdk_env_thread_launch_pinned(used_core + 1, http_server_fn, NULL);
-    log_debug("launch civetweb {}", rc);
-
-    log_debug("1");
-    assert(main_worker != NULL);
-    rc = work_fn(main_worker);
-
-    log_debug("1");
-    spdk_env_thread_wait_all();
-
-    print_stats();
-
-    zstore_cleanup(task_count);
-    return rc;
+    //  validate();
+    delete gZstoreController;
 }
