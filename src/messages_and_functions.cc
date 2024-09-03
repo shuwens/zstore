@@ -522,7 +522,7 @@ void zoneFinish(void *args) { zoneFinish2(args, nullptr); }
 void tryDrainController(void *args)
 {
     DrainArgs *drainArgs = (DrainArgs *)args;
-    drainArgs->ctrl->CheckSegments();
+    // drainArgs->ctrl->CheckSegments();
     drainArgs->ctrl->ReclaimContexts();
     // drainArgs->ctrl->ProceedGc();
     drainArgs->success = drainArgs->ctrl->GetNumInflightRequests() == 0 &&
