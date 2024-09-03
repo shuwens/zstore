@@ -267,8 +267,10 @@ class ZstoreController
 
     // object tables, used only by zstore
     // key -> tuple of <zns target, lba>
-    std::unordered_map<std::string, std::tuple<std::pair<std::string, int32_t>>>
-        mZstoreMap;
+    // std::unordered_map<std::string, std::tuple<std::pair<std::string,
+    // int32_t>>>
+    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry, MapEntry>>
+    std::unordered_map<std::string, MapEntry> mZstoreMap;
     std::mutex mObjTableMutex;
 
     // in memory object tables, used only by kv store

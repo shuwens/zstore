@@ -13,6 +13,8 @@
 #include <unordered_set>
 #include <vector>
 
+typedef std::pair<std::string, int32_t> MapEntry;
+
 class Segment;
 class ZstoreController;
 struct RequestContext;

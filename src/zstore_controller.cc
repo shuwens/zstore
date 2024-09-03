@@ -1639,78 +1639,83 @@ void ZstoreController::Dump()
 //
 // FIXME this version does not have object header, so the data is just a 4kb
 // block
-// void ZstoreController::putObject(std::string key, void *data)
-// {
-//     auto it = mZstoreMap.find(key);
-//     if (it != mZstoreMap.end()) {
-//         log_info("PutObject is updating an existing object: key {}", key);
-//         const auto tuple = &(it->second);
-//
-//         const auto first = std::get<0>(tuple);
-//         const auto second = std::get<1>(tuple);
-//         const auto third = std::get<2>(tuple);
-//
-//         log_info("\tfirst: device {}, lba {}", std::get<0>(first),
-//                  std::get<1>(first));
-//         log_info("\tsecond: device {}, lba {}", std::get<0>(second),
-//                  std::get<1>(second));
-//         log_info("\tthird: device {}, lba {}", std::get<0>(third),
-//                  std::get<1>(third));
-//         // return first;
-//         // return &(it->second);
-//     } else {
-//
-//         log_info("PutObject is creating a new object: key {}", key);
-//
-//         std::pair<std::string, int32_t> first;
-//         first.first = dummy_device;
-//         first.second = 0;
-//
-//         std::pair<std::string, int32_t> second;
-//         second.first = dummy_device;
-//         second.second = 0;
-//
-//         std::pair<std::string, int32_t> third;
-//         third.first = dummy_device;
-//         third.second = 0;
-//         // store[id] = Object(id, data);
-//     }
-//     mZstoreMap[key] = std::make_tuple(first, second, third);
-//     // uint64_t zslba = g_current_zone * 0x8000;
-//     // ZstoreController::Append(zslba, 4096, &data, nullptr, nullptr);
-// }
+void ZstoreController::putObject(std::string key, void *data)
+{
+    auto it = mZstoreMap.find(key);
+    if (it != mZstoreMap.end()) {
+        log_info("PutObject is updating an existing object: key {}", key);
+        MapEntry *entry = &(it->second);
+
+        // const auto first = std::get<0>(tuple);
+        // const auto second = std::get<1>(tuple);
+        // const auto third = std::get<2>(tuple);
+
+        // log_info("\tfirst: device {}, lba {}", std::get<0>(first),
+        //          std::get<1>(first));
+        // log_info("\tsecond: device {}, lba {}", std::get<0>(second),
+        //          std::get<1>(second));
+        // log_info("\tthird: device {}, lba {}", std::get<0>(third),
+        //          std::get<1>(third));
+
+        updateMapEntry(*entry, dummy_device, 0);
+        // updateMapEntry(second, dummy_device, 0);
+        // updateMapEntry(third, dummy_device, 0);
+
+        // return first;
+        // return &(it->second);
+    } else {
+
+        log_info("PutObject is creating a new object: key {}", key);
+
+        MapEntry first;
+        // MapEntry second;
+        // MapEntry third;
+        // std::pair<std::string, int32_t> first;
+        // std::pair<std::string, int32_t> second;
+        // std::pair<std::string, int32_t> third;
+
+        updateMapEntry(first, dummy_device, 0);
+        // updateMapEntry(second, dummy_device, 0);
+        // updateMapEntry(third, dummy_device, 0);
+
+        // mZstoreMap[key] = std::make_tuple(first, second, third);
+        mZstoreMap[key] = first;
+    }
+    uint64_t zslba = g_current_zone * 0x8000;
+    ZstoreController::Append(zslba, 4096, &data, nullptr, nullptr);
+}
 
 // Retrieve an object from the store by ID
 // Object *ZstoreController::getObject(std::string key)
-// int ZstoreController::getObject(std::string key, uint8_t *readValidateBuffer)
-// {
-//     auto it = mZstoreMap.find(key);
-//     if (it != mZstoreMap.end()) {
-//         log_info("GetObject found object: key {}", key);
-//         const auto tuple = &(it->second);
-//
-//         const auto first = std::get<0>(tuple);
-//         const auto second = std::get<1>(tuple);
-//         const auto third = std::get<2>(tuple);
-//
-//         log_info("\tfirst: device {}, lba {}", std::get<0>(first),
-//                  std::get<1>(first));
-//         log_info("\tsecond: device {}, lba {}", std::get<0>(second),
-//                  std::get<1>(second));
-//         log_info("\tthird: device {}, lba {}", std::get<0>(third),
-//                  std::get<1>(third));
-//
-//         log_info("FIXME: skipping to use the default device ");
-//         // ZstoreController::Read(std::get<1>(first), 4096,
-//         &readValidateBuffer,
-//         //                        nullptr, nullptr);
-//
-//         return 0;
-//         // return &(it->second);
-//     }
-//     log_info("GetObject cannot find object: key {}", key);
-//     return -1; // Object not found
-// }
+int ZstoreController::getObject(std::string key, uint8_t *readValidateBuffer)
+{
+    auto it = mZstoreMap.find(key);
+    if (it != mZstoreMap.end()) {
+        log_info("GetObject found object: key {}", key);
+        // const std::tuple<MapEntry, MapEntry, MapEntry> tuple = &(it->second);
+        MapEntry *entry = &(it->second);
+
+        // const auto first = std::get<0>(tuple);
+        // const auto second = std::get<1>(tuple);
+        // const auto third = std::get<2>(tuple);
+
+        // log_info("\tfirst: device {}, lba {}", std::get<0>(first),
+        //          std::get<1>(first));
+        // log_info("\tsecond: device {}, lba {}", std::get<0>(second),
+        //          std::get<1>(second));
+        // log_info("\tthird: device {}, lba {}", std::get<0>(third),
+        //          std::get<1>(third));
+
+        log_info("FIXME: skipping to use the default device ");
+        ZstoreController::Read(entry->second, 4096, &readValidateBuffer,
+                               nullptr, nullptr);
+
+        return 0;
+        // return &(it->second);
+    }
+    log_info("GetObject cannot find object: key {}", key);
+    return -1; // Object not found
+}
 
 // Delete an object from the store by ID
 bool ZstoreController::deleteObject(std::string key)

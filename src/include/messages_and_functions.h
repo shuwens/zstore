@@ -58,3 +58,6 @@ void zoneFinish(void *args);
 // GC
 void progressGcIndexUpdate2(void *arg1, void *arg2);
 void progressGcIndexUpdate(void *args);
+
+// Zstore stuff
+void updateMapEntry(MapEntry entry, std::string device, int32_t lba);

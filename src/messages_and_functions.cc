@@ -556,3 +556,9 @@ void tryDrainController(void *args)
 // {
 //     progressGcIndexUpdate2(args, nullptr);
 // }
+
+void updateMapEntry(MapEntry entry, std::string device, int32_t lba)
+{
+    entry.first = device;
+    entry.second = lba;
+}
