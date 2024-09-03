@@ -48,7 +48,8 @@ class ZstoreHandler : public CivetHandler
         const char *query = req->query_string;
         parse_uri(req->local_uri, bucket, key);
         log_info("Recv PUT: bucket {}, key {}", bucket, key);
-
+        // gZstoreController->Read(4096, 1 * blockSize, gBuckets[i].buffer,
+        //                         nullptr, nullptr);
         return true;
     }
 
