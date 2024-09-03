@@ -249,16 +249,26 @@ int main(int argc, char **argv)
     log_debug("for loop...");
     for (uint64_t i = 0; i < gSize; i += 1) {
         if (verbose)
-            log_debug("{}-th write...", i);
+            log_debug("{}-th: inflight {}, Request {}, Event {}, Write {}, "
+                      "Read Pre {}, "
+                      "Read Read {}",
+                      i, gZstoreController->GetNumInflightRequests(),
+                      gZstoreController->GetRequestQueueSize(),
+                      gZstoreController->GetEventsToDispatchSize(),
+                      gZstoreController->GetWriteQueueSize(),
+                      gZstoreController->GetReadPrepareQueueSize(),
+                      gZstoreController->GetReadReapingQueueSize());
         gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
         sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
         gettimeofday(&gBuckets[i].s, NULL);
         gZstoreController->Read(i * blockSize, 1 * blockSize,
                                 gBuckets[i].buffer, nullptr, nullptr);
+
+        if (gZstoreController->GetNumInflightRequests() >= qDepth)
+            gZstoreController->Drain();
         totalSize += 4096;
         totalRequest += 1;
     }
-    gZstoreController->Drain();
 
     // Make a new segment of 100 MiB on purpose (for the crash recovery
     // exps)
@@ -274,7 +284,7 @@ int main(int argc, char **argv)
 
     // for (uint64_t i = 0; i < toFill; i += 1) {
     //     gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
-    //     sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
+    //     sprintf((char *)gBuckets[i].buffer, "temp%lu", i} * 7);
     //     gettimeofday(&gBuckets[i].s, NULL);
     //     gZstoreController->Read(i * blockSize, 1 * blockSize,
     //                             gBuckets[i].buffer, nullptr, nullptr);

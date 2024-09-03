@@ -18,22 +18,12 @@ static struct mg_context *g_ctx; /* Set by start_civetweb() */
 
 static std::vector<Device *> g_devices;
 
-// object tables, used only by zstore
-// key -> tuple of <zns target, lba>
-// std::map<std::string, std::tuple<std::pair<std::string, int32_t>>>
-// zstore_map; std::mutex obj_table_mutex;
-
-// in memory object tables, used only by kv store
-std::map<std::string, kvobject> mem_obj_table;
-std::mutex mem_obj_table_mutex;
-
 // a simple test program to ZapRAID
 uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
 // uint64_t gSize = 5;
 // uint64_t gSize = 1;
 
-// uint32_t qDepth = 1;
-uint32_t qDepth = 64;
+uint32_t qDepth = 256;
 int g_current_zone = 0;
 
 uint64_t gRequestSize = 4096;
@@ -65,4 +55,5 @@ uint32_t gNumOpenSegments = 1;
 uint64_t gL2PTableSize = 0;
 std::map<uint32_t, uint32_t> latCnt;
 
+std::string dummy_device = "dummy_device";
 ZstoreController *gZstoreController;

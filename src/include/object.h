@@ -1,5 +1,6 @@
 #pragma once
 #include "utils.hpp"
+#include <string>
 
 //
 // KV Store
@@ -12,6 +13,13 @@ struct kvobject {
     int len;
     void *data;       /* points to after 'name' */
     std::string name; /* null terminated */
+};
+
+struct Object {
+    int id;
+    std::string data;
+
+    Object(int id, const std::string &data) : id(id), data(data) {}
 };
 
 //

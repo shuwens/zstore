@@ -31,6 +31,29 @@ class ZstoreController
      */
     void Init(bool need_env);
 
+    // Add an object to the store
+    void putObject(std::string key, void *data);
+
+    // Retrieve an object from the store by ID
+    // Object *getObject(std::string key);
+    int getObject(std::string key, uint8_t *readValidateBuffer);
+
+    // Delete an object from the store by ID
+    bool deleteObject(std::string key);
+
+    /**
+     * @brief Append a block from the Zstore system
+     *
+     * @param zslba the logical block address of the Zstore block device, in
+     * bytes, aligned with 4KiB
+     * @param size the number of bytes written, in bytes, aligned with 4KiB
+     * @param data the data buffer
+     * @param cb_fn call back function provided by the client (SPDK bdev)
+     * @param cb_args arguments provided to the call back function
+     */
+    void Append(uint64_t zslba, uint32_t size, void *data,
+                zns_raid_request_complete cb_fn, void *cb_args);
+
     /**
      * @brief Write a block from the Zstore system
      *
@@ -69,6 +92,12 @@ class ZstoreController
 
     std::queue<RequestContext *> &GetEventsToDispatch();
 
+    int GetWriteQueueSize();
+    int GetReadPrepareQueueSize();
+    int GetReadReapingQueueSize();
+
+    int GetEventsToDispatchSize();
+
     /**
      * @brief Drain the Zstore system to finish all the in-flight requests
      */
@@ -81,6 +110,7 @@ class ZstoreController
      */
     std::queue<RequestContext *> &GetRequestQueue();
     std::mutex &GetRequestQueueMutex();
+    int GetRequestQueueSize();
 
     void UpdateIndexNeedLock(uint64_t lba, PhysicalAddr phyAddr);
     void UpdateIndex(uint64_t lba, PhysicalAddr phyAddr);
@@ -232,4 +262,16 @@ class ZstoreController
     uint32_t mFooterRegionSize = 0;
 
     std::unordered_set<RequestContext *> mReadsInCurrentGcEpoch;
+
+    // ZSTORE
+
+    // object tables, used only by zstore
+    // key -> tuple of <zns target, lba>
+    std::unordered_map<std::string, std::tuple<std::pair<std::string, int32_t>>>
+        mZstoreMap;
+    std::mutex mObjTableMutex;
+
+    // in memory object tables, used only by kv store
+    // std::map<std::string, kvobject> mem_obj_table;
+    // std::mutex mem_obj_table_mutex;
 };

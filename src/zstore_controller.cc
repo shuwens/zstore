@@ -19,6 +19,7 @@
 #include <spdk/string.h>
 #include <sys/time.h>
 #include <thread>
+#include <tuple>
 
 static void busyWait(bool *ready)
 {
@@ -28,24 +29,6 @@ static void busyWait(bool *ready)
         }
     }
 }
-
-// static auto probe_cb =
-//     [](void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-//        struct spdk_nvme_ctrlr_opts *opts) -> bool { return true; };
-//
-// static auto attach_cb = [](void *cb_ctx,
-//                            const struct spdk_nvme_transport_id *trid,
-//                            struct spdk_nvme_ctrlr *ctrlr,
-//                            const struct spdk_nvme_ctrlr_opts *opts) -> void {
-//     for (int nsid = 1; nsid <= 1; nsid++) {
-//         Device *device = new Device();
-//         device->Init(ctrlr, nsid);
-//         device->SetDeviceTransportAddress(trid->traddr);
-//         g_devices.emplace_back(device);
-//     }
-//
-//     return;
-// };
 
 static auto quit(void *args) { exit(0); }
 
@@ -901,6 +884,27 @@ void ZstoreController::UpdateIndex(uint64_t lba, PhysicalAddr pba)
     mNumBlocks += 1;
 }
 
+void ZstoreController::Append(uint64_t zslba, uint32_t size, void *data,
+                              zns_raid_request_complete cb_fn, void *cb_args)
+{
+    if (Configuration::GetEventFrameworkEnabled()) {
+        Request *req = (Request *)calloc(1, sizeof(Request));
+        req->controller = this;
+        req->offset = zslba;
+        req->size = size;
+        req->data = data;
+        req->type = 'W';
+        req->cb_fn = cb_fn;
+        req->cb_args = cb_args;
+        event_call(Configuration::GetReceiverThreadCoreId(), executeRequest,
+                   req, nullptr);
+    } else {
+        if (verbose)
+            log_debug("Controller write");
+        Execute(zslba, size, data, true, cb_fn, cb_args);
+    }
+}
+
 void ZstoreController::Write(uint64_t offset, uint32_t size, void *data,
                              zns_raid_request_complete cb_fn, void *cb_args)
 {
@@ -1064,6 +1068,18 @@ std::queue<RequestContext *> &ZstoreController::GetReadPrepareQueue()
 std::queue<RequestContext *> &ZstoreController::GetReadReapingQueue()
 {
     return mReadReapingQueue;
+}
+
+int ZstoreController::GetWriteQueueSize() { return mWriteQueue.size(); }
+
+int ZstoreController::GetReadPrepareQueueSize()
+{
+    return mReadPrepareQueue.size();
+}
+
+int ZstoreController::GetReadReapingQueueSize()
+{
+    return mReadReapingQueue.size();
 }
 
 void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
@@ -1297,7 +1313,8 @@ bool ZstoreController::scheduleGc()
 
 void ZstoreController::Drain()
 {
-    printf("Perform draining on the system.\n");
+    if (verbose)
+        printf("Perform draining on the system.\n");
     DrainArgs args;
     args.ctrl = this;
     args.success = false;
@@ -1311,6 +1328,11 @@ void ZstoreController::Drain()
 std::queue<RequestContext *> &ZstoreController::GetEventsToDispatch()
 {
     return mEventsToDispatch;
+}
+
+int ZstoreController::GetEventsToDispatchSize()
+{
+    return mEventsToDispatch.size();
 }
 
 void ZstoreController::EnqueueEvent(RequestContext *ctx)
@@ -1363,6 +1385,8 @@ std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
 {
     return mRequestQueue;
 }
+
+int ZstoreController::GetRequestQueueSize() { return mRequestQueue.size(); }
 
 std::mutex &ZstoreController::GetRequestQueueMutex()
 {
@@ -1609,4 +1633,89 @@ void ZstoreController::Dump()
     for (auto pr : orderedSegments) {
         pr.second->Dump();
     }
+}
+
+// Add an object to the store
+//
+// FIXME this version does not have object header, so the data is just a 4kb
+// block
+// void ZstoreController::putObject(std::string key, void *data)
+// {
+//     auto it = mZstoreMap.find(key);
+//     if (it != mZstoreMap.end()) {
+//         log_info("PutObject is updating an existing object: key {}", key);
+//         const auto tuple = &(it->second);
+//
+//         const auto first = std::get<0>(tuple);
+//         const auto second = std::get<1>(tuple);
+//         const auto third = std::get<2>(tuple);
+//
+//         log_info("\tfirst: device {}, lba {}", std::get<0>(first),
+//                  std::get<1>(first));
+//         log_info("\tsecond: device {}, lba {}", std::get<0>(second),
+//                  std::get<1>(second));
+//         log_info("\tthird: device {}, lba {}", std::get<0>(third),
+//                  std::get<1>(third));
+//         // return first;
+//         // return &(it->second);
+//     } else {
+//
+//         log_info("PutObject is creating a new object: key {}", key);
+//
+//         std::pair<std::string, int32_t> first;
+//         first.first = dummy_device;
+//         first.second = 0;
+//
+//         std::pair<std::string, int32_t> second;
+//         second.first = dummy_device;
+//         second.second = 0;
+//
+//         std::pair<std::string, int32_t> third;
+//         third.first = dummy_device;
+//         third.second = 0;
+//         // store[id] = Object(id, data);
+//     }
+//     mZstoreMap[key] = std::make_tuple(first, second, third);
+//     // uint64_t zslba = g_current_zone * 0x8000;
+//     // ZstoreController::Append(zslba, 4096, &data, nullptr, nullptr);
+// }
+
+// Retrieve an object from the store by ID
+// Object *ZstoreController::getObject(std::string key)
+// int ZstoreController::getObject(std::string key, uint8_t *readValidateBuffer)
+// {
+//     auto it = mZstoreMap.find(key);
+//     if (it != mZstoreMap.end()) {
+//         log_info("GetObject found object: key {}", key);
+//         const auto tuple = &(it->second);
+//
+//         const auto first = std::get<0>(tuple);
+//         const auto second = std::get<1>(tuple);
+//         const auto third = std::get<2>(tuple);
+//
+//         log_info("\tfirst: device {}, lba {}", std::get<0>(first),
+//                  std::get<1>(first));
+//         log_info("\tsecond: device {}, lba {}", std::get<0>(second),
+//                  std::get<1>(second));
+//         log_info("\tthird: device {}, lba {}", std::get<0>(third),
+//                  std::get<1>(third));
+//
+//         log_info("FIXME: skipping to use the default device ");
+//         // ZstoreController::Read(std::get<1>(first), 4096,
+//         &readValidateBuffer,
+//         //                        nullptr, nullptr);
+//
+//         return 0;
+//         // return &(it->second);
+//     }
+//     log_info("GetObject cannot find object: key {}", key);
+//     return -1; // Object not found
+// }
+
+// Delete an object from the store by ID
+bool ZstoreController::deleteObject(std::string key)
+{
+    log_warn("delete object is unimplemented!!!");
+    return 0;
+    // return store.erase(id) > 0;
 }
