@@ -17,3 +17,9 @@ fi
 
 HUGEMEM=4096 ./scripts/setup.sh
 
+if [[ $(hostname) == "zstore1" ]]; then
+	sudo ifconfig enp1s0 12.12.12.1/24 up
+fi
+if [[ $(hostname) == "zstore2" ]]; then
+	sudo ifconfig enp1s0 12.12.12.2/24 up
+fi
