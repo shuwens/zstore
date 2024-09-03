@@ -26,3 +26,43 @@ static std::vector<Device *> g_devices;
 // in memory object tables, used only by kv store
 std::map<std::string, kvobject> mem_obj_table;
 std::mutex mem_obj_table_mutex;
+
+// a simple test program to ZapRAID
+uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
+// uint64_t gSize = 5;
+// uint64_t gSize = 1;
+
+// uint32_t qDepth = 1;
+uint32_t qDepth = 64;
+int g_current_zone = 0;
+
+uint64_t gRequestSize = 4096;
+bool gSequential = false;
+bool gSkewed = false;
+uint32_t gNumBuffers = 1024 * 128;
+bool gCrash = false;
+std::string gAccessTrace = "";
+
+uint32_t gTestGc = 0; // 0: fill
+bool gTestMode = false;
+bool gUseLbaLock = false;
+bool gHybridSize = false;
+// 150GiB WSS for GC test
+uint64_t gWss = 150ull * 1024 * 1024 * 1024 / Configuration::GetBlockSize();
+uint64_t gTrafficSize = 1ull * 1024 * 1024 * 1024 * 1024;
+
+uint32_t gChunkSize = 4096 * 4;
+uint32_t gWriteSizeUnit = 16 * 4096; // 256KiB still stuck, use 64KiB and try
+
+std::string gTraceFile = "";
+struct timeval tv1;
+
+uint8_t *buffer_pool;
+
+bool gVerify = false;
+uint8_t *bitmap = nullptr;
+uint32_t gNumOpenSegments = 1;
+uint64_t gL2PTableSize = 0;
+std::map<uint32_t, uint32_t> latCnt;
+
+ZstoreController *gZstoreController;

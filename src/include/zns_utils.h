@@ -608,8 +608,6 @@ static void zns_dev_init(std::string ip1, std::string port1)
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
     memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
 
-    log_info("2222");
-
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)), &trid1);
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
