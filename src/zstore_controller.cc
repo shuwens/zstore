@@ -1664,7 +1664,6 @@ void ZstoreController::putObject(std::string key, void *data)
         // return first;
         // return &(it->second);
     } else {
-
         log_info("PutObject is creating a new object: key {}", key);
 
         MapEntry first;
@@ -1682,6 +1681,7 @@ void ZstoreController::putObject(std::string key, void *data)
         mZstoreMap[key] = first;
     }
     uint64_t zslba = g_current_zone * 0x8000;
+    log_info("PutObject appending key {}", key);
     ZstoreController::Append(zslba, 4096, &data, nullptr, nullptr);
 }
 

@@ -1,4 +1,5 @@
 #include "include/segment.h"
+#include "include/utils.hpp"
 #include "include/zone.h"
 #include "include/zstore_controller.h"
 #include "zone.cc"
@@ -428,6 +429,8 @@ void Segment::FlushCurrentStripe()
 
 bool Segment::Append(RequestContext *ctx, uint32_t offset)
 {
+    log_debug("hit segment append");
+
     if (mPosInStripe == 0) {
         if (!findStripe()) {
             return false;

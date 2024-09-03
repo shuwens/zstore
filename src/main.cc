@@ -7,6 +7,24 @@
 
 #include "src/zstore_controller.cc"
 
+#include <cstdlib>
+#include <ctime>
+#include <iostream>
+#include <string>
+
+std::string generateRandomString(int length)
+{
+    std::string characters =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    std::string randomString = "";
+
+    for (int i = 0; i < length; ++i) {
+        randomString += characters[std::rand() % characters.length()];
+    }
+
+    return randomString;
+}
+
 // NOTE currently we are using spdk threading. We might want to move to
 // event/reactor/poller framework.
 // https://spdk.io/doc/event.html
@@ -246,23 +264,19 @@ int main(int argc, char **argv)
     gettimeofday(&s, NULL);
     uint64_t totalSize = 0;
     uint64_t totalRequest = 0;
+    std::string key;
     log_debug("for loop...");
+    std::srand(std::time(nullptr)); // Seed the random number generator
     for (uint64_t i = 0; i < gSize; i += 1) {
-        if (verbose)
-            log_debug("{}-th: inflight {}, Request {}, Event {}, Write {}, "
-                      "Read Pre {}, "
-                      "Read Read {}",
-                      i, gZstoreController->GetNumInflightRequests(),
-                      gZstoreController->GetRequestQueueSize(),
-                      gZstoreController->GetEventsToDispatchSize(),
-                      gZstoreController->GetWriteQueueSize(),
-                      gZstoreController->GetReadPrepareQueueSize(),
-                      gZstoreController->GetReadReapingQueueSize());
+        key = generateRandomString(20);
         gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
         sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
         gettimeofday(&gBuckets[i].s, NULL);
-        gZstoreController->Read(i * blockSize, 1 * blockSize,
-                                gBuckets[i].buffer, nullptr, nullptr);
+        // raw read
+        // gZstoreController->Read(i * blockSize, 1 * blockSize,
+        //                         gBuckets[i].buffer, nullptr, nullptr);
+        // Append
+        gZstoreController->putObject(key, gBuckets[i].buffer);
 
         if (gZstoreController->GetNumInflightRequests() >= qDepth)
             gZstoreController->Drain();
