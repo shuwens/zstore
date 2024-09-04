@@ -1,7 +1,7 @@
-
 #pragma once
 #include "common.h"
 #include "device.h"
+#include "utils.hpp"
 
 class Zone
 {

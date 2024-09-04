@@ -81,7 +81,8 @@ enum ContextStatus {
     RESET_REAPING,
     RESET_COMPLETE,
     FINISH_REAPING,
-    FINISH_COMPLETE
+    FINISH_COMPLETE,
+    APPEND
 };
 
 enum ContextType {

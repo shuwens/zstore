@@ -14,21 +14,23 @@ void Zone::Init(Device *device, uint64_t slba, uint64_t capacity, uint64_t size)
     mSize = size;
     mOffset = 0; // the in-zone offset of issued I/O requests
     mPos = 0;    // the in-zone offset of finished I/O requests
+    log_debug("slba {}, capacity {}, offset {}, size {}, mPos {}", mSlba,
+              mCapacity, mOffset, size, mPos);
 }
 
 // size: in bytes
 void Zone::Write(uint32_t offset, uint32_t size, void *ctx)
 {
     RequestContext *reqCtx = (RequestContext *)ctx;
-    // log_debug("this {} slba {}, offset {}, size {}, mPos {}\n", this, mSlba,
-    //           offset, size, mPos);
-    if (reqCtx->append) {
-        reqCtx->offset = mSize - 1;
-        mDevice->Append(offset2Bytes(0), size, ctx);
-    } else {
-        reqCtx->offset = offset;
-        mDevice->Write(offset2Bytes(offset), size, ctx);
-    }
+    log_debug("slba {}, offset {}, size {}, mPos {}\n", mSlba, offset, size,
+              mPos);
+    // if (reqCtx->append) {
+    reqCtx->offset = mSize - 1;
+    mDevice->Append(offset2Bytes(0), size, ctx);
+    // } else {
+    //     reqCtx->offset = offset;
+    //     mDevice->Write(offset2Bytes(offset), size, ctx);
+    // }
     mOffset += size / Configuration::GetBlockSize();
 }
 

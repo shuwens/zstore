@@ -266,16 +266,22 @@ int main(int argc, char **argv)
     uint64_t totalRequest = 0;
     std::string key;
     log_debug("for loop...");
-    std::srand(std::time(nullptr)); // Seed the random number generator
+    // std::srand(std::time(nullptr)); // Seed the random number generator
     for (uint64_t i = 0; i < gSize; i += 1) {
         // key = generateRandomString(20);
         gBuckets[i].buffer = buffer_pool + i % gNumBuffers * blockSize;
         sprintf((char *)gBuckets[i].buffer, "temp%lu", i * 7);
         gettimeofday(&gBuckets[i].s, NULL);
+
         // raw read
         gZstoreController->Read(i * blockSize, 1 * blockSize,
                                 gBuckets[i].buffer, nullptr, nullptr);
-        // Append
+
+        // raw append
+        // gZstoreController->Append(i * blockSize, 1 * blockSize,
+        //                           gBuckets[i].buffer, nullptr, nullptr);
+
+        // put object
         // gZstoreController->putObject(key, gBuckets[i].buffer);
 
         if (gZstoreController->GetNumInflightRequests() >= qDepth)

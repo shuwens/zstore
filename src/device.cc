@@ -75,6 +75,7 @@ static void appendComplete(void *arg, const struct spdk_nvme_cpl *completion)
     }
 
     slot->successBytes += Configuration::GetStripeUnitSize();
+    // NOTE what is the value?
     slot->offset = slot->offset & completion->cdw0;
     slot->Queue();
 };

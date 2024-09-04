@@ -473,9 +473,6 @@ void zoneAppend2(void *arg1, void *arg2)
             ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.metadata, ioCtx.offset,
             ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags, 0, 0);
     } else {
-        if (verbose)
-            log_debug("APPEND: ");
-        fprintf(stderr, "Device append !\n");
         rc = spdk_nvme_zns_zone_append(ioCtx.ns, ioCtx.qpair, ioCtx.data,
                                        ioCtx.offset, ioCtx.size, ioCtx.cb,
                                        ioCtx.ctx, ioCtx.flags);
