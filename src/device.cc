@@ -3,6 +3,7 @@
 #include "include/zone.h"
 #include "include/zstore_controller.h"
 #include "spdk/nvme.h"
+#include "src/include/utils.hpp"
 #include <rte_errno.h>
 #include <sys/time.h>
 
@@ -301,6 +302,7 @@ void Device::Read(uint64_t offset, uint32_t size, void *ctx)
     if (Configuration::GetEventFrameworkEnabled()) {
         issueIo2(zoneRead2, slot);
     } else {
+        log_info("offset {}, size {}", bytes2Block(offset), bytes2Block(size));
         issueIo(zoneRead, slot);
     }
 }

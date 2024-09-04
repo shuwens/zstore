@@ -613,7 +613,7 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
     uint32_t numBlocks = size / Configuration::GetBlockSize();
 
     if (ctx->status == READ_PREPARE) {
-        log_info("Read dispatch thread: read prepare ");
+        // log_info("Read dispatch thread: read prepare ");
         if (mGcTask.stage != INDEX_UPDATE_COMPLETE) {
             // For any reads that may read the input segment,
             // track its progress such that the GC will
@@ -634,7 +634,7 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
                        ctx);
         }
     } else if (ctx->status == READ_REAPING) {
-        log_info("Read dispatch thread: read reaping");
+        // log_info("Read dispatch thread: read reaping");
         uint32_t i = ctx->curOffset;
         for (; i < numBlocks; ++i) {
             Segment *segment = ctx->pbaArray[i].segment;
@@ -837,6 +837,8 @@ void ZstoreController::createSegmentIfNeeded(Segment **segment, uint32_t spId)
                 i);
         }
         seg->AddZone(zone);
+        log_debug("Add zone pos {}, size {}, slba {}", zone->GetPos(),
+                  zone->GetSize(), zone->GetSlba());
     }
 
     if (spId == mNumOpenSegments + 1) {

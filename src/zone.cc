@@ -14,8 +14,8 @@ void Zone::Init(Device *device, uint64_t slba, uint64_t capacity, uint64_t size)
     mSize = size;
     mOffset = 0; // the in-zone offset of issued I/O requests
     mPos = 0;    // the in-zone offset of finished I/O requests
-    log_debug("slba {}, capacity {}, offset {}, size {}, mPos {}", mSlba,
-              mCapacity, mOffset, size, mPos);
+    log_debug("device id {}, slba {}, capacity {}, offset {}, size {}, mPos {}",
+              device->GetDeviceId(), mSlba, mCapacity, mOffset, size, mPos);
 }
 
 // size: in bytes
