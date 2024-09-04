@@ -607,13 +607,14 @@ void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
 
 void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
 {
+    log_info("Read");
     uint64_t slba = ctx->lba;
     int size = ctx->size;
     void *data = ctx->data;
     uint32_t numBlocks = size / Configuration::GetBlockSize();
 
     if (ctx->status == READ_PREPARE) {
-        // log_info("Read dispatch thread: read prepare ");
+        log_info("Read dispatch thread: read prepare ");
         if (mGcTask.stage != INDEX_UPDATE_COMPLETE) {
             // For any reads that may read the input segment,
             // track its progress such that the GC will
@@ -628,13 +629,15 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
                 (QueryPbaArgs *)calloc(1, sizeof(QueryPbaArgs));
             args->ctrl = this;
             args->ctx = ctx;
+            log_info("thread send ");
             thread_send_msg(mIndexThread, queryPba, args);
         } else {
+            log_info("event send ");
             event_call(Configuration::GetIndexThreadCoreId(), queryPba2, this,
                        ctx);
         }
     } else if (ctx->status == READ_REAPING) {
-        // log_info("Read dispatch thread: read reaping");
+        log_info("Read dispatch thread: read reaping");
         uint32_t i = ctx->curOffset;
         for (; i < numBlocks; ++i) {
             Segment *segment = ctx->pbaArray[i].segment;
@@ -646,10 +649,12 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
                 if (ctx->successBytes == ctx->targetBytes) {
                     ctx->Queue();
                 }
+                log_info("reaping if");
             } else {
                 if (!segment->Read(ctx, i, ctx->pbaArray[i])) {
                     break;
                 }
+                log_info("reaping else ");
             }
         }
         ctx->curOffset = i;

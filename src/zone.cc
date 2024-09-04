@@ -36,6 +36,7 @@ void Zone::Write(uint32_t offset, uint32_t size, void *ctx)
 
 void Zone::Read(uint32_t offset, uint32_t size, void *ctx)
 {
+    log_info("Read");
     mDevice->Read(offset2Bytes(offset), size, ctx);
 }
 

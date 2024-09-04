@@ -431,12 +431,12 @@ bool Segment::Append(RequestContext *ctx, uint32_t offset)
 {
     log_debug("hit segment append");
 
-    if (mPosInStripe == 0) {
-        if (!findStripe()) {
-            return false;
-        }
-        mLastStripeCreationTimestamp = GetTimestampInUs();
-    }
+    // if (mPosInStripe == 0) {
+    //     if (!findStripe()) {
+    //         return false;
+    //     }
+    //     mLastStripeCreationTimestamp = GetTimestampInUs();
+    // }
 
     // SystemMode mode = Configuration::GetSystemMode();
     uint32_t blockSize = Configuration::GetBlockSize();
@@ -494,6 +494,7 @@ bool Segment::Append(RequestContext *ctx, uint32_t offset)
         slot->append = true;
         // }
 
+        log_debug("1");
         mZones[zoneId]->Write(mPos, blockSize, (void *)slot);
     }
 
@@ -506,6 +507,7 @@ bool Segment::Append(RequestContext *ctx, uint32_t offset)
         args->stripe = mCurStripe;
         args->zonePos = mPos;
 
+        log_debug("2");
         // if (!Configuration::GetEventFrameworkEnabled()) {
         thread_send_msg(mZstoreController->GetHttpThread(), generateParityBlock,
                         args);
@@ -623,6 +625,7 @@ void Segment::GenerateParityBlock(StripeWriteContext *stripe, uint32_t zonePos)
 
 bool Segment::Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr)
 {
+    log_info("Read");
     ReadContext *readContext = mReadContextPool->GetContext();
     if (readContext == nullptr) {
         return false;

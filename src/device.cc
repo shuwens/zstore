@@ -284,6 +284,7 @@ void Device::Append(uint64_t offset, uint32_t size, void *ctx)
 
 void Device::Read(uint64_t offset, uint32_t size, void *ctx)
 {
+    log_info("Read");
     RequestContext *slot = (RequestContext *)ctx;
     slot->ioContext.data = slot->data;
     slot->ioContext.metadata = slot->meta;

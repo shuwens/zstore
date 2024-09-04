@@ -437,6 +437,7 @@ void zoneWrite(void *args) { zoneWrite2(args, nullptr); }
 
 void zoneRead2(void *arg1, void *arg2)
 {
+    log_info("Read");
     fprintf(stderr, "Device READ!\n");
     RequestContext *slot = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = slot->ioContext;
