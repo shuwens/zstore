@@ -453,22 +453,24 @@ class Configuration
     int gBlockSize = 4096;
     int gMetadataSize = 64;
     int gNumIoThreads = 1;
-    bool gDeviceSupportMetadata = true;
+    // bool gDeviceSupportMetadata = true;
+    bool gDeviceSupportMetadata = false;
     int gZoneCapacity = 0;
     int gStripePersistencyMode = 0;
-    bool gEnableGc = true;
+    // bool gEnableGc = true;
+    bool gEnableGc = false;
     bool gEnableDegradedRead = false;
     bool gEnableIOLatencyTest = true;
     uint32_t gNumOpenSegments = 1;
     RAIDLevel gRaidScheme = RAID5;
-    bool gEnableHeaderFooter = true;
+    bool gEnableHeaderFooter = false;
     bool gEnableRedirection = false;
     bool gInjectCrash = false;
 
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
     uint64_t gL2PTableSize = 0;                                   // Infinity
 
-    SystemMode gSystemMode = ZAPRAID;
+    SystemMode gSystemMode = ZONEAPPEND_ONLY;
 
     uint32_t gReceiverThreadCoreId = 3;
     uint32_t gDispatchThreadCoreId = 4;
