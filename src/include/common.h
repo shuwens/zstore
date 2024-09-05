@@ -151,7 +151,7 @@ struct RequestContext {
 
     // Used inside a Segment write/read
     ZstoreController *ctrl;
-    Segment *segment;
+    // Segment *segment;
     uint32_t zoneId;
     uint32_t stripeId;
     uint32_t offset;

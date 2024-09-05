@@ -93,7 +93,7 @@ void RequestContext::Clear()
     associatedStripe = nullptr;
     associatedRead = nullptr;
     ctrl = nullptr;
-    segment = nullptr;
+    // segment = nullptr;
 
     needDegradedRead = false;
     pbaArray.clear();
@@ -104,7 +104,7 @@ double RequestContext::GetElapsedTime() { return ctime - stime; }
 PhysicalAddr RequestContext::GetPba()
 {
     PhysicalAddr addr;
-    addr.segment = segment;
+    // addr.segment = segment;
     addr.zoneId = zoneId;
     addr.offset = offset;
     return addr;
@@ -168,7 +168,7 @@ void RequestContext::CopyFrom(const RequestContext &o)
     available = o.available;
 
     ctrl = o.ctrl;
-    segment = o.segment;
+    // segment = o.segment;
     zoneId = o.zoneId;
     stripeId = o.stripeId;
     offset = o.offset;

@@ -14,6 +14,21 @@
 #include <fmt/core.h>
 #include <fstream>
 
+struct ZstoreControllerMetadata {
+    // uint64_t segmentId;             // 8
+    uint64_t zones[16]; // 128
+    // uint32_t stripeSize;            // 16384
+    // uint32_t stripeDataSize;        // 12288
+    // uint32_t stripeParitySize;      // 4096
+    // uint32_t stripeGroupSize = 256; // 256 or 1
+    // uint32_t stripeUnitSize;
+    uint32_t n;        // 4
+    uint32_t k;        // 3
+    uint32_t numZones; // 4
+    // RAIDLevel raidScheme; // 1
+    // uint8_t useAppend;    // 0 for Zone Write and 1 for Zone Append
+};
+
 class ZstoreController
 {
   public:
@@ -191,6 +206,18 @@ class ZstoreController
     // GcTask *GetGcTask();
     // void RemoveRequestFromGcEpochIfNecessary(RequestContext *ctx);
 
+    bool Append(RequestContext *ctx, uint32_t offset);
+    bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
+    void Reset(RequestContext *ctx);
+    bool IsResetDone();
+    void WriteComplete(RequestContext *ctx);
+    void ReadComplete(RequestContext *ctx);
+    void ReclaimReadContext(ReadContext *readContext);
+
+    void AddZone(Zone *zone);
+    const std::vector<Zone *> &GetZones();
+    void PrintStats();
+
   private:
     RequestContext *getContextForUserRequest();
     void doWrite(RequestContext *context);
@@ -276,4 +303,7 @@ class ZstoreController
     // in memory object tables, used only by kv store
     // std::map<std::string, kvobject> mem_obj_table;
     // std::mutex mem_obj_table_mutex;
+    ZstoreControllerMetadata mMeta;
+    std::vector<Zone *> mZones;
+    std::vector<RequestContext> mResetContext;
 };

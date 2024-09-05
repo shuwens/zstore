@@ -4,6 +4,7 @@
 #include "include/zstore_controller.h"
 #include "spdk/nvme.h"
 #include "src/include/utils.hpp"
+#include "zone.cc"
 #include <rte_errno.h>
 #include <sys/time.h>
 
