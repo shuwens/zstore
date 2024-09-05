@@ -101,6 +101,9 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
         device->Init(ctrlr, nsid);
         device->SetDeviceTransportAddress(trid->traddr);
         g_devices.emplace_back(device);
+
+        // NOTE break so we only register one device
+        break;
     }
 }
 

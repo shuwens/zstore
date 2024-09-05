@@ -279,17 +279,18 @@ void ZstoreController::Init(bool need_env)
          ++threadId) {
         mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
     }
-    for (uint32_t i = 0; i < mDevices.size(); ++i) {
-        struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
-        for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-             ++threadId) {
-            spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
-            int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
-                                              ioQueues[threadId]);
-            assert(rc == 0);
-        }
-        mDevices[i]->ConnectIoPairs();
-    }
+    // for (uint32_t i = 0; i < mDevices.size(); ++i) {
+    //     struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
+    //     for (uint32_t threadId = 0; threadId <
+    //     Configuration::GetNumIoThreads();
+    //          ++threadId) {
+    //         spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
+    //         int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
+    //                                           ioQueues[threadId]);
+    //         assert(rc == 0);
+    //     }
+    //     mDevices[i]->ConnectIoPairs();
+    // }
 
     restart();
     log_debug("mZone sizes {}", mZones.size());
@@ -1009,8 +1010,8 @@ bool ZstoreController::Read(RequestContext *ctx, uint32_t pos,
         uint32_t zoneId = slot->zoneId;
         uint32_t offset = slot->offset;
         log_info("zond id {}, offset {}", zoneId, offset);
-        assert(mZones[zoneId] != nullptr);
-        mZones[zoneId]->Read(offset, blockSize, slot);
+        // mZones[zoneId]->Read(offset, blockSize, slot);
+        mZones[0]->Read(offset, blockSize, slot);
     }
 
     return true;
@@ -1075,43 +1076,44 @@ void ZstoreController::WriteComplete(RequestContext *ctx)
 
 void ZstoreController::ReadComplete(RequestContext *ctx)
 {
-    // uint32_t zoneId = ctx->zoneId;
-    // uint32_t offset = ctx->offset;
-    // uint32_t blockSize = Configuration::GetBlockSize();
-    // uint32_t n = Configuration::GetStripeSize() / blockSize;
-    // uint32_t k = Configuration::GetStripeDataSize() / blockSize;
-    // RequestContext *parent = ctx->associatedRequest;
-    //
-    // ReadContext *readContext = ctx->associatedRead;
-    // if (ctx->status == READ_REAPING) {
-    //     memcpy((uint8_t *)parent->data + ctx->lba - parent->lba, ctx->data,
-    //            Configuration::GetStripeUnitSize());
-    // } else if (ctx->status == DEGRADED_READ_REAPING) {
-    //     bool alive[n];
-    //     for (uint32_t i = 0; i < n; ++i) {
-    //         alive[i] = false;
-    //     }
-    //
-    //     for (uint32_t i = 1; i < 1 + k; ++i) {
-    //         uint32_t zid = readContext->ioContext[i]->zoneId;
-    //         alive[zid] = true;
-    //     }
-    //
-    //     readContext->data[ctx->zoneId] = ctx->data;
-    //     // if (Configuration::GetSystemMode() == ZONEWRITE_ONLY) {
-    //     //     DecodeStripe(offset, readContext->data, alive, n, k, zoneId,
-    //     //                  blockSize);
-    //     // } else {
-    //     uint32_t groupSize = Configuration::GetStripeGroupSize();
-    //     uint32_t offsetOfStripe =
-    //         mHeaderRegionSize +
-    //         (offset - mHeaderRegionSize) / groupSize * groupSize +
-    //         ctx->stripeId;
-    //     DecodeStripe(offsetOfStripe, readContext->data, alive, n, k, zoneId,
-    //                  blockSize);
-    //     // }
-    // }
-    //
+    log_debug("Read complete");
+    uint32_t zoneId = ctx->zoneId;
+    uint32_t offset = ctx->offset;
+    uint32_t blockSize = Configuration::GetBlockSize();
+    uint32_t n = Configuration::GetStripeSize() / blockSize;
+    uint32_t k = Configuration::GetStripeDataSize() / blockSize;
+    RequestContext *parent = ctx->associatedRequest;
+
+    ReadContext *readContext = ctx->associatedRead;
+    if (ctx->status == READ_REAPING) {
+        memcpy((uint8_t *)parent->data + ctx->lba - parent->lba, ctx->data,
+               Configuration::GetStripeUnitSize());
+    } else if (ctx->status == DEGRADED_READ_REAPING) {
+        bool alive[n];
+        for (uint32_t i = 0; i < n; ++i) {
+            alive[i] = false;
+        }
+
+        for (uint32_t i = 1; i < 1 + k; ++i) {
+            uint32_t zid = readContext->ioContext[i]->zoneId;
+            alive[zid] = true;
+        }
+
+        readContext->data[ctx->zoneId] = ctx->data;
+        // if (Configuration::GetSystemMode() == ZONEWRITE_ONLY) {
+        //     DecodeStripe(offset, readContext->data, alive, n, k, zoneId,
+        //                  blockSize);
+        // } else {
+        uint32_t groupSize = Configuration::GetStripeGroupSize();
+        uint32_t offsetOfStripe =
+            mHeaderRegionSize +
+            (offset - mHeaderRegionSize) / groupSize * groupSize +
+            ctx->stripeId;
+        DecodeStripe(offsetOfStripe, readContext->data, alive, n, k, zoneId,
+                     blockSize);
+        // }
+    }
+
     // if (!Configuration::GetDeviceSupportMetadata()) {
     //     BlockMetadata *meta = (BlockMetadata *)ctx->meta;
     //     uint32_t index = zoneId * mDataRegionSize + offset -
@@ -1129,18 +1131,18 @@ void ZstoreController::ReadComplete(RequestContext *ctx)
     //             (*(tmp + 2) << 16) | *(uint16_t *)tmp;
     //     }
     // }
-    //
-    // if (parent->type == GC && parent->meta) {
-    //     uint32_t offsetInBlks =
-    //         (ctx->lba - parent->lba) / Configuration::GetBlockSize();
-    //     BlockMetadata *result = (BlockMetadata *)(ctx->meta);
-    //     BlockMetadata *parentMeta =
-    //         &((BlockMetadata *)parent->meta)[offsetInBlks];
-    //     parentMeta->fields.coded.lba = result->fields.coded.lba;
-    //     parentMeta->fields.coded.timestamp = result->fields.coded.timestamp;
-    //     parentMeta->fields.replicated.stripeId =
-    //         result->fields.replicated.stripeId;
-    // }
+
+    if (parent->type == GC && parent->meta) {
+        uint32_t offsetInBlks =
+            (ctx->lba - parent->lba) / Configuration::GetBlockSize();
+        BlockMetadata *result = (BlockMetadata *)(ctx->meta);
+        BlockMetadata *parentMeta =
+            &((BlockMetadata *)parent->meta)[offsetInBlks];
+        parentMeta->fields.coded.lba = result->fields.coded.lba;
+        parentMeta->fields.coded.timestamp = result->fields.coded.timestamp;
+        parentMeta->fields.replicated.stripeId =
+            result->fields.replicated.stripeId;
+    }
 }
 
 void ZstoreController::ReclaimReadContext(ReadContext *readContext)

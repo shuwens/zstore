@@ -28,6 +28,7 @@ static void writeComplete(void *arg, const struct spdk_nvme_cpl *completion)
 
 static void readComplete(void *arg, const struct spdk_nvme_cpl *completion)
 {
+    log_debug("Read complete");
     RequestContext *slot = (RequestContext *)arg;
     if (spdk_nvme_cpl_is_error(completion)) {
         slot->PrintStats();
@@ -285,7 +286,7 @@ void Device::Append(uint64_t offset, uint32_t size, void *ctx)
 
 void Device::Read(uint64_t offset, uint32_t size, void *ctx)
 {
-    log_info("Read");
+    log_debug("Read");
     RequestContext *slot = (RequestContext *)ctx;
     slot->ioContext.data = slot->data;
     slot->ioContext.metadata = slot->meta;
@@ -304,7 +305,7 @@ void Device::Read(uint64_t offset, uint32_t size, void *ctx)
     if (Configuration::GetEventFrameworkEnabled()) {
         issueIo2(zoneRead2, slot);
     } else {
-        log_info("offset {}, size {}", bytes2Block(offset), bytes2Block(size));
+        log_debug("offset {}, size {}", bytes2Block(offset), bytes2Block(size));
         issueIo(zoneRead, slot);
     }
 }

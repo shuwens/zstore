@@ -444,8 +444,8 @@ void zoneWrite(void *args) { zoneWrite2(args, nullptr); }
 
 void zoneRead2(void *arg1, void *arg2)
 {
-    log_info("Read");
-    fprintf(stderr, "Device READ!\n");
+    log_debug("Read");
+    // fprintf(stderr, "Device READ!\n");
     RequestContext *slot = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = slot->ioContext;
     slot->stime = timestamp();
@@ -456,6 +456,7 @@ void zoneRead2(void *arg1, void *arg2)
             ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.metadata, ioCtx.offset,
             ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags, 0, 0);
     } else {
+        log_debug("1");
         rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
                                    ioCtx.offset, ioCtx.size, ioCtx.cb,
                                    ioCtx.ctx, ioCtx.flags);
