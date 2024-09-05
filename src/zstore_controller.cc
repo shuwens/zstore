@@ -277,7 +277,7 @@ void ZstoreController::Init(bool need_env)
 
 ZstoreController::~ZstoreController()
 {
-    Dump();
+    // Dump();
 
     delete mAddressMap;
     // if (!Configuration::GetEventFrameworkEnabled()) {
@@ -302,49 +302,6 @@ void ZstoreController::initGc()
         SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     mGcTask.contextPool = new RequestContext[mGcTask.numBuffers];
     mGcTask.stage = IDLE;
-}
-
-uint32_t ZstoreController::GcBatchUpdateIndex(
-    const std::vector<uint64_t> &lbas,
-    const std::vector<std::pair<PhysicalAddr, PhysicalAddr>> &pbas)
-{
-
-    uint32_t numSuccessUpdates = 0;
-    assert(lbas.size() == pbas.size());
-    for (int i = 0; i < lbas.size(); ++i) {
-        uint64_t lba = lbas[i];
-        PhysicalAddr oldPba = pbas[i].first;
-        PhysicalAddr newPba = pbas[i].second;
-
-        if (mAddressMap[lba / Configuration::GetBlockSize()].segment ==
-            nullptr) {
-            printf("Missing old lba %lu\n", lba);
-        }
-        if (mAddressMap[lba / Configuration::GetBlockSize()] == oldPba) {
-            numSuccessUpdates += 1;
-            UpdateIndex(lba, newPba);
-        } else {
-            newPba.segment->InvalidateBlock(newPba.zoneId, newPba.offset);
-        }
-    }
-    return numSuccessUpdates;
-}
-
-void ZstoreController::UpdateIndex(uint64_t lba, PhysicalAddr pba)
-{
-    // Invalidate the old block
-    if (lba >= Configuration::GetStorageSpaceInBytes()) {
-        printf("Error\n");
-        assert(0);
-    }
-    if (mAddressMap[lba / Configuration::GetBlockSize()].segment != nullptr) {
-        PhysicalAddr oldPba = mAddressMap[lba / Configuration::GetBlockSize()];
-        oldPba.segment->InvalidateBlock(oldPba.zoneId, oldPba.offset);
-        mNumInvalidBlocks += 1;
-    }
-    assert(pba.segment != nullptr);
-    mAddressMap[lba / Configuration::GetBlockSize()] = pba;
-    mNumBlocks += 1;
 }
 
 void ZstoreController::Append(uint64_t zslba, uint32_t size, void *data,
@@ -590,7 +547,8 @@ void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
             if (mOpenSegments[openGroupId]->IsFull()) {
                 mSegmentsToSeal.emplace_back(mOpenSegments[openGroupId]);
                 mOpenSegments[openGroupId] = nullptr;
-                createSegmentIfNeeded(&mOpenSegments[openGroupId], openGroupId);
+                // createSegmentIfNeeded(&mOpenSegments[openGroupId],
+                // openGroupId);
             }
             if (success) {
                 break;
@@ -661,128 +619,6 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
     }
 }
 
-bool ZstoreController::scheduleGc()
-{
-    if (mAvailableStorageSpaceInSegments >
-        mStorageSpaceThresholdForGcInSegments) {
-        return false;
-    }
-
-    // Use Greedy algorithm to pick segments
-    std::vector<Segment *> groups;
-    for (Segment *segment : mSealedSegments) {
-        groups.emplace_back(segment);
-    }
-    if (groups.size() == 0) {
-        return false;
-    }
-    std::sort(groups.begin(), groups.end(),
-              [](const Segment *lhs, const Segment *rhs) {
-                  double score1 =
-                      (double)lhs->GetNumInvalidBlocks() / lhs->GetNumBlocks();
-                  double score2 =
-                      (double)rhs->GetNumInvalidBlocks() / rhs->GetNumBlocks();
-                  return score1 > score2;
-              });
-
-    mGcTask.inputSegment = groups[0];
-    printf("Select: %p, Score: %f, Invalid: %u, Valid: %u\n",
-           mGcTask.inputSegment,
-           (double)groups[0]->GetNumInvalidBlocks() / groups[0]->GetNumBlocks(),
-           groups[0]->GetNumInvalidBlocks(), groups[0]->GetNumBlocks());
-
-    mGcTask.maxZoneId = mDevices.size();
-
-    printf("Schedule GC. Available storage: %u %u\n",
-           mAvailableStorageSpaceInSegments,
-           mStorageSpaceThresholdForGcInSegments);
-
-    return true;
-}
-
-// bool ZstoreController::ProceedGc()
-// {
-//     bool hasProgress = false;
-//     if (!Configuration::GetEnableGc()) {
-//         return hasProgress;
-//     }
-//
-//     if (mGcTask.stage == IDLE) { // IDLE
-//         if (scheduleGc()) {
-//             hasProgress = true;
-//             mGcTask.stage = INIT;
-//         }
-//     }
-//
-//     if (mGcTask.stage == INIT) {
-//         initializeGcTask();
-//     }
-//
-//     if (mGcTask.stage == REWRITING) {
-//         hasProgress |= progressGcWriter();
-//         hasProgress |= progressGcReader();
-//
-//         if (mGcTask.curZoneId == mGcTask.maxZoneId) {
-//             if (mGcTask.numWriteSubmitted == mGcTask.numReads &&
-//                 mGcTask.numWriteFinish == mGcTask.numWriteSubmitted) {
-//                 assert(mGcTask.mappings.size() == mGcTask.numWriteFinish);
-//                 mGcTask.stage = REWRITE_COMPLETE;
-//             }
-//         }
-//     }
-//
-//     if (mGcTask.stage == REWRITE_COMPLETE) {
-//         hasProgress = true;
-//         mGcTask.stage = INDEX_UPDATING;
-//
-//         // if (!Configuration::GetEventFrameworkEnabled()) {
-//         thread_send_msg(mIndexThread, progressGcIndexUpdate, this);
-//         // } else {
-//         //     event_call(Configuration::GetIndexThreadCoreId(),
-//         //                progressGcIndexUpdate2, this, nullptr);
-//         // }
-//     }
-//
-//     if (mGcTask.stage == INDEX_UPDATING_BATCH) {
-//         if (mGcTask.mappings.size() != 0) {
-//             hasProgress = true;
-//             mGcTask.stage = INDEX_UPDATING;
-//             // if (!Configuration::GetEventFrameworkEnabled()) {
-//             thread_send_msg(mIndexThread, progressGcIndexUpdate, this);
-//             // } else {
-//             //     event_call(Configuration::GetIndexThreadCoreId(),
-//             //                progressGcIndexUpdate2, this, nullptr);
-//             // }
-//         } else { // Finish updating all mappings
-//             hasProgress = true;
-//             mGcTask.stage = INDEX_UPDATE_COMPLETE;
-//         }
-//     }
-//
-//     if (mGcTask.stage == INDEX_UPDATE_COMPLETE) {
-//         if (mReadsInCurrentGcEpoch.empty()) {
-//             hasProgress = true;
-//             mGcTask.inputSegment->Reset(nullptr);
-//             mGcTask.stage = RESETTING_INPUT_SEGMENT;
-//         }
-//     }
-//
-//     if (mGcTask.stage == RESETTING_INPUT_SEGMENT) {
-//         if (mGcTask.inputSegment->IsResetDone()) {
-//             auto zones = mGcTask.inputSegment->GetZones();
-//             for (uint32_t i = 0; i < zones.size(); ++i) {
-//                 mDevices[i]->ReturnZone(zones[i]);
-//             }
-//             mSealedSegments.erase(mGcTask.inputSegment);
-//             delete mGcTask.inputSegment;
-//             mAvailableStorageSpaceInSegments += 1;
-//             mGcTask.stage = IDLE;
-//         }
-//     }
-//
-//     return hasProgress;
-// }
-
 void ZstoreController::Drain()
 {
     if (verbose)
@@ -819,42 +655,6 @@ int ZstoreController::GetNumInflightRequests()
 
 bool ZstoreController::ExistsGc() { return mGcTask.stage != IDLE; }
 
-void ZstoreController::createSegmentIfNeeded(Segment **segment, uint32_t spId)
-{
-    if (*segment != nullptr)
-        return;
-    // Check there are available zones
-    if (mAvailableStorageSpaceInSegments == 0) {
-        assert(0);
-        printf("No available storage; this should never happen!\n");
-        return;
-    }
-
-    mAvailableStorageSpaceInSegments -= 1;
-    Segment *seg = new Segment(this, mNextAssignedSegmentId++,
-                               mRequestContextPoolForSegments, mReadContextPool,
-                               mStripeWriteContextPools[spId]);
-    for (uint32_t i = 0; i < mDevices.size(); ++i) {
-        Zone *zone = mDevices[i]->OpenZone();
-        if (zone == nullptr) {
-            printf(
-                "No available zone in device %d, storage space is exhuasted!\n",
-                i);
-        }
-        seg->AddZone(zone);
-        log_debug("Add zone pos {}, size {}, slba {}", zone->GetPos(),
-                  zone->GetSize(), zone->GetSlba());
-    }
-
-    if (spId == mNumOpenSegments + 1) {
-        printf("Create spare segment %p\n", seg);
-    } else {
-        printf("Create normal segment %p\n", seg);
-    }
-    seg->FinalizeCreation();
-    *segment = seg;
-}
-
 std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
 {
     return mRequestQueue;
@@ -886,151 +686,6 @@ struct spdk_thread *ZstoreController::GetCompletionThread()
     return mCompletionThread;
 }
 
-void ZstoreController::initializeGcTask()
-{
-    mGcTask.curZoneId = 0;
-    mGcTask.nextOffset = 0;
-    mGcTask.stage = REWRITING;
-
-    mGcTask.writerPos = 0;
-    mGcTask.readerPos = 0;
-
-    mGcTask.numWriteSubmitted = 0;
-    mGcTask.numWriteFinish = 0;
-    mGcTask.numReads = 0;
-
-    mGcTask.mappings.clear();
-
-    // Initialize the status of the context pool
-    for (uint32_t i = 0; i < mGcTask.numBuffers; ++i) {
-        mGcTask.contextPool[i].Clear();
-        mGcTask.contextPool[i].available = true;
-        mGcTask.contextPool[i].ctrl = this;
-        mGcTask.contextPool[i].pbaArray.resize(1);
-        mGcTask.contextPool[i].gcTask = &mGcTask;
-        mGcTask.contextPool[i].type = GC;
-        mGcTask.contextPool[i].lba = ~0ull;
-        mGcTask.contextPool[i].data = (uint8_t *)mGcTask.dataBuffer +
-                                      i * Configuration::GetStripeUnitSize();
-        mGcTask.contextPool[i].meta = (uint8_t *)mGcTask.metaBuffer +
-                                      i * Configuration::GetMetadataSize();
-        mGcTask.contextPool[i].targetBytes = Configuration::GetBlockSize();
-        mGcTask.contextPool[i].status = WRITE_COMPLETE;
-    }
-}
-
-// bool ZstoreController::progressGcReader()
-// {
-//     bool hasProgress = false;
-//     // Find contexts that are available, schedule read for valid blocks
-//     RequestContext *nextReader = &mGcTask.contextPool[mGcTask.readerPos];
-//     while (nextReader->available && (nextReader->status == WRITE_COMPLETE)) {
-//         if (nextReader->lba != ~0ull) {
-//             // The sign of valid lba means a successful rewrite a valid block
-//             // So we update the information here
-//             mGcTask.numWriteFinish += 1;
-//             mGcTask.mappings[nextReader->lba].second =
-//             nextReader->pbaArray[0];
-//         }
-//
-//         nextReader->available = false;
-//         nextReader->lba = 0;
-//
-//         bool valid = false;
-//         bool success = true;
-//         if (mGcTask.curZoneId != mGcTask.maxZoneId) {
-//             nextReader->req_type = 'R';
-//             nextReader->status = READ_REAPING;
-//             nextReader->successBytes = 0;
-//
-//             do {
-//                 nextReader->segment = mGcTask.inputSegment;
-//                 nextReader->zoneId = mGcTask.curZoneId;
-//                 nextReader->offset = mGcTask.nextOffset;
-//
-//                 success = mGcTask.inputSegment->ReadValid(
-//                     nextReader, 0, nextReader->GetPba(), &valid);
-//                 if (!success)
-//                     break;
-//
-//                 mGcTask.nextOffset += 1;
-//                 if (mGcTask.nextOffset == mHeaderRegionSize +
-//                 mDataRegionSize) {
-//                     mGcTask.nextOffset = mHeaderRegionSize;
-//                     mGcTask.curZoneId += 1;
-//                 }
-//             } while (!valid && mGcTask.curZoneId != mGcTask.maxZoneId);
-//             if (valid) {
-//                 mGcTask.numReads += 1;
-//             }
-//         }
-//         if (!success) {
-//             // will retry later
-//             nextReader->status = WRITE_COMPLETE;
-//             nextReader->available = true;
-//             nextReader->lba = ~0ull;
-//             break;
-//         }
-//         hasProgress = true;
-//         mGcTask.readerPos = (mGcTask.readerPos + 1) % mGcTask.numBuffers;
-//         nextReader = &mGcTask.contextPool[mGcTask.readerPos];
-//     }
-//
-//     return hasProgress;
-// }
-
-// bool ZstoreController::progressGcWriter()
-// {
-//     bool hasProgress = false;
-//     // Process blocks that are read and valid, and rewrite them
-//     RequestContext *nextWriter = &mGcTask.contextPool[mGcTask.writerPos];
-//     while (nextWriter->available && nextWriter->status == READ_COMPLETE) {
-//         uint64_t lba = ((BlockMetadata *)nextWriter->meta)->fields.coded.lba;
-//         if (lba == ~0ull) {
-//             fprintf(stderr,
-//                     "GC write does not expect block with invalid lba!\n");
-//             exit(-1);
-//         }
-//         assert(lba != ~0ull);
-//
-//         PhysicalAddr oldPba = nextWriter->GetPba();
-//         RequestContext backup; // Backup prevents from context lost due to
-//         retry backup.CopyFrom(*nextWriter); nextWriter->lba = lba;
-//         nextWriter->req_type = 'W';
-//         nextWriter->status = WRITE_REAPING;
-//         nextWriter->successBytes = 0;
-//         nextWriter->available = false;
-//         nextWriter->timestamp =
-//             ((BlockMetadata *)nextWriter->meta)->fields.coded.timestamp;
-//
-//         bool success = false;
-//         for (uint32_t i = 0; i < mNumOpenSegments; i += 1) {
-//             success = mOpenSegments[i]->Append(nextWriter, 0);
-//             if (mOpenSegments[i]->IsFull()) {
-//                 mSegmentsToSeal.emplace_back(mOpenSegments[i]);
-//                 mOpenSegments[i] = nullptr;
-//                 createSegmentIfNeeded(&mOpenSegments[i], i);
-//             }
-//             if (success) {
-//                 break;
-//             }
-//         }
-//         if (!success) {
-//             nextWriter->CopyFrom(backup);
-//             break;
-//         }
-//
-//         mGcTask.mappings[lba] = std::make_pair(oldPba, PhysicalAddr());
-//         mGcTask.numWriteSubmitted += 1;
-//
-//         mGcTask.writerPos = (mGcTask.writerPos + 1) % mGcTask.numBuffers;
-//         nextWriter = &mGcTask.contextPool[mGcTask.writerPos];
-//
-//         hasProgress = true;
-//     }
-//     return hasProgress;
-// }
-
 // GcTask *ZstoreController::GetGcTask() { return &mGcTask; }
 
 uint32_t ZstoreController::GetHeaderRegionSize() { return mHeaderRegionSize; }
@@ -1038,48 +693,6 @@ uint32_t ZstoreController::GetHeaderRegionSize() { return mHeaderRegionSize; }
 uint32_t ZstoreController::GetDataRegionSize() { return mDataRegionSize; }
 
 uint32_t ZstoreController::GetFooterRegionSize() { return mFooterRegionSize; }
-
-// void ZstoreController::RemoveRequestFromGcEpochIfNecessary(RequestContext
-// *ctx)
-// {
-//     if (mReadsInCurrentGcEpoch.empty()) {
-//         return;
-//     }
-//
-//     if (mReadsInCurrentGcEpoch.find(ctx) != mReadsInCurrentGcEpoch.end()) {
-//         mReadsInCurrentGcEpoch.erase(ctx);
-//     }
-// }
-
-void ZstoreController::Dump()
-{
-    // Dump address map
-    //  for (uint32_t i = 0; i < Configuration::GetStorageSpaceInBytes() /
-    //  Configuration::GetBlockSize(); ++i) {
-    //    if (mAddressMap[i].segment != nullptr) {
-    //      printf("%llu %u %u %u\n",
-    //          i * Configuration::GetBlockSize() * 1ull,
-    //          mAddressMap[i].segment->GetSegmentId(),
-    //          mAddressMap[i].zoneId,
-    //          mAddressMap[i].offset);
-    //    }
-    //  }
-
-    std::map<uint64_t, Segment *> orderedSegments;
-    // Dump the information of each segment
-    for (auto segment : mOpenSegments) {
-        orderedSegments[segment->GetSegmentId()] = segment;
-    }
-    for (auto segment : mSegmentsToSeal) {
-        orderedSegments[segment->GetSegmentId()] = segment;
-    }
-    for (auto segment : mSealedSegments) {
-        orderedSegments[segment->GetSegmentId()] = segment;
-    }
-    for (auto pr : orderedSegments) {
-        pr.second->Dump();
-    }
-}
 
 // Add an object to the store
 //

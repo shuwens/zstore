@@ -18,7 +18,7 @@ void updatePba2(void *arg1, void *arg2)
     uint32_t numBlocks = ctx->size / Configuration::GetBlockSize();
     for (uint32_t i = 0; i < numBlocks; ++i) {
         uint64_t lba = ctx->lba + i * blockSize;
-        ctrl->UpdateIndex(lba, ctx->pbaArray[i]);
+        // ctrl->UpdateIndex(lba, ctx->pbaArray[i]);
     }
     ctx->status = WRITE_COMPLETE;
     if (ctx->cb_fn != nullptr) {
