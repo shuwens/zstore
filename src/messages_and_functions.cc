@@ -122,105 +122,112 @@ void handleIndexContext(RequestContext *context)
     context->available = true;
 }
 
-static void handleStripeUnitContext(RequestContext *context)
-{
-    static double part1 = 0, part2 = 0, part3 = 0;
-    static int count = 0;
-    struct timeval s, e;
-
-    ContextStatus &status = context->status;
-    switch (status) {
-    case WRITE_REAPING:
-        if (context->successBytes == context->targetBytes) {
-            StripeWriteContext *stripe = context->associatedStripe;
-            if (stripe != nullptr) {
-                stripe->successBytes += context->successBytes;
-                if (stripe->successBytes != stripe->targetBytes) {
-                    break;
-                }
-
-                // Acknowledge the completion only after the whole stripe
-                // persists
-                for (auto context_ : stripe->ioContext) {
-                    RequestContext *parent = context_->associatedRequest;
-                    if (parent) {
-                        parent->pbaArray[(context_->lba - parent->lba) /
-                                         Configuration::GetBlockSize()] =
-                            context_->GetPba();
-                        parent->successBytes += context_->targetBytes;
-                        assert(parent->successBytes <= parent->targetBytes);
-                        if (contextReady(parent)) {
-                            handleContext(parent);
-                        }
-                    }
-                    context_->segment->WriteComplete(context_);
-                    status = WRITE_COMPLETE;
-                    context_->available = true;
-                }
-            }
-        }
-        break;
-    case READ_REAPING:
-    case DEGRADED_READ_REAPING:
-        if (context->needDegradedRead) {
-            context->needDegradedRead = false;
-            status = DEGRADED_READ_REAPING;
-            context->segment->ReadStripe(context);
-        } else if (context->successBytes == context->targetBytes) {
-            context->segment->ReadComplete(context);
-            context->associatedRequest->successBytes +=
-                Configuration::GetBlockSize();
-            assert(context->associatedRequest->successBytes <=
-                   context->associatedRequest->targetBytes);
-            if (contextReady(context->associatedRequest)) {
-                handleContext(context->associatedRequest);
-            }
-
-            status = READ_COMPLETE;
-            context->available = true;
-            context->segment->ReclaimReadContext(context->associatedRead);
-        }
-        break;
-    case DEGRADED_READ_SUB:
-        assert(context->associatedRequest);
-        context->associatedRequest->successBytes += context->targetBytes;
-        context->segment->ReadComplete(context);
-
-        if (contextReady(context->associatedRequest)) {
-            handleStripeUnitContext(context->associatedRequest);
-        }
-        break;
-    case DEGRADED_READ_META:
-        if (contextReady(context)) {
-            status = DEGRADED_READ_REAPING;
-            context->segment->ReadStripe(context);
-        }
-        break;
-    case RESET_REAPING:
-        status = RESET_COMPLETE;
-        context->available = true;
-        break;
-    case FINISH_REAPING:
-        status = FINISH_COMPLETE;
-        context->available = true;
-        break;
-    default:
-        printf("Error in context handling!\n");
-        assert(0);
-        exit(-1);
-    }
-}
+// static void handleStripeUnitContext(RequestContext *context)
+// {
+//     static double part1 = 0, part2 = 0, part3 = 0;
+//     static int count = 0;
+//     struct timeval s, e;
+//
+//     ContextStatus &status = context->status;
+//     switch (status) {
+//     case WRITE_REAPING:
+//         // log_debug("WRITE_REAPING");
+//         // if (context->successBytes == context->targetBytes) {
+//         //     StripeWriteContext *stripe = context->associatedStripe;
+//         //     if (stripe != nullptr) {
+//         //         stripe->successBytes += context->successBytes;
+//         //         if (stripe->successBytes != stripe->targetBytes) {
+//         //             break;
+//         //         }
+//         //
+//         //         // Acknowledge the completion only after the whole stripe
+//         //         // persists
+//         //         for (auto context_ : stripe->ioContext) {
+//         //             RequestContext *parent = context_->associatedRequest;
+//         //             if (parent) {
+//         //                 parent->pbaArray[(context_->lba - parent->lba) /
+//         //                                  Configuration::GetBlockSize()] =
+//         //                     context_->GetPba();
+//         //                 parent->successBytes += context_->targetBytes;
+//         //                 assert(parent->successBytes <=
+//         parent->targetBytes);
+//         //                 if (contextReady(parent)) {
+//         //                     handleContext(parent);
+//         //                 }
+//         //             }
+//         //             context_->segment->WriteComplete(context_);
+//         //             status = WRITE_COMPLETE;
+//         //             context_->available = true;
+//         //         }
+//         //     }
+//         // }
+//         // break;
+//     case READ_REAPING:
+//     case DEGRADED_READ_REAPING:
+//         // log_debug("READ_REAPING, DEGRADED_READ_REAPING:");
+//         // if (context->needDegradedRead) {
+//         //     context->needDegradedRead = false;
+//         //     status = DEGRADED_READ_REAPING;
+//         //     context->segment->ReadStripe(context);
+//         // } else if (context->successBytes == context->targetBytes) {
+//         //     context->segment->ReadComplete(context);
+//         //     context->associatedRequest->successBytes +=
+//         //         Configuration::GetBlockSize();
+//         //     assert(context->associatedRequest->successBytes <=
+//         //            context->associatedRequest->targetBytes);
+//         //     if (contextReady(context->associatedRequest)) {
+//         //         handleContext(context->associatedRequest);
+//         //     }
+//         //
+//         //     status = READ_COMPLETE;
+//         //     context->available = true;
+//         //     context->segment->ReclaimReadContext(context->associatedRead);
+//         // }
+//         // break;
+//     case DEGRADED_READ_SUB:
+//         // log_debug("DEGRADED_READ_SUB");
+//         // assert(context->associatedRequest);
+//         // context->associatedRequest->successBytes += context->targetBytes;
+//         // context->segment->ReadComplete(context);
+//         //
+//         // if (contextReady(context->associatedRequest)) {
+//         //     handleStripeUnitContext(context->associatedRequest);
+//         // }
+//         // break;
+//     case DEGRADED_READ_META:
+//         // log_debug("DEGRADED_READ_META");
+//         // if (contextReady(context)) {
+//         //     status = DEGRADED_READ_REAPING;
+//         //     context->segment->ReadStripe(context);
+//         // }
+//         // break;
+//     case RESET_REAPING:
+//         // log_debug("RESET_REAPING");
+//         // status = RESET_COMPLETE;
+//         // context->available = true;
+//         // break;
+//     case FINISH_REAPING:
+//         // log_debug("FINISH_REAPING");
+//         // status = FINISH_COMPLETE;
+//         // context->available = true;
+//         // break;
+//     default:
+//         printf("Error in context handling!\n");
+//         assert(0);
+//         exit(-1);
+//     }
+// }
 
 void handleContext(RequestContext *context)
 {
     ContextType type = context->type;
-    if (type == USER) {
-        handleUserContext(context);
-    } else if (type == STRIPE_UNIT) {
-        handleStripeUnitContext(context);
-    } else if (type == GC) {
-        handleGcContext(context);
-    }
+    // if (type == USER) {
+    handleUserContext(context);
+    // } else if (type == STRIPE_UNIT) {
+    //     handleStripeUnitContext(context);
+    // } else if (type == GC) {
+    //     handleGcContext(context);
+    // }
 }
 
 void handleEventCompletion2(void *arg1, void *arg2)
