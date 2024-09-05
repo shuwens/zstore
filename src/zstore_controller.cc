@@ -479,23 +479,24 @@ int ZstoreController::GetReadReapingQueueSize()
     return mReadReapingQueue.size();
 }
 
-bool ZstoreController::LookupIndex(uint64_t lba, PhysicalAddr *pba)
-{
-
-    if (mAddressMap[lba / Configuration::GetBlockSize()].segment != nullptr) {
-        *pba = mAddressMap[lba / Configuration::GetBlockSize()];
-        return true;
-    } else {
-        pba->segment = nullptr;
-        return false;
-    }
-}
+// bool ZstoreController::LookupIndex(uint64_t lba, PhysicalAddr *pba)
+// {
+//
+//     if (mAddressMap[lba / Configuration::GetBlockSize()].segment != nullptr)
+//     {
+//         *pba = mAddressMap[lba / Configuration::GetBlockSize()];
+//         return true;
+//     } else {
+//         pba->segment = nullptr;
+//         return false;
+//     }
+// }
 
 void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
 {
-    if (mAvailableStorageSpaceInSegments <= 1) {
-        return;
-    }
+    // if (mAvailableStorageSpaceInSegments <= 1) {
+    //     return;
+    // }
 
     static uint32_t tick = 0;
     static uint32_t lastTick = 0;

@@ -96,18 +96,18 @@ static void handleUserContext(RequestContext *context)
     }
 }
 
-void handleGcContext(RequestContext *context)
-{
-    ContextStatus &status = context->status;
-    if (status == WRITE_REAPING) {
-        status = WRITE_COMPLETE;
-    } else if (status == READ_REAPING) {
-        status = READ_COMPLETE;
-    } else {
-        assert(0);
-    }
-    context->available = true;
-}
+// void handleGcContext(RequestContext *context)
+// {
+//     ContextStatus &status = context->status;
+//     if (status == WRITE_REAPING) {
+//         status = WRITE_COMPLETE;
+//     } else if (status == READ_REAPING) {
+//         status = READ_COMPLETE;
+//     } else {
+//         assert(0);
+//     }
+//     context->available = true;
+// }
 
 void handleIndexContext(RequestContext *context)
 {
@@ -389,11 +389,11 @@ void queryPba2(void *arg1, void *arg2)
     for (uint32_t i = 0; i < ctx->size / Configuration::GetBlockSize(); ++i) {
         PhysicalAddr phyAddr;
         uint64_t lba = ctx->lba + i * Configuration::GetBlockSize();
-        if (ctrl->LookupIndex(lba, &phyAddr)) {
-            ctx->pbaArray[i] = phyAddr;
-        } else {
-            ctx->pbaArray[i].segment = nullptr;
-        }
+        // if (ctrl->LookupIndex(lba, &phyAddr)) {
+        //     ctx->pbaArray[i] = phyAddr;
+        // } else {
+        ctx->pbaArray[i].segment = nullptr;
+        // }
     }
     ctx->status = READ_REAPING;
 
