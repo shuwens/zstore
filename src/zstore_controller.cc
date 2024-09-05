@@ -175,47 +175,41 @@ void ZstoreController::Init(bool need_env)
     // recovery; we round the number to block size
     uint64_t zoneCapacity = mDevices[0]->GetZoneCapacity();
     uint32_t blockSize = Configuration::GetBlockSize();
-    uint32_t maxFooterSize =
-        round_up(zoneCapacity, (blockSize / 20)) / (blockSize / 20);
-    mHeaderRegionSize = 1;
-    mDataRegionSize =
-        round_down(zoneCapacity - mHeaderRegionSize - maxFooterSize,
-                   Configuration::GetStripeGroupSize());
-    mFooterRegionSize =
-        round_up(mDataRegionSize, (blockSize / 20)) / (blockSize / 20);
-    printf("HeaderRegion: %u, DataRegion: %u, FooterRegion: %u\n",
-           mHeaderRegionSize, mDataRegionSize, mFooterRegionSize);
+    // uint32_t maxFooterSize =
+    //     round_up(zoneCapacity, (blockSize / 20)) / (blockSize / 20);
+    // mHeaderRegionSize = 1;
+    // mDataRegionSize =
+    //     round_down(zoneCapacity - mHeaderRegionSize - maxFooterSize,
+    //                Configuration::GetStripeGroupSize());
+    // mFooterRegionSize =
+    //     round_up(mDataRegionSize, (blockSize / 20)) / (blockSize / 20);
+    // printf("HeaderRegion: %u, DataRegion: %u, FooterRegion: %u\n",
+    //        mHeaderRegionSize, mDataRegionSize, mFooterRegionSize);
 
-    uint32_t totalNumZones = round_up(Configuration::GetStorageSpaceInBytes() /
-                                          Configuration::GetBlockSize(),
-                                      mDataRegionSize) /
-                             mDataRegionSize;
-    uint32_t numDataBlocks =
-        Configuration::GetStripeDataSize() / Configuration::GetStripeUnitSize();
-    uint32_t numZonesNeededPerDevice =
-        round_up(totalNumZones, numDataBlocks) / numDataBlocks;
-    uint32_t numZonesReservedPerDevice =
-        std::max(3u, (uint32_t)(numZonesNeededPerDevice * 0.25));
+    // uint32_t totalNumZones = round_up(Configuration::GetStorageSpaceInBytes()
+    // /
+    //                                       Configuration::GetBlockSize(),
+    //                                   mDataRegionSize) /
+    //                          mDataRegionSize;
+    // uint32_t numDataBlocks =
+    //     Configuration::GetStripeDataSize() /
+    //     Configuration::GetStripeUnitSize();
+    // uint32_t numZonesNeededPerDevice =
+    //     round_up(totalNumZones, numDataBlocks) / numDataBlocks;
+    // uint32_t numZonesReservedPerDevice =
+    //     std::max(3u, (uint32_t)(numZonesNeededPerDevice * 0.25));
 
     for (uint32_t i = 0; i < mDevices.size(); ++i) {
         mDevices[i]->SetDeviceId(i);
-        mDevices[i]->InitZones(numZonesNeededPerDevice,
-                               numZonesReservedPerDevice);
+        mDevices[i]->InitZones(2, 2);
     }
-
-    mStorageSpaceThresholdForGcInSegments = numZonesReservedPerDevice / 2;
-    mAvailableStorageSpaceInSegments =
-        numZonesNeededPerDevice + numZonesReservedPerDevice;
-    printf("Total available segments: %u, reserved segments: %u\n",
-           mAvailableStorageSpaceInSegments,
-           mStorageSpaceThresholdForGcInSegments);
 
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
     mRequestContextPoolForUserRequests = new RequestContextPool(2048);
-    mRequestContextPoolForSegments = new RequestContextPool(4096);
+    mRequestContextPoolForZstore = new RequestContextPool(4096);
 
-    mReadContextPool = new ReadContextPool(512, mRequestContextPoolForSegments);
+    mReadContextPool = new ReadContextPool(512, mRequestContextPoolForZstore);
 
     // Initialize address map
     mAddressMap = new PhysicalAddr[Configuration::GetStorageSpaceInBytes() /
@@ -243,24 +237,6 @@ void ZstoreController::Init(bool need_env)
         }
         mDevices[i]->ConnectIoPairs();
     }
-
-    // Preallocate segments
-    mNumOpenSegments = Configuration::GetNumOpenSegments();
-
-    mStripeWriteContextPools =
-        new StripeWriteContextPool *[mNumOpenSegments + 2];
-    for (uint32_t i = 0; i < mNumOpenSegments + 2; ++i) {
-        // if (Configuration::GetSystemMode() == ZONEWRITE_ONLY) {
-        //     mStripeWriteContextPools[i] =
-        //         new StripeWriteContextPool(1,
-        //         mRequestContextPoolForSegments);
-        // } else {
-        mStripeWriteContextPools[i] =
-            new StripeWriteContextPool(64, mRequestContextPoolForSegments);
-        // }
-    }
-
-    mOpenSegments.resize(mNumOpenSegments);
 
     initIoThread(); // broken
     initDispatchThread();

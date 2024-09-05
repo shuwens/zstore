@@ -224,7 +224,7 @@ class ZstoreController
     RequestContextPool *mRequestContextPoolForUserRequests;
     std::unordered_set<RequestContext *> mInflightRequestContext;
 
-    RequestContextPool *mRequestContextPoolForSegments;
+    RequestContextPool *mRequestContextPoolForZstore;
     ReadContextPool *mReadContextPool;
     StripeWriteContextPool **mStripeWriteContextPools;
 
