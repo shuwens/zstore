@@ -283,9 +283,9 @@ int handleEventsDispatch(void *args)
 int handleBackgroundTasks(void *args)
 {
     ZstoreController *zstoreController = (ZstoreController *)args;
-    bool hasProgress = false;
+    bool hasProgress = true;
     // hasProgress |= zstoreController->ProceedGc();
-    hasProgress |= zstoreController->CheckSegments();
+    // hasProgress |= zstoreController->CheckSegments();
 
     return hasProgress ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }

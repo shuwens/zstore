@@ -1031,34 +1031,6 @@ void ZstoreController::initializeGcTask()
 //     return hasProgress;
 // }
 
-bool ZstoreController::CheckSegments()
-{
-    bool stateChanged = false;
-    for (uint32_t i = 0; i < mOpenSegments.size(); ++i) {
-        if (mOpenSegments[i] != nullptr) {
-            stateChanged |= mOpenSegments[i]->StateTransition();
-            if (mOpenSegments[i]->IsFull()) {
-                mSegmentsToSeal.emplace_back(mOpenSegments[i]);
-                mOpenSegments[i] = nullptr;
-                createSegmentIfNeeded(&mOpenSegments[i], i);
-            }
-        }
-    }
-
-    for (auto it = mSegmentsToSeal.begin(); it != mSegmentsToSeal.end();) {
-        stateChanged |= (*it)->StateTransition();
-        if ((*it)->GetStatus() == SEGMENT_SEALED) {
-            printf("Sealed segment %p.\n", (*it));
-            mSealedSegments.insert(*it);
-            it = mSegmentsToSeal.erase(it);
-        } else {
-            ++it;
-        }
-    }
-
-    return stateChanged;
-}
-
 // GcTask *ZstoreController::GetGcTask() { return &mGcTask; }
 
 uint32_t ZstoreController::GetHeaderRegionSize() { return mHeaderRegionSize; }
