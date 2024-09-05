@@ -38,7 +38,7 @@ static void readComplete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    slot->successBytes += Configuration::GetStripeUnitSize();
+    // slot->successBytes += Configuration::GetStripeUnitSize();
     slot->Queue();
 };
 
@@ -305,7 +305,8 @@ void Device::Read(uint64_t offset, uint32_t size, void *ctx)
     if (Configuration::GetEventFrameworkEnabled()) {
         issueIo2(zoneRead2, slot);
     } else {
-        log_debug("offset {}, size {}", bytes2Block(offset), bytes2Block(size));
+        log_debug("XXXXX offset {}, size {}", bytes2Block(offset),
+                  bytes2Block(size));
         issueIo(zoneRead, slot);
     }
 }

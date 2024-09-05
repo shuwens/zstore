@@ -275,10 +275,10 @@ void ZstoreController::Init(bool need_env)
               defaultAddr);
 
     // Create poll groups for the io threads and perform initialization
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-         ++threadId) {
-        mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
-    }
+    // for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+    //      ++threadId) {
+    //     mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
+    // }
     // for (uint32_t i = 0; i < mDevices.size(); ++i) {
     //     struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
     //     for (uint32_t threadId = 0; threadId <

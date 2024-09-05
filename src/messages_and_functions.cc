@@ -73,7 +73,7 @@ static void handleUserContext(RequestContext *context)
 {
     ContextStatus &status = context->status;
     ZstoreController *ctrl = context->ctrl;
-    assert(contextReady(context));
+    // assert(contextReady(context));
     if (status == WRITE_REAPING) {
         status = WRITE_INDEX_UPDATING;
         if (!Configuration::GetEventFrameworkEnabled()) {
@@ -468,7 +468,11 @@ void zoneRead2(void *arg1, void *arg2)
     assert(rc == 0);
 }
 
-void zoneRead(void *args) { zoneRead2(args, nullptr); }
+void zoneRead(void *args)
+{
+    log_debug("ZZ: Read");
+    zoneRead2(args, nullptr);
+}
 
 void zoneAppend2(void *arg1, void *arg2)
 {
