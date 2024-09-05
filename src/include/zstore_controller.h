@@ -231,7 +231,7 @@ class ZstoreController
     std::queue<RequestContext *> mRequestQueue;
     std::mutex mRequestQueueMutex;
 
-    struct GcTask mGcTask;
+    // struct GcTask mGcTask;
 
     uint32_t mNumOpenSegments = 1;
 

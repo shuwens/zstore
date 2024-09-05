@@ -245,7 +245,7 @@ void ZstoreController::Init(bool need_env)
     initHttpThread();
 
     // init Gc
-    initGc();
+    // initGc();
 
     Configuration::PrintConfigurations();
     log_info("ZstoreController Init finish");
@@ -267,18 +267,18 @@ ZstoreController::~ZstoreController()
     // }
 }
 
-void ZstoreController::initGc()
-{
-    mGcTask.numBuffers = 32;
-    mGcTask.dataBuffer = (uint8_t *)spdk_zmalloc(
-        mGcTask.numBuffers * Configuration::GetBlockSize(), 4096, NULL,
-        SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-    mGcTask.metaBuffer = (uint8_t *)spdk_zmalloc(
-        mGcTask.numBuffers * Configuration::GetMetadataSize(), 4096, NULL,
-        SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-    mGcTask.contextPool = new RequestContext[mGcTask.numBuffers];
-    mGcTask.stage = IDLE;
-}
+// void ZstoreController::initGc()
+// {
+//     mGcTask.numBuffers = 32;
+//     mGcTask.dataBuffer = (uint8_t *)spdk_zmalloc(
+//         mGcTask.numBuffers * Configuration::GetBlockSize(), 4096, NULL,
+//         SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+//     mGcTask.metaBuffer = (uint8_t *)spdk_zmalloc(
+//         mGcTask.numBuffers * Configuration::GetMetadataSize(), 4096, NULL,
+//         SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+//     mGcTask.contextPool = new RequestContext[mGcTask.numBuffers];
+//     mGcTask.stage = IDLE;
+// }
 
 void ZstoreController::Append(uint64_t zslba, uint32_t size, void *data,
                               zns_raid_request_complete cb_fn, void *cb_args)
@@ -549,12 +549,12 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
 
     if (ctx->status == READ_PREPARE) {
         log_info("Read dispatch thread: read prepare ");
-        if (mGcTask.stage != INDEX_UPDATE_COMPLETE) {
-            // For any reads that may read the input segment,
-            // track its progress such that the GC will
-            // not delete input segment before they finishes
-            mReadsInCurrentGcEpoch.insert(ctx);
-        }
+        // if (mGcTask.stage != INDEX_UPDATE_COMPLETE) {
+        //     // For any reads that may read the input segment,
+        //     // track its progress such that the GC will
+        //     // not delete input segment before they finishes
+        //     mReadsInCurrentGcEpoch.insert(ctx);
+        // }
 
         ctx->status = READ_INDEX_QUERYING;
         ctx->pbaArray.resize(numBlocks);
@@ -629,7 +629,7 @@ int ZstoreController::GetNumInflightRequests()
     return mInflightRequestContext.size();
 }
 
-bool ZstoreController::ExistsGc() { return mGcTask.stage != IDLE; }
+// bool ZstoreController::ExistsGc() { return mGcTask.stage != IDLE; }
 
 std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
 {

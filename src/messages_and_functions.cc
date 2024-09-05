@@ -523,8 +523,7 @@ void tryDrainController(void *args)
     // drainArgs->ctrl->CheckSegments();
     drainArgs->ctrl->ReclaimContexts();
     // drainArgs->ctrl->ProceedGc();
-    drainArgs->success = drainArgs->ctrl->GetNumInflightRequests() == 0 &&
-                         !drainArgs->ctrl->ExistsGc();
+    drainArgs->success = drainArgs->ctrl->GetNumInflightRequests() == 0;
 
     drainArgs->ready = true;
 }
