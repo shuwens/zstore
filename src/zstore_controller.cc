@@ -103,28 +103,57 @@ void ZstoreController::initDispatchThread()
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
-    if (verbose)
-        log_debug("init Io thread {}", Configuration::GetNumIoThreads());
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-         ++threadId) {
-        spdk_cpuset_zero(&cpumask);
-        spdk_cpuset_set_cpu(&cpumask,
-                            Configuration::GetIoThreadCoreId(threadId), true);
-        mIoThread[threadId].thread = spdk_thread_create("IoThread", &cpumask);
-        assert(mIoThread[threadId].thread != nullptr);
-        mIoThread[threadId].controller = this;
-        int rc = spdk_env_thread_launch_pinned(
-            Configuration::GetIoThreadCoreId(threadId), ioWorker,
-            &mIoThread[threadId]);
-        printf("ZNS_RAID io thread %s %lu\n",
-               spdk_thread_get_name(mIoThread[threadId].thread),
-               spdk_thread_get_id(mIoThread[threadId].thread));
-        if (rc < 0) {
-            printf("Failed to launch IO thread error: %s %s\n", strerror(rc),
-                   spdk_strerror(rc));
-        }
+    log_debug("init Io thread {}", Configuration::GetNumIoThreads());
+    auto threadId = 0;
+    log_debug("init Io thread {}", threadId);
+    spdk_cpuset_zero(&cpumask);
+    spdk_cpuset_set_cpu(&cpumask, Configuration::GetIoThreadCoreId(threadId),
+                        true);
+    mIoThread[threadId].thread = spdk_thread_create("IoThread", &cpumask);
+    assert(mIoThread[threadId].thread != nullptr);
+    mIoThread[threadId].controller = this;
+    log_debug("here: thread {}", threadId);
+    int rc = spdk_env_thread_launch_pinned(
+        Configuration::GetIoThreadCoreId(threadId), ioWorker, this);
+    // &mIoThread[threadId]);
+    log_info("Zstore io thread {} {}",
+             spdk_thread_get_name(mIoThread[threadId].thread),
+             spdk_thread_get_id(mIoThread[threadId].thread));
+    if (rc < 0) {
+        log_error("Failed to launch IO thread error: {} {}", strerror(rc),
+                  spdk_strerror(rc));
     }
 }
+
+// void ZstoreController::initIoThread()
+// {
+//     struct spdk_cpuset cpumask;
+//     if (verbose)
+//         log_debug("init Io thread {}", Configuration::GetNumIoThreads());
+//     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+//          ++threadId) {
+//         log_debug("init Io thread {}", threadId);
+//         spdk_cpuset_zero(&cpumask);
+//         spdk_cpuset_set_cpu(&cpumask,
+//                             Configuration::GetIoThreadCoreId(threadId),
+//                             true);
+//         mIoThread[threadId].thread = spdk_thread_create("IoThread",
+//         &cpumask); assert(mIoThread[threadId].thread != nullptr);
+//         mIoThread[threadId].controller = this;
+//         log_debug("here: thread {}", threadId);
+//         int rc = spdk_env_thread_launch_pinned(
+//             Configuration::GetIoThreadCoreId(threadId), ioWorker,
+//             &mIoThread[threadId]);
+//         log_info("Zstore io thread {} {}",
+//                  spdk_thread_get_name(mIoThread[threadId].thread),
+//                  spdk_thread_get_id(mIoThread[threadId].thread));
+//         if (rc < 0) {
+//             log_error("Failed to launch IO thread error: {} {}",
+//             strerror(rc),
+//                       spdk_strerror(rc));
+//         }
+//     }
+// }
 
 void ZstoreController::restart()
 {
@@ -152,7 +181,7 @@ void ZstoreController::restart()
     // std::map<uint32_t, std::vector<std::pair<uint64_t, uint8_t *>>>
     //     potentialSegments;
 
-    log_info("Reconstructing: storage space {}\n",
+    log_info("Reconstructing: storage space {}",
              Configuration::GetStorageSpaceInBytes());
 
     int mN = mDevices.size();
@@ -176,8 +205,10 @@ void ZstoreController::restart()
     gettimeofday(&e, NULL);
     double elapsed =
         e.tv_sec - s.tv_sec + e.tv_usec / 1000000. - s.tv_usec / 1000000.;
-    printf("Restart time: %.6f\n", elapsed);
+    log_info("Restart time: {}", elapsed);
 }
+
+struct spdk_nvme_qpair *GetOnlyIoQpair() { return g_devices[0]->GetIoQueue(0); }
 
 void ZstoreController::Init(bool need_env)
 {
@@ -257,6 +288,10 @@ void ZstoreController::Init(bool need_env)
         mDevices[i]->InitZones(2, 2);
     }
 
+    // NOTE Questions:
+    // - do we want different request conext pool?
+    // - do we need a separate read ctx pool?
+
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
     mRequestContextPoolForUserRequests = new RequestContextPool(2048);
@@ -274,22 +309,28 @@ void ZstoreController::Init(bool need_env)
                                 Configuration::GetBlockSize(),
               defaultAddr);
 
+    // NOTE we are fixing this part to be
+    assert(Configuration::GetNumIoThreads() == 1);
+
     // Create poll groups for the io threads and perform initialization
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-         ++threadId) {
-        mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
-    }
-    for (uint32_t i = 0; i < mDevices.size(); ++i) {
-        struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
-        for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-             ++threadId) {
-            spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
-            int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
-                                              ioQueues[threadId]);
-            assert(rc == 0);
-        }
-        mDevices[i]->ConnectIoPairs();
-    }
+
+    // for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+    //      ++threadId) {
+    //     mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
+    // }
+
+    // for (uint32_t i = 0; i < mDevices.size(); ++i) {
+    //     struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
+    //     for (uint32_t threadId = 0; threadId <
+    //     Configuration::GetNumIoThreads();
+    //          ++threadId) {
+    //         spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
+    //         int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
+    //                                           ioQueues[threadId]);
+    //         assert(rc == 0);
+    //     }
+    //     mDevices[i]->ConnectIoPairs();
+    // }
 
     restart();
     log_debug("mZone sizes {}", mZones.size());
@@ -299,7 +340,7 @@ void ZstoreController::Init(bool need_env)
     // zstore controller meta
     mMeta.numZones = 0;
 
-    initIoThread(); // broken
+    initIoThread();
     initDispatchThread();
     initIndexThread();
     initCompletionThread();

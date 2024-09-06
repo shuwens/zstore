@@ -100,18 +100,23 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
     mZoneCapacity =
         1077 *
         256; // hard-coded here since it is ZN540; update this for emulated SSDs
-    printf("Zone size: %lu, zone cap: %lu, num of zones: %u\n", mZoneSize,
-           mZoneCapacity, mNumZones);
+    log_info("Zone size: {}, zone cap: {}, num of zones: {}", mZoneSize,
+             mZoneCapacity, mNumZones);
 
     struct spdk_nvme_io_qpair_opts opts;
     spdk_nvme_ctrlr_get_default_io_qpair_opts(mController, &opts, sizeof(opts));
-    opts.delay_cmd_submit = true;
-    opts.create_only = true;
+    // opts.delay_cmd_submit = true;
+    // opts.create_only = true;
     mIoQueues = new struct spdk_nvme_qpair *[Configuration::GetNumIoThreads()];
+    assert(Configuration::GetNumIoThreads() == 1);
     for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
         mIoQueues[i] =
             spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
         assert(mIoQueues[i]);
+        if (!mIoQueues[i]) {
+            log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
+            return;
+        }
     }
 }
 
@@ -119,7 +124,7 @@ void Device::ConnectIoPairs()
 {
     for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
         if (spdk_nvme_ctrlr_connect_io_qpair(mController, mIoQueues[i]) < 0) {
-            printf("Connect ctrl failed!\n");
+            log_info("Connect ctrl failed!");
         }
     }
 }

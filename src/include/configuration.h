@@ -452,9 +452,14 @@ class Configuration
     StripeConfig *gStripeConfig = new StripeConfig[1];
     int gBlockSize = 4096;
     int gMetadataSize = 64;
+
+    // NOTE We only do one IO thread for now, if this is changed, something bad
+    // will happen
     int gNumIoThreads = 1;
+
     // bool gDeviceSupportMetadata = true;
     bool gDeviceSupportMetadata = false;
+
     int gZoneCapacity = 0;
     int gStripePersistencyMode = 0;
     // bool gEnableGc = true;

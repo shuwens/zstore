@@ -45,24 +45,55 @@ static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
 
 int handleIoCompletions(void *args)
 {
-    struct spdk_nvme_poll_group *pollGroup =
-        (struct spdk_nvme_poll_group *)args;
-    int r = 0;
-    r = spdk_nvme_poll_group_process_completions(pollGroup, 0,
-                                                 dummy_disconnect_handler);
-    return r > 0 ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+    int rc;
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
+    rc = spdk_nvme_qpair_process_completions(zstoreController->GetOnlyIoQpair(),
+                                             0);
+    if (rc < 0) {
+        // NXIO is expected when the connection is down.
+        if (rc != -ENXIO) {
+            SPDK_ERRLOG("NVMf request failed for conn %d\n", rc);
+        }
+    } else if (rc > 0) {
+        poller_rc = SPDK_POLLER_BUSY;
+    }
+    return poller_rc;
 }
 
 int ioWorker(void *args)
 {
-    IoThread *ioThread = (IoThread *)args;
-    struct spdk_thread *thread = ioThread->thread;
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    struct spdk_thread *thread = zstoreController->GetIoThread(0);
     spdk_set_thread(thread);
-    spdk_poller_register(handleIoCompletions, ioThread->group, 0);
+    spdk_poller_register(handleIoCompletions, zstoreController, 0);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
 }
+
+// NOTE following code uses poll group which we switched from
+
+// int handleIoCompletions(void *args)
+// {
+//     struct spdk_nvme_poll_group *pollGroup =
+//         (struct spdk_nvme_poll_group *)args;
+//     int r = 0;
+//     r = spdk_nvme_poll_group_process_completions(pollGroup, 0,
+//                                                  dummy_disconnect_handler);
+//     return r > 0 ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+// }
+//
+// int ioWorker(void *args)
+// {
+//     IoThread *ioThread = (IoThread *)args;
+//     struct spdk_thread *thread = ioThread->thread;
+//     spdk_set_thread(thread);
+//     spdk_poller_register(handleIoCompletions, ioThread->group, 0);
+//     while (true) {
+//         spdk_thread_poll(thread, 0, 0);
+//     }
+// }
 
 static bool contextReady(RequestContext *ctx)
 {
@@ -348,11 +379,11 @@ void executeRequest(void *arg1, void *arg2)
     free(req);
 }
 
-void registerIoCompletionRoutine(void *arg1, void *arg2)
-{
-    IoThread *ioThread = (IoThread *)arg1;
-    spdk_poller_register(handleIoCompletions, ioThread->group, 0);
-}
+// void registerIoCompletionRoutine(void *arg1, void *arg2)
+// {
+//     IoThread *ioThread = (IoThread *)arg1;
+//     spdk_poller_register(handleIoCompletions, ioThread->group, 0);
+// }
 
 void registerDispatchRoutine(void *arg1, void *arg2)
 {

@@ -614,7 +614,7 @@ static void zns_dev_init(std::string ip1, std::string port1)
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)), &trid1);
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
-    printf("Found %d namspaces\n", g_zstore.num_namespaces);
+    log_info("Found {} namspaces", g_zstore.num_namespaces);
 }
 
 // static int register_controllers(struct arb_context *ctx)
