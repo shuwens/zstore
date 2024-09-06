@@ -61,16 +61,15 @@ void validate()
     printf("Validating...\n");
     struct timeval s, e;
     gettimeofday(&s, NULL);
-    //  Configuration::SetEnableDegradedRead(true);
+    Configuration::SetEnableDegradedRead(true);
     for (uint64_t i = 0; i < gSize; ++i) {
         LatencyBucket b;
         gettimeofday(&b.s, NULL);
         bool done;
         done = false;
         gZstoreController->Read(
-            i * Configuration::GetBlockSize(), Configuration::GetBlockSize(),
-            readValidateBuffer +
-                i % gNumBuffers * Configuration::GetBlockSize(),
+            // i * Configuration::GetBlockSize(), Configuration::GetBlockSize(),
+            i * 4096, 4096, readValidateBuffer + i % gNumBuffers * 4096,
             setdone, &done);
         while (!done) {
             std::this_thread::yield();
@@ -236,10 +235,12 @@ int main(int argc, char **argv)
     //     bitmap = new uint8_t[gNumBuffers];
     //     memset(bitmap, 0, gNumBuffers);
     // }
-    buffer_pool = new uint8_t[gNumBuffers * blockSize];
-    //  buffer_pool = (uint8_t*)spdk_zmalloc(
-    //      gNumBuffers * blockSize, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY,
-    //      SPDK_MALLOC_DMA);
+
+    // buffer_pool = new uint8_t[gNumBuffers * blockSize];
+
+    buffer_pool =
+        (uint8_t *)spdk_zmalloc(gNumBuffers * blockSize, 4096, NULL,
+                                SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
     if (buffer_pool == nullptr) {
         printf("Failed to allocate buffer pool\n");
         return -1;

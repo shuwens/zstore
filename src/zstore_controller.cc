@@ -275,22 +275,21 @@ void ZstoreController::Init(bool need_env)
               defaultAddr);
 
     // Create poll groups for the io threads and perform initialization
-    // for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-    //      ++threadId) {
-    //     mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
-    // }
-    // for (uint32_t i = 0; i < mDevices.size(); ++i) {
-    //     struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
-    //     for (uint32_t threadId = 0; threadId <
-    //     Configuration::GetNumIoThreads();
-    //          ++threadId) {
-    //         spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
-    //         int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
-    //                                           ioQueues[threadId]);
-    //         assert(rc == 0);
-    //     }
-    //     mDevices[i]->ConnectIoPairs();
-    // }
+    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+         ++threadId) {
+        mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
+    }
+    for (uint32_t i = 0; i < mDevices.size(); ++i) {
+        struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
+        for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+             ++threadId) {
+            spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
+            int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
+                                              ioQueues[threadId]);
+            assert(rc == 0);
+        }
+        mDevices[i]->ConnectIoPairs();
+    }
 
     restart();
     log_debug("mZone sizes {}", mZones.size());
