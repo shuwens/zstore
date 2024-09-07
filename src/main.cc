@@ -95,7 +95,6 @@ static TAILQ_HEAD(,
 static TAILQ_HEAD(,
                   worker_thread) g_workers = TAILQ_HEAD_INITIALIZER(g_workers);
 
-static struct feature features[SPDK_NVME_FEAT_ARBITRATION + 1] = {};
 static struct spdk_nvme_transport_id g_trid = {};
 
 static struct arb_context g_arbitration = {
