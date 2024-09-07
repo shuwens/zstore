@@ -218,10 +218,7 @@ class ZstoreController
     const std::vector<Zone *> &GetZones();
     void PrintStats();
 
-    struct spdk_nvme_qpair *GetOnlyIoQpair()
-    {
-        return g_devices[0]->GetIoQueue(0);
-    }
+    struct spdk_nvme_qpair *GetIoQpair() { return g_devices[0]->GetIoQueue(); }
 
   private:
     RequestContext *getContextForUserRequest();

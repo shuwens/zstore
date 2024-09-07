@@ -105,25 +105,42 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
 
     struct spdk_nvme_io_qpair_opts opts;
     spdk_nvme_ctrlr_get_default_io_qpair_opts(mController, &opts, sizeof(opts));
+    // opts.qprio = qprio;
+    opts.delay_cmd_submit = true;
+    opts.create_only = true;
+
+    // struct spdk_nvme_qpair *qpair;
+    mQpair = spdk_nvme_ctrlr_alloc_io_qpair(mController, &opts, sizeof(opts));
+    if (!mQpair) {
+        printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
+        return;
+    }
+
     // opts.delay_cmd_submit = true;
     // opts.create_only = true;
-    mIoQueues = new struct spdk_nvme_qpair *[Configuration::GetNumIoThreads()];
-    assert(Configuration::GetNumIoThreads() == 1);
-    for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
-        mIoQueues[i] =
-            spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
-        assert(mIoQueues[i]);
-        if (!mIoQueues[i]) {
-            log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
-            return;
-        }
-    }
+    // mIoQueues = new struct spdk_nvme_qpair
+    // *[Configuration::GetNumIoThreads()];
+    // assert(Configuration::GetNumIoThreads() == 1);
+    // for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
+    //     mIoQueues[i] =
+    //         spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
+    //     assert(mIoQueues[i]);
+    //     if (!mIoQueues[i]) {
+    //         log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
+    //         return;
+    //     }
+    //     // if (spdk_nvme_ctrlr_connect_io_qpair(mController, mIoQueues[i]) <
+    //     0)
+    //     // {
+    //     //     log_info("Connect ctrl failed!");
+    //     // }
+    // }
 }
 
 void Device::ConnectIoPairs()
 {
     for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
-        if (spdk_nvme_ctrlr_connect_io_qpair(mController, mIoQueues[i]) < 0) {
+        if (spdk_nvme_ctrlr_connect_io_qpair(mController, mQpair) < 0) {
             log_info("Connect ctrl failed!");
         }
     }
@@ -137,11 +154,10 @@ void Device::EraseWholeDevice()
         *done = true;
     };
 
-    spdk_nvme_zns_reset_zone(mNamespace, mIoQueues[0], 0, true, resetComplete,
-                             &done);
+    spdk_nvme_zns_reset_zone(mNamespace, mQpair, 0, true, resetComplete, &done);
 
     while (!done) {
-        spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+        spdk_nvme_qpair_process_completions(mQpair, 0);
     }
 }
 
@@ -190,7 +206,7 @@ void Device::issueIo2(spdk_event_fn event_fn, RequestContext *slot)
 {
     static uint32_t ioThreadId = 0;
     slot->ioContext.ns = mNamespace;
-    slot->ioContext.qpair = mIoQueues[ioThreadId];
+    slot->ioContext.qpair = mQpair;
     event_call(Configuration::GetIoThreadCoreId(ioThreadId), event_fn, slot,
                nullptr);
     ioThreadId = (ioThreadId + 1) % Configuration::GetNumIoThreads();
@@ -200,7 +216,7 @@ void Device::issueIo(spdk_msg_fn msg_fn, RequestContext *slot)
 {
     static uint32_t ioThreadId = 0;
     slot->ioContext.ns = mNamespace;
-    slot->ioContext.qpair = mIoQueues[ioThreadId];
+    slot->ioContext.qpair = mQpair;
     thread_send_msg(slot->ctrl->GetIoThread(ioThreadId), msg_fn, slot);
     ioThreadId = (ioThreadId + 1) % Configuration::GetNumIoThreads();
 }
@@ -301,19 +317,19 @@ void Device::Read(uint64_t offset, uint32_t size, void *ctx)
     slot->ioContext.ctx = ctx;
     slot->ioContext.flags = 0;
 
-    if (Configuration::GetBypassDevice()) {
-        slot->successBytes += Configuration::GetBlockSize();
-        slot->Queue();
-        return;
-    }
+    // if (Configuration::GetBypassDevice()) {
+    //     slot->successBytes += Configuration::GetBlockSize();
+    //     slot->Queue();
+    //     return;
+    // }
 
-    if (Configuration::GetEventFrameworkEnabled()) {
-        issueIo2(zoneRead2, slot);
-    } else {
-        log_debug("XXXXX offset {}, size {}", bytes2Block(offset),
-                  bytes2Block(size));
-        issueIo(zoneRead, slot);
-    }
+    // if (Configuration::GetEventFrameworkEnabled()) {
+    //     issueIo2(zoneRead2, slot);
+    // } else {
+    log_debug("XXXXX offset {}, size {}", bytes2Block(offset),
+              bytes2Block(size));
+    issueIo(zoneRead, slot);
+    // }
 }
 
 void Device::AddAvailableZone(Zone *zone) { mAvailableZones.insert(zone); }
@@ -337,11 +353,10 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
     uint32_t report_bytes =
         sizeof(report->descs[0]) * nr_zones + sizeof(*report);
     report = (struct spdk_nvme_zns_zone_report *)calloc(1, report_bytes);
-    spdk_nvme_zns_report_zones(mNamespace, mIoQueues[0], report, report_bytes,
-                               0, SPDK_NVME_ZRA_LIST_ALL, false, complete,
-                               &done);
+    spdk_nvme_zns_report_zones(mNamespace, mQpair, report, report_bytes, 0,
+                               SPDK_NVME_ZRA_LIST_ALL, false, complete, &done);
     while (!done) {
-        spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+        spdk_nvme_qpair_process_completions(mQpair, 0);
     }
 
     for (uint32_t i = 0; i < report->nr_zones; ++i) {
@@ -365,10 +380,10 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
             (uint8_t *)spdk_zmalloc(Configuration::GetBlockSize(), 4096, NULL,
                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
         done = false;
-        spdk_nvme_ns_cmd_read(mNamespace, mIoQueues[0], buffer, zslba, 1,
-                              complete, &done, 0);
+        spdk_nvme_ns_cmd_read(mNamespace, mQpair, buffer, zslba, 1, complete,
+                              &done, 0);
         while (!done) {
-            spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+            spdk_nvme_qpair_process_completions(mQpair, 0);
         }
 
         zones[wp] = buffer;

@@ -1,5 +1,5 @@
 #pragma once
-
+#include <stdint.h>
 #include <string>
 
 enum SystemMode { ZONEWRITE_ONLY, ZONEAPPEND_ONLY, ZAPRAID, RAIZN_SIMPLE };

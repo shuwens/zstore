@@ -48,8 +48,7 @@ int handleIoCompletions(void *args)
     int rc;
     ZstoreController *zstoreController = (ZstoreController *)args;
     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
-    rc = spdk_nvme_qpair_process_completions(zstoreController->GetOnlyIoQpair(),
-                                             0);
+    rc = spdk_nvme_qpair_process_completions(zstoreController->GetIoQpair(), 0);
     if (rc < 0) {
         // NXIO is expected when the connection is down.
         if (rc != -ENXIO) {
@@ -482,16 +481,15 @@ void zoneRead2(void *arg1, void *arg2)
     slot->stime = timestamp();
 
     int rc = 0;
-    if (Configuration::GetDeviceSupportMetadata()) {
-        rc = spdk_nvme_ns_cmd_read_with_md(
-            ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.metadata, ioCtx.offset,
-            ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags, 0, 0);
-    } else {
-        log_debug("1");
-        rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
-                                   ioCtx.offset, ioCtx.size, ioCtx.cb,
-                                   ioCtx.ctx, ioCtx.flags);
-    }
+    // if (Configuration::GetDeviceSupportMetadata()) {
+    //     rc = spdk_nvme_ns_cmd_read_with_md(
+    //         ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.metadata, ioCtx.offset,
+    //         ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags, 0, 0);
+    // } else {
+    log_debug("nvme ns cmd read");
+    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
+    // }
     if (rc != 0) {
         fprintf(stderr, "Device read error!\n");
         printf("%d %lu %d %s\n", rc, ioCtx.offset, errno, strerror(errno));

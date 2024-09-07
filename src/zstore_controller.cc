@@ -15,6 +15,7 @@
 #include <spdk/event.h>
 #include <spdk/init.h>
 #include <spdk/nvme.h>
+#include <spdk/nvmf.h>
 #include <spdk/rpc.h>
 #include <spdk/string.h>
 #include <sys/time.h>
@@ -208,7 +209,7 @@ void ZstoreController::restart()
     log_info("Restart time: {}", elapsed);
 }
 
-struct spdk_nvme_qpair *GetOnlyIoQpair() { return g_devices[0]->GetIoQueue(0); }
+// struct spdk_nvme_qpair *GetIoQpair() { return g_devices[0]->GetIoQueue(0); }
 
 void ZstoreController::Init(bool need_env)
 {
@@ -237,21 +238,23 @@ void ZstoreController::Init(bool need_env)
         }
     }
 
+    // init devices
+    // std::sort(mDevices.begin(), mDevices.end(),
+    //           [](const Device *o1, const Device *o2) -> bool {
+    //               // there will be no tie between two PCIe address, so no
+    //               issue
+    //               // without equality test
+    //               return strcmp(o1->GetDeviceTransportAddress(),
+    //                             o2->GetDeviceTransportAddress()) < 0;
+    //           });
+
     // NOTE use zns_dev_init
     // RDMA
     // zns_dev_init("192.168.100.9", "5520");
     // TCP
     zns_dev_init("12.12.12.2", "5520");
 
-    // init devices
     mDevices = g_devices;
-    std::sort(mDevices.begin(), mDevices.end(),
-              [](const Device *o1, const Device *o2) -> bool {
-                  // there will be no tie between two PCIe address, so no issue
-                  // without equality test
-                  return strcmp(o1->GetDeviceTransportAddress(),
-                                o2->GetDeviceTransportAddress()) < 0;
-              });
 
     // Adjust the capacity for user data = total capacity - footer size
     // The L2P table information at the end of the segment
@@ -319,18 +322,22 @@ void ZstoreController::Init(bool need_env)
     //     mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
     // }
 
-    // for (uint32_t i = 0; i < mDevices.size(); ++i) {
-    //     struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
-    //     for (uint32_t threadId = 0; threadId <
-    //     Configuration::GetNumIoThreads();
-    //          ++threadId) {
-    //         spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
-    //         int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
-    //                                           ioQueues[threadId]);
-    //         assert(rc == 0);
-    //     }
-    //     mDevices[i]->ConnectIoPairs();
-    // }
+    for (uint32_t i = 0; i < mDevices.size(); ++i) {
+        //     struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
+        //     for (uint32_t threadId = 0; threadId <
+        //     Configuration::GetNumIoThreads();
+        //          ++threadId) {
+        //         spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
+        //         int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
+        //                                           ioQueues[threadId]);
+        //         assert(rc == 0);
+        //     }
+        mDevices[i]->ConnectIoPairs();
+    }
+
+    log_debug("qpair: connected? {}, enabled? ",
+              spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
+    assert(rc == 0);
 
     restart();
     log_debug("mZone sizes {}", mZones.size());
@@ -339,6 +346,10 @@ void ZstoreController::Init(bool need_env)
 
     // zstore controller meta
     mMeta.numZones = 0;
+
+    log_debug("qpair: connected? {}, enabled? ",
+              spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
+    assert(rc == 0);
 
     initIoThread();
     initDispatchThread();
@@ -1040,19 +1051,19 @@ bool ZstoreController::Read(RequestContext *ctx, uint32_t pos,
     readContext->data[readContext->ioContext.size()] = (uint8_t *)slot->data;
     readContext->ioContext.emplace_back(slot);
 
-    log_info("Read");
-    slot->needDegradedRead = Configuration::GetEnableDegradedRead();
-    if (slot->needDegradedRead) {
-        log_info("1");
-        slot->Queue();
-    } else {
-        log_info("2");
-        uint32_t zoneId = slot->zoneId;
-        uint32_t offset = slot->offset;
-        log_info("zond id {}, offset {}", zoneId, offset);
-        // mZones[zoneId]->Read(offset, blockSize, slot);
-        mZones[0]->Read(offset, blockSize, slot);
-    }
+    // log_info("Read");
+    // slot->needDegradedRead = Configuration::GetEnableDegradedRead();
+    // if (slot->needDegradedRead) {
+    //     log_info("1");
+    //     slot->Queue();
+    // } else {
+    log_info("2");
+    uint32_t zoneId = slot->zoneId;
+    uint32_t offset = slot->offset;
+    log_info("zond id {}, offset {}", zoneId, offset);
+    // mZones[zoneId]->Read(offset, blockSize, slot);
+    mZones[0]->Read(offset, blockSize, slot);
+    // }
 
     return true;
 }
