@@ -339,7 +339,7 @@ static struct arb_context g_arbitration = {
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     // .core_mask = "0xf",
-    .core_mask = "0x1",
+    .core_mask = "0x1ff",
     .workload_type = "randrw",
 };
 

@@ -82,7 +82,7 @@ class ZstoreController
 
     struct spdk_thread *GetDispatchThread();
 
-    struct spdk_thread *GetIndexThread();
+    // struct spdk_thread *GetIndexThread();
 
     struct spdk_thread *GetCompletionThread();
 
@@ -127,20 +127,9 @@ class ZstoreController
     // void initEcThread();
     void initDispatchThread();
     void initIoThread();
-    void initIndexThread();
+    // void initIndexThread();
     void initCompletionThread();
     void initHttpThread();
-    void initGc();
-
-    // void createSegmentIfNeeded(Segment **segment, uint32_t spId);
-    // bool scheduleGc();
-
-    // void initializeGcTask();
-    // bool progressGcWriter();
-    // bool progressGcReader();
-
-    void restart();
-    void rebuild(uint32_t failedDriveId);
 
     std::vector<Device *> mDevices;
     // std::unordered_set<Segment *> mSealedSegments;
@@ -163,10 +152,10 @@ class ZstoreController
 
     // uint32_t mNumOpenSegments = 1;
 
-    IoThread mIoThread[16];
+    // IoThread mIoThread[16];
+    struct spdk_thread *mIoThread;
     struct spdk_thread *mDispatchThread;
     struct spdk_thread *mHttpThread;
-    struct spdk_thread *mIndexThread;
     struct spdk_thread *mCompletionThread;
 
     // int64_t mNumInvalidBlocks = 0;

@@ -1,4 +1,3 @@
-#include "include/common.h"
 #include "include/zns_utils.h"
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
