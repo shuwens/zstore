@@ -1,14 +1,14 @@
 #pragma once
 
 #include "device.h"
-#include "object.h"
+// #include "object.h"
 #include <map>
 #include <mutex>
 #include <string>
 
 static bool verbose = false;
 
-constexpr u64 zone_dist = 0x80000;
+// constexpr u64 zone_dist = 0x80000;
 // These data struct are not supposed to be global like this, but this is the
 // simple way to do it. So sue me.
 
@@ -19,7 +19,7 @@ static struct mg_context *g_ctx; /* Set by start_civetweb() */
 static std::vector<Device *> g_devices;
 
 // a simple test program to ZapRAID
-uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
+// uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
 // uint64_t gSize = 5;
 // uint64_t gSize = 1;
 
@@ -38,7 +38,7 @@ bool gTestMode = false;
 bool gUseLbaLock = false;
 bool gHybridSize = false;
 // 150GiB WSS for GC test
-uint64_t gWss = 150ull * 1024 * 1024 * 1024 / Configuration::GetBlockSize();
+// uint64_t gWss = 150ull * 1024 * 1024 * 1024 / Configuration::GetBlockSize();
 uint64_t gTrafficSize = 1ull * 1024 * 1024 * 1024 * 1024;
 
 uint32_t gChunkSize = 4096 * 4;
