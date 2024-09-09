@@ -1,10 +1,12 @@
 #include "include/common.h"
 #include "include/zns_utils.h"
+#include "include/zstore_controller.h"
 #include "spdk/env.h"
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
 #include "spdk/string.h"
+#include "zstore_controller.cc"
 #include <bits/stdc++.h>
 #include <chrono>
 #include <cstdint>
@@ -16,6 +18,9 @@
 int main(int argc, char **argv)
 {
     int rc;
+    gZstoreController = new ZstoreController();
+    gZstoreController->Init(false);
+
     struct worker_thread *worker, *main_worker;
     unsigned main_core;
     char task_pool_name[30];
@@ -39,22 +44,22 @@ int main(int argc, char **argv)
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
 
-    if (register_workers() != 0) {
+    if (register_workers(gZstoreController) != 0) {
         rc = 1;
-        zstore_cleanup(task_count);
+        zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
 
     struct arb_context ctx = {};
-    if (register_controllers(&ctx) != 0) {
+    if (register_controllers(&ctx, gZstoreController) != 0) {
         rc = 1;
-        zstore_cleanup(task_count);
+        zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
 
-    if (associate_workers_with_ns() != 0) {
+    if (associate_workers_with_ns(gZstoreController) != 0) {
         rc = 1;
-        zstore_cleanup(task_count);
+        zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
 
@@ -70,13 +75,15 @@ int main(int argc, char **argv)
                      : g_arbitration.num_workers;
     task_count *= g_arbitration.queue_depth;
 
-    task_pool =
+    log_info("Creating task pool: name {}, count {}", task_pool_name,
+             task_count);
+    gZstoreController->mTaskPool =
         spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
                             0, SPDK_ENV_SOCKET_ID_ANY);
-    if (task_pool == NULL) {
+    if (gZstoreController->mTaskPool == NULL) {
         fprintf(stderr, "could not initialize task pool\n");
         rc = 1;
-        zstore_cleanup(task_count);
+        zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
 
@@ -97,14 +104,14 @@ int main(int argc, char **argv)
     // }
     // }
     assert(main_worker == NULL);
-    main_worker = g_worker;
+    main_worker = gZstoreController->mWorker;
     assert(main_worker != NULL);
-    rc = work_fn(main_worker);
+    rc = work_fn(gZstoreController);
 
     spdk_env_thread_wait_all();
 
-    print_stats();
+    print_stats(gZstoreController);
 
-    zstore_cleanup(task_count);
+    zstore_cleanup(task_count, gZstoreController);
     return rc;
 }

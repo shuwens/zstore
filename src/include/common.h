@@ -280,6 +280,7 @@ struct ns_worker_ctx {
     chrono_tp etime;
     std::vector<chrono_tp> stimes;
     std::vector<chrono_tp> etimes;
+    void *zctrlr;
 };
 
 struct arb_task {
@@ -318,12 +319,6 @@ struct feature {
     uint32_t result;
     bool valid;
 };
-
-static struct spdk_mempool *task_pool = NULL;
-
-struct ctrlr_entry *g_controller;
-struct ns_entry *g_namespace;
-struct worker_thread *g_worker;
 
 static struct spdk_nvme_transport_id g_trid = {};
 

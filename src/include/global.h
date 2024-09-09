@@ -57,3 +57,9 @@ std::map<uint32_t, uint32_t> latCnt;
 
 std::string dummy_device = "dummy_device";
 ZstoreController *gZstoreController;
+
+static struct spdk_mempool *task_pool = NULL;
+
+static struct ctrlr_entry *g_controller;
+static struct ns_entry *g_namespace;
+static struct worker_thread *g_worker;

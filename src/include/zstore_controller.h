@@ -2,14 +2,14 @@
 
 #include "device.h"
 #include "global.h"
-#include "helper.h"
-#include "messages_and_functions.h"
-#include "object.h"
-#include "request_handler.h"
-#include "segment.h"
+// #include "helper.h"
+// #include "messages_and_functions.h"
+// #include "object.h"
+// #include "request_handler.h"
+// #include "segment.h"
 #include "utils.hpp"
-#include "zns_device.h"
-#include "zone.h"
+// #include "zns_device.h"
+// #include "zone.h"
 #include <chrono>
 #include <fmt/core.h>
 #include <fstream>
@@ -112,6 +112,12 @@ class ZstoreController
     void PrintStats();
 
     struct spdk_nvme_qpair *GetIoQpair() { return g_devices[0]->GetIoQueue(); }
+
+    struct spdk_mempool *mTaskPool;
+
+    struct ctrlr_entry *mController;
+    struct ns_entry *mNamespace;
+    struct worker_thread *mWorker;
 
   private:
     RequestContext *getContextForUserRequest();
