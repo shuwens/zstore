@@ -16,7 +16,7 @@
 int main(int argc, char **argv)
 {
     int rc;
-    // struct worker_thread *worker, *main_worker;
+    struct worker_thread *worker, *main_worker;
     unsigned main_core;
     char task_pool_name[30];
     uint32_t task_count = 0;
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
 
     /* Launch all of the secondary workers */
     main_core = spdk_env_get_current_core();
-    // main_worker = NULL;
+    main_worker = NULL;
     // TAILQ_FOREACH(worker, &g_workers, link)
     // {
     //     if (worker->lcore != main_core) {
@@ -96,9 +96,10 @@ int main(int argc, char **argv)
     // main_worker = g_worker;
     // }
     // }
-
-    // assert(main_worker != NULL);
-    rc = work_fn(g_worker);
+    assert(main_worker == NULL);
+    main_worker = g_worker;
+    assert(main_worker != NULL);
+    rc = work_fn(main_worker);
 
     spdk_env_thread_wait_all();
 
