@@ -158,9 +158,10 @@ void ZstoreController::Init(bool need_env)
 
     // create_dummy_objects(zstore);
     // Start the web server controllers.
-    mHandler = new ZstoreHandler;
-    CivetServer web_server = startWebServer(*mHandler);
-    log_info("Launching CivetWeb HTTP server in HTTP thread");
+
+    // mHandler = new ZstoreHandler;
+    // CivetServer web_server = startWebServer(*mHandler);
+    // log_info("Launching CivetWeb HTTP server in HTTP thread");
 
     log_info("ZstoreController Init finish");
 }

@@ -110,13 +110,14 @@ static struct arb_context g_arbitration = {
     .num_workers = 0,
     .num_namespaces = 0,
     .rw_percentage = 50,
-    .queue_depth = 64,
+    .queue_depth = 1,
     .time_in_sec = 1,
     .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
-    .io_size_bytes = 4096,
+    // .io_size_bytes = 4096,
+    .io_size_bytes = 8192,
     // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
@@ -317,7 +318,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
     // Zone managment
     const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 34;
+    const int current_zone = 46;
 
     auto zslba = zone_dist * current_zone;
 
@@ -364,9 +365,14 @@ static void task_complete(struct arb_task *task)
      * to complete.  In this case, do not submit a new I/O to replace
      * the one just completed.
      */
-    if (!ns_ctx->is_draining) {
-        submit_single_io(ns_ctx);
-    }
+    // 524288
+    // 275712
+    // if (!ns_ctx->is_draining) {
+    //     if (275700 < ns_ctx->io_completed)
+    //         printf("io completed: %d\n", ns_ctx->io_completed);
+    //     if (ns_ctx->io_completed < 275700)
+    //         submit_single_io(ns_ctx);
+    // }
 }
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
@@ -621,6 +627,7 @@ static void print_performance(void)
             printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
                    ns_ctx->entry->name, worker->lcore, io_per_second,
                    sent_all_io_in_secs, g_arbitration.io_count);
+            printf("Completed IO %d\n", ns_ctx->io_completed);
         }
     }
     printf("========================================================\n");
@@ -975,10 +982,8 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    // zns_dev_init(ctx, "12.12.12.2", "4420");
+    zns_dev_init(ctx, "12.12.12.2", "5520");
     // zns_dev_init(ctx, "12.12.12.2", "5520");
-    // multipath
-    zns_dev_init(ctx, "192.168.1.121", "4420");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");

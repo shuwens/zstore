@@ -6,6 +6,7 @@
 #include "spdk/nvme_zns.h"
 #include "spdk/nvmf_spec.h"
 #include "spdk/string.h"
+#include "src/include/utils.hpp"
 #include "src/include/zstore_controller.h"
 
 static void task_complete(struct arb_task *task);
@@ -100,6 +101,22 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr, void *args)
         }
         register_ns(ctrlr, ns, zctrlr);
     }
+
+    // TODO log and store stats
+
+    auto zone_size_sectors = spdk_nvme_zns_ns_get_zone_size_sectors(ns);
+    auto zone_size_bytes = spdk_nvme_zns_ns_get_zone_size(ns);
+    auto num_zones = spdk_nvme_zns_ns_get_num_zones(ns);
+    uint32_t max_open_zones = spdk_nvme_zns_ns_get_max_open_zones(ns);
+    uint32_t active_zones = spdk_nvme_zns_ns_get_max_active_zones(ns);
+    uint32_t max_zone_append_size =
+        spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
+
+    log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
+             zone_size_bytes);
+    log_info("Zones: num {}, max open {}, active {}", num_zones, max_open_zones,
+             active_zones);
+    log_info("Max zones append size: {}", max_zone_append_size);
 }
 
 static __thread unsigned int seed = 0;
