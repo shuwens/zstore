@@ -144,7 +144,6 @@ int main(int argc, char **argv)
     assert(main_worker != NULL);
     rc = work_fn(gZstoreController);
 
-    print_stats(gZstoreController);
     log_info("xxxx");
     spdk_env_thread_wait_all();
 

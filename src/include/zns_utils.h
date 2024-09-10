@@ -185,7 +185,7 @@ static void task_complete(struct arb_task *task)
      */
     // FIXME
     if (!zctrlr->mWorker->ns_ctx->is_draining) {
-        log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
+        // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
         submit_single_io(zctrlr);
     }
 }
@@ -216,9 +216,9 @@ static void drain_io(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
     zctrlr->mWorker->ns_ctx->is_draining = true;
-    while (zctrlr->mWorker->ns_ctx->current_queue_depth > 0) {
-        check_io(zctrlr);
-    }
+    // while (zctrlr->mWorker->ns_ctx->current_queue_depth > 0) {
+    //     check_io(zctrlr);
+    // }
 }
 
 static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
@@ -259,8 +259,8 @@ static void cleanup_ns_worker_ctx(void *args)
 {
     log_info("here");
     ZstoreController *zctrlr = (ZstoreController *)args;
-    spdk_nvme_ctrlr_free_io_qpair(zctrlr->mWorker->ns_ctx->qpair);
     thread_send_msg(zctrlr->mIoThread.thread, quit, nullptr);
+    spdk_nvme_ctrlr_free_io_qpair(zctrlr->mWorker->ns_ctx->qpair);
 }
 
 static void cleanup(uint32_t task_count, void *args)
@@ -298,6 +298,36 @@ static void cleanup(uint32_t task_count, void *args)
                   spdk_mempool_count(zctrlr->mTaskPool), task_count);
     }
     spdk_mempool_free(zctrlr->mTaskPool);
+}
+
+static void print_performance(void *args)
+{
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    float io_per_second, sent_all_io_in_secs;
+    // struct worker_thread *worker;
+    // struct ns_worker_ctx *ns_ctx;
+
+    // TAILQ_FOREACH(worker, &mWorkers, link)
+    // {
+    //     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
+    //     {
+    io_per_second = (float)zctrlr->mWorker->ns_ctx->io_completed /
+                    g_arbitration.time_in_sec;
+    sent_all_io_in_secs = g_arbitration.io_count / io_per_second;
+    // printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
+    //        ns_ctx->entry->name, worker->lcore, io_per_second,
+    //        sent_all_io_in_secs, g_arbitration.io_count);
+    log_info("{} IO/s {} secs/{} ios", io_per_second, sent_all_io_in_secs,
+             g_arbitration.io_count);
+    //     }
+    // }
+    log_info("========================================================");
+}
+
+static void print_stats(void *args)
+{
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    print_performance(zctrlr);
 }
 
 static int work_fn(void *args)
@@ -344,7 +374,9 @@ static int work_fn(void *args)
 
     // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     // {
+    log_debug("drain io");
     drain_io(zctrlr);
+    log_debug("clean up ns worker");
     cleanup_ns_worker_ctx(zctrlr);
 
     std::vector<uint64_t> deltas1;
@@ -368,6 +400,8 @@ static int work_fn(void *args)
     zctrlr->mWorker->ns_ctx->stimes.clear();
     // }
 
+    log_debug("end work fn");
+    print_stats(zctrlr);
     return 0;
 }
 
@@ -419,36 +453,6 @@ static void print_configuration(char *program_name)
            g_arbitration.arbitration_mechanism,
            g_arbitration.arbitration_config, g_arbitration.io_count,
            g_arbitration.shm_id);
-}
-
-static void print_performance(void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    float io_per_second, sent_all_io_in_secs;
-    // struct worker_thread *worker;
-    // struct ns_worker_ctx *ns_ctx;
-
-    // TAILQ_FOREACH(worker, &mWorkers, link)
-    // {
-    //     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
-    //     {
-    io_per_second = (float)zctrlr->mWorker->ns_ctx->io_completed /
-                    g_arbitration.time_in_sec;
-    sent_all_io_in_secs = g_arbitration.io_count / io_per_second;
-    // printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
-    //        ns_ctx->entry->name, worker->lcore, io_per_second,
-    //        sent_all_io_in_secs, g_arbitration.io_count);
-    log_info("{} IO/s {} secs/{} ios", io_per_second, sent_all_io_in_secs,
-             g_arbitration.io_count);
-    //     }
-    // }
-    log_info("========================================================");
-}
-
-static void print_stats(void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    print_performance(zctrlr);
 }
 
 static int parse_args(int argc, char **argv)
@@ -778,9 +782,10 @@ static int associate_workers_with_ns(void *args)
 
 static void zstore_cleanup(uint32_t task_count, void *args)
 {
-
     ZstoreController *zctrlr = (ZstoreController *)args;
+    log_info("unreg controllers");
     unregister_controllers(zctrlr);
+    log_info("cleanup ");
     cleanup(task_count, zctrlr);
 
     spdk_env_fini();
