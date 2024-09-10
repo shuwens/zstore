@@ -9,6 +9,15 @@
 #include <stdio.h>
 #include <sys/time.h>
 
+void create_dummy_objects(Zstore zstore)
+{
+    log_info("Create dummy objects in table: foo, bar, test");
+
+    zstore.putObject("foo", "foo_data");
+    zstore.putObject("bar", "bar_data");
+    zstore.putObject("baz", "baz_data");
+}
+
 int main(int argc, char **argv)
 {
     int rc;
@@ -127,18 +136,11 @@ int main(int argc, char **argv)
 
     log_info("Initialization complete. Launching workers.");
 
-    /* Launch all of the secondary workers */
-    // main_core = spdk_env_get_current_core();
+    // while (1) {
+    //     sleep(1);
+    // }
 
-    // TAILQ_FOREACH(worker, &g_workers, link)
-    // {
-    //     if (worker->lcore != main_core) {
-    //         spdk_env_thread_launch_pinned(worker->lcore, work_fn, worker);
-    //     } else {
-    // assert(main_worker == NULL);
-    // main_worker = g_worker;
-    // }
-    // }
+    // ==================================
 
     main_worker = NULL;
     assert(main_worker == NULL);
@@ -146,7 +148,6 @@ int main(int argc, char **argv)
     assert(main_worker != NULL);
     rc = work_fn(gZstoreController);
 
-    log_info("xxxx");
     spdk_env_thread_wait_all();
 
     log_info("xxxx");

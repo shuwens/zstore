@@ -2,6 +2,7 @@
 #include "common.cc"
 #include "include/common.h"
 #include "include/configuration.h"
+#include "include/request_handler.h"
 #include "include/utils.hpp"
 #include <algorithm>
 #include <isa-l.h>
@@ -144,6 +145,22 @@ void ZstoreController::Init(bool need_env)
 
     // initCompletionThread();
     // initHttpThread();
+
+    // Create and configure Zstore instance
+    // std::string zstore_name, bucket_name;
+    // zstore_name = "test";
+    // mZstore = new Zstore(zstore_name);
+    //
+    // zstore.SetVerbosity(1);
+
+    // create a bucket: this process is now manual, not via create/get bucket
+    // zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, "db"));
+
+    // create_dummy_objects(zstore);
+    // Start the web server controllers.
+    mHandler = new ZstoreHandler;
+    CivetServer web_server = startWebServer(*mHandler);
+    log_info("Launching CivetWeb HTTP server in HTTP thread");
 
     log_info("ZstoreController Init finish");
 }

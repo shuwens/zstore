@@ -1,7 +1,9 @@
 #pragma once
 #include "device.h"
 #include "global.h"
+#include "request_handler.h"
 #include "utils.hpp"
+#include "zstore.h"
 #include <cassert>
 #include <chrono>
 #include <fmt/core.h>
@@ -145,6 +147,8 @@ class ZstoreController
 
         log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
     }
+
+    ZstoreHandler *mHandler;
 
     struct spdk_mempool *mTaskPool;
 

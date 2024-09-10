@@ -1,5 +1,8 @@
 #include "include/common.h"
 #include "include/configuration.h"
+#include "include/request_handler.h"
+#include "include/utils.hpp"
+#include "include/zstore.h"
 #include "include/zstore_controller.h"
 #include "spdk/thread.h"
 #include <isa-l.h>
@@ -13,6 +16,7 @@ int handleHttpRequest(void *args)
 {
     bool busy = false;
     ZstoreController *zstoreController = (ZstoreController *)args;
+    // log_info("XXXX");
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
