@@ -6,19 +6,31 @@
 #include "spdk/nvme_intel.h"
 #include "spdk/string.h"
 #include "zstore_controller.cc"
+#include <algorithm>
 #include <bits/stdc++.h>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
+#include <isa-l.h>
+#include <rte_errno.h>
+#include <rte_mempool.h>
+#include <spdk/env.h>
+#include <spdk/event.h>
+#include <spdk/init.h>
+#include <spdk/nvme.h>
+#include <spdk/nvmf.h>
+#include <spdk/rpc.h>
+#include <spdk/string.h>
 #include <stdio.h>
+#include <sys/time.h>
+#include <thread>
+#include <tuple>
 #include <vector>
 
 int main(int argc, char **argv)
 {
     int rc;
-    gZstoreController = new ZstoreController();
-    gZstoreController->Init(false);
 
     struct worker_thread *worker, *main_worker;
     unsigned main_core;
@@ -40,6 +52,15 @@ int main(int argc, char **argv)
     if (spdk_env_init(&opts) < 0) {
         return 1;
     }
+
+    rc = spdk_thread_lib_init(nullptr, 0);
+    if (rc < 0) {
+        fprintf(stderr, "Unable to initialize SPDK thread lib.\n");
+        return 1;
+    }
+
+    gZstoreController = new ZstoreController();
+    gZstoreController->Init(false);
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
 
