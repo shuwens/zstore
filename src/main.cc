@@ -77,7 +77,9 @@ int main(int argc, char **argv)
     }
 
     gZstoreController->CheckIoQpair("");
+
     gZstoreController->initIoThread();
+    gZstoreController->initHttpThread();
 
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
 

@@ -1,13 +1,8 @@
 #include "include/zstore_controller.h"
 #include "common.cc"
-#include "include/configuration.h"
-// #include "device.cc"
 #include "include/common.h"
-// #include "include/device.h"
-// #include "include/segment.h"
+#include "include/configuration.h"
 #include "include/utils.hpp"
-// #include "messages_and_functions.cc"
-// #include "segment.cc"
 #include <algorithm>
 #include <isa-l.h>
 #include <rte_errno.h>
@@ -34,19 +29,17 @@ static void busyWait(bool *ready)
 
 void ZstoreController::initHttpThread()
 {
-    // struct spdk_cpuset cpumask;
-    // spdk_cpuset_zero(&cpumask);
-    // spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(),
-    // true); mHttpThread = spdk_thread_create("HttpThread", &cpumask);
-    // printf("Create HTTP processing thread %s %lu\n",
-    //        spdk_thread_get_name(mHttpThread),
-    //        spdk_thread_get_id(mHttpThread));
-    // int rc =
-    // spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
-    //                                        httpWorker, this);
-    // if (rc < 0) {
-    //     printf("Failed to launch ec thread error: %s\n", spdk_strerror(rc));
-    // }
+    struct spdk_cpuset cpumask;
+    spdk_cpuset_zero(&cpumask);
+    spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(), true);
+    mHttpThread = spdk_thread_create("HttpThread", &cpumask);
+    printf("Create HTTP processing thread %s %lu\n",
+           spdk_thread_get_name(mHttpThread), spdk_thread_get_id(mHttpThread));
+    int rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
+                                           httpWorker, this);
+    if (rc < 0) {
+        printf("Failed to launch ec thread error: %s\n", spdk_strerror(rc));
+    }
 }
 
 void ZstoreController::initCompletionThread()
@@ -153,6 +146,23 @@ void ZstoreController::Init(bool need_env)
     // initHttpThread();
 
     log_info("ZstoreController Init finish");
+}
+
+struct spdk_thread *ZstoreController::GetIoThread() { return mIoThread.thread; }
+
+struct spdk_thread *ZstoreController::GetDispatchThread()
+{
+    return mDispatchThread;
+}
+
+struct spdk_thread *ZstoreController::GetHttpThread() { return mHttpThread; }
+
+// struct spdk_thread *ZstoreController::GetIndexThread() { return mIndexThread;
+// }
+
+struct spdk_thread *ZstoreController::GetCompletionThread()
+{
+    return mCompletionThread;
 }
 
 ZstoreController::~ZstoreController()

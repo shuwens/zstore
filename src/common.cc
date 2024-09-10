@@ -9,36 +9,24 @@
 #include <sys/time.h>
 #include <vector>
 
-// static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
-//                                      void *poll_group_ctx)
-// {
-// }
+int handleHttpRequest(void *args)
+{
+    bool busy = false;
+    ZstoreController *zstoreController = (ZstoreController *)args;
 
-// int handleIoCompletions(void *args)
-// {
-//     // static double mTime = 0;
-//     // static int timeCnt = 0;
-//     // {
-//     //     double timeNow = GetTimestampInUs();
-//     //     if (mTime == 0) {
-//     //         printf("[DEBUG] %s %d\n", __func__, timeCnt);
-//     //         mTime = timeNow;
-//     //     } else {
-//     //         if (timeNow - mTime > 10.0) {
-//     //             mTime += 10.0;
-//     //             timeCnt += 10;
-//     //             printf("[DEBUG] %s %d\n", __func__, timeCnt);
-//     //         }
-//     //     }
-//     // }
-//
-//     struct spdk_nvme_poll_group *pollGroup =
-//         (struct spdk_nvme_poll_group *)args;
-//     int r = 0;
-//     r = spdk_nvme_poll_group_process_completions(pollGroup, 0,
-//                                                  dummy_disconnect_handler);
-//     return r > 0 ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-// }
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
+int httpWorker(void *args)
+{
+    ZstoreController *zstoreController = (ZstoreController *)args;
+    struct spdk_thread *thread = zstoreController->GetHttpThread();
+    spdk_set_thread(thread);
+    spdk_poller_register(handleHttpRequest, zstoreController, 0);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
+}
 
 int handleIoCompletions(void *args)
 {
@@ -60,13 +48,9 @@ int handleIoCompletions(void *args)
 int ioWorker(void *args)
 {
     ZstoreController *zstoreController = (ZstoreController *)args;
-    // IoThread *ioThread = (IoThread *)args;
-    // IoThread *ioThread = (IoThread *)args;
     struct spdk_thread *thread = zstoreController->mIoThread.thread;
-    // ZstoreController *ctrl = ioThread->controller;
     spdk_set_thread(thread);
     spdk_poller_register(handleIoCompletions, zstoreController, 0);
-    // spdk_poller_register(handleIoPendingZoneWrites, ctrl, 0);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }

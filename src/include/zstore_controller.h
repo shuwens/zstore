@@ -80,7 +80,7 @@ class ZstoreController
     //     const std::vector<uint64_t> &lbas,
     //     const std::vector<std::pair<PhysicalAddr, PhysicalAddr>> &pbas);
 
-    struct spdk_thread *GetIoThread(int id);
+    struct spdk_thread *GetIoThread();
 
     struct spdk_thread *GetDispatchThread();
 
@@ -154,17 +154,16 @@ class ZstoreController
 
     IoThread mIoThread;
     void initIoThread();
-
-  private:
-    RequestContext *getContextForUserRequest();
-    void doWrite(RequestContext *context);
-    void doRead(RequestContext *context);
-
     // void initEcThread();
     void initDispatchThread();
     // void initIndexThread();
     void initCompletionThread();
     void initHttpThread();
+
+  private:
+    RequestContext *getContextForUserRequest();
+    void doWrite(RequestContext *context);
+    void doRead(RequestContext *context);
 
     std::vector<Device *> mDevices;
     // std::unordered_set<Segment *> mSealedSegments;
