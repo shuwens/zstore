@@ -59,17 +59,20 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    log_info("1111");
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
 
+    log_info("1");
     if (register_workers(gZstoreController) != 0) {
         rc = 1;
         zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
 
+    log_info("222");
     struct arb_context ctx = {};
     if (register_controllers(&ctx, gZstoreController) != 0) {
         rc = 1;
@@ -77,6 +80,7 @@ int main(int argc, char **argv)
         return rc;
     }
 
+    // log_info("333");
     if (associate_workers_with_ns(gZstoreController) != 0) {
         rc = 1;
         zstore_cleanup(task_count, gZstoreController);
@@ -106,6 +110,22 @@ int main(int argc, char **argv)
         zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
+    // Create poll groups for the io threads and perform initialization
+    // gZstoreController->mIoThread.group =
+    //     spdk_nvme_poll_group_create(NULL, NULL);
+    // gZstoreController->mIoThread.controller = gZstoreController;
+
+    // struct spdk_nvme_qpair *ioQueues =
+    // gZstoreController->mWorker->ns_ctx->qpair;
+    // spdk_nvme_ctrlr_disconnect_io_qpair(*ioQueues);
+    // rc = spdk_nvme_poll_group_add(gZstoreController->mIoThread.group,
+    // ioQueues); assert(rc == 0); if
+    // (spdk_nvme_ctrlr_connect_io_qpair(gZstoreController->mController->ctrlr,
+    //                                      *ioQueues) < 0) {
+    //     printf("Connect ctrl failed!\n");
+    // }
+
+    // gZstoreController->initIoThread();
 
     print_configuration(argv[0]);
 

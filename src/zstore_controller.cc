@@ -95,9 +95,9 @@ void ZstoreController::initIoThread()
     // log_debug("init Io thread {}", threadId);
     spdk_cpuset_zero(&cpumask);
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetIoThreadCoreId(), true);
-    mIoThread = spdk_thread_create("IoThread", &cpumask);
-    assert(mIoThread != nullptr);
-    // mIoThread.controller = this;
+    mIoThread.thread = spdk_thread_create("IoThread", &cpumask);
+    assert(mIoThread.thread != nullptr);
+    mIoThread.controller = this;
     int rc = spdk_env_thread_launch_pinned(Configuration::GetIoThreadCoreId(),
                                            ioWorker, this);
     if (rc < 0) {
@@ -152,7 +152,6 @@ void ZstoreController::Init(bool need_env)
     assert(rc == 0);
 
     // initIoThread();
-    initDispatchThread();
     // initCompletionThread();
     // initHttpThread();
 
@@ -161,7 +160,7 @@ void ZstoreController::Init(bool need_env)
 
 ZstoreController::~ZstoreController()
 {
-    thread_send_msg(mIoThread, quit, nullptr);
+    thread_send_msg(mIoThread.thread, quit, nullptr);
     // thread_send_msg(mDispatchThread, quit, nullptr);
     // thread_send_msg(mHttpThread, quit, nullptr);
     // thread_send_msg(mIndexThread, quit, nullptr);

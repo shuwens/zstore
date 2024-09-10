@@ -69,6 +69,7 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns,
 
 static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr, void *args)
 {
+    log_debug("register_ctrlr");
     ZstoreController *zctrlr = (ZstoreController *)args;
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
@@ -303,7 +304,7 @@ static int work_fn(void *args)
     // struct worker_thread *worker = (struct worker_thread *)arg;
     // struct ns_worker_ctx *ns_ctx;
 
-    printf("Starting thread on core %u \n", zctrlr->mWorker->lcore);
+    log_info("Starting thread on core {}", zctrlr->mWorker->lcore);
 
     /* Allocate a queue pair for each namespace. */
     // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
@@ -323,9 +324,11 @@ static int work_fn(void *args)
     /* Submit initial I/O for each namespace. */
     // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     // {
+    log_info("1111");
     submit_io(zctrlr->mWorker->ns_ctx, g_arbitration.queue_depth);
     // }
 
+    log_info("222");
     while (1) {
         /*
          * Check for completed I/O for each controller. A new
@@ -662,6 +665,7 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
 {
     int rc = 0;
 
+    log_debug("zns dev");
     ZstoreController *zctrlr = (ZstoreController *)args;
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid1 = {};
@@ -693,7 +697,7 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
 static int register_controllers(struct arb_context *ctx, void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
-    printf("Initializing NVMe Controllers\n");
+    log_info("Initializing NVMe Controllers");
 
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");

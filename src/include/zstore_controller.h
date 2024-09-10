@@ -111,13 +111,16 @@ class ZstoreController
     const std::vector<Zone *> &GetZones();
     void PrintStats();
 
-    struct spdk_nvme_qpair *GetIoQpair() { return g_devices[0]->GetIoQueue(); }
+    struct spdk_nvme_qpair *GetIoQpair() { return mWorker->ns_ctx->qpair; }
 
     struct spdk_mempool *mTaskPool;
 
     struct ctrlr_entry *mController;
     struct ns_entry *mNamespace;
     struct worker_thread *mWorker;
+
+    IoThread mIoThread;
+    void initIoThread();
 
   private:
     RequestContext *getContextForUserRequest();
@@ -126,7 +129,6 @@ class ZstoreController
 
     // void initEcThread();
     void initDispatchThread();
-    void initIoThread();
     // void initIndexThread();
     void initCompletionThread();
     void initHttpThread();
@@ -153,7 +155,7 @@ class ZstoreController
     // uint32_t mNumOpenSegments = 1;
 
     // IoThread mIoThread[16];
-    struct spdk_thread *mIoThread;
+    // struct spdk_thread *mIoThread;
     struct spdk_thread *mDispatchThread;
     struct spdk_thread *mHttpThread;
     struct spdk_thread *mCompletionThread;

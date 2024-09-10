@@ -189,7 +189,7 @@ struct RequestContext {
 struct IoThread {
     struct spdk_nvme_poll_group *group;
     struct spdk_thread *thread;
-    uint32_t threadId;
+    // uint32_t threadId;
     ZstoreController *controller;
 };
 
