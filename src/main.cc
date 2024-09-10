@@ -61,12 +61,23 @@ int main(int argc, char **argv)
         return rc;
     }
 
-    // log_info("333");
+    log_info("333");
     if (associate_workers_with_ns(gZstoreController) != 0) {
         rc = 1;
         zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
+
+    if (init_ns_worker_ctx(gZstoreController->mWorker->ns_ctx,
+                           gZstoreController->mWorker->qprio,
+                           gZstoreController) != 0) {
+        log_error("init_ns_worker_ctx() failed");
+        return 1;
+        // }
+    }
+
+    gZstoreController->CheckIoQpair("");
+    gZstoreController->initIoThread();
 
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
 
@@ -91,6 +102,8 @@ int main(int argc, char **argv)
         zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
+    gZstoreController->CheckTaskPool("Task pool created");
+
     // Create poll groups for the io threads and perform initialization
     // gZstoreController->mIoThread.group =
     //     spdk_nvme_poll_group_create(NULL, NULL);
@@ -114,7 +127,6 @@ int main(int argc, char **argv)
 
     /* Launch all of the secondary workers */
     // main_core = spdk_env_get_current_core();
-    // main_worker = NULL;
 
     // TAILQ_FOREACH(worker, &g_workers, link)
     // {
@@ -126,15 +138,19 @@ int main(int argc, char **argv)
     // }
     // }
 
-    // assert(main_worker == NULL);
-    // main_worker = gZstoreController->mWorker;
-    // assert(main_worker != NULL);
-    // rc = work_fn(gZstoreController);
-
-    spdk_env_thread_wait_all();
+    main_worker = NULL;
+    assert(main_worker == NULL);
+    main_worker = gZstoreController->mWorker;
+    assert(main_worker != NULL);
+    rc = work_fn(gZstoreController);
 
     print_stats(gZstoreController);
+    log_info("xxxx");
+    spdk_env_thread_wait_all();
 
+    log_info("xxxx");
+
+    log_info("xxxx");
     zstore_cleanup(task_count, gZstoreController);
     return rc;
 }

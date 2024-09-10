@@ -284,7 +284,8 @@ struct ns_worker_ctx {
 };
 
 struct arb_task {
-    struct ns_worker_ctx *ns_ctx;
+    // struct ns_worker_ctx *ns_ctx;
+    ZstoreController *zctrlr;
     void *buf;
 };
 

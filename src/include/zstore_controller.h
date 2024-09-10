@@ -2,6 +2,7 @@
 #include "device.h"
 #include "global.h"
 #include "utils.hpp"
+#include <cassert>
 #include <chrono>
 #include <fmt/core.h>
 #include <isa-l.h>
@@ -112,7 +113,38 @@ class ZstoreController
     const std::vector<Zone *> &GetZones();
     void PrintStats();
 
-    struct spdk_nvme_qpair *GetIoQpair() { return mWorker->ns_ctx->qpair; }
+    void CheckIoQpair(std::string msg)
+    {
+        assert(mWorker != nullptr);
+        assert(mWorker->ns_ctx != nullptr);
+        assert(mWorker->ns_ctx->qpair != nullptr);
+        assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+        log_debug("qpair connected? {}, {}",
+                  spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair), msg);
+    }
+
+    struct spdk_nvme_qpair *GetIoQpair()
+    {
+        assert(mWorker != nullptr);
+        assert(mWorker->ns_ctx != nullptr);
+        assert(mWorker->ns_ctx->qpair != nullptr);
+        assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+
+        return mWorker->ns_ctx->qpair;
+    }
+
+    void CheckTaskPool(std::string msg)
+    {
+        assert(mTaskPool != nullptr);
+        auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
+        if (!task) {
+            log_error("Failed to get task from mTaskPool: {}", msg);
+            exit(1);
+        }
+        spdk_mempool_put(mTaskPool, task);
+
+        log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
+    }
 
     struct spdk_mempool *mTaskPool;
 
@@ -189,7 +221,8 @@ class ZstoreController
     // key -> tuple of <zns target, lba>
     // std::unordered_map<std::string, std::tuple<std::pair<std::string,
     // int32_t>>>
-    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry, MapEntry>>
+    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
+    // MapEntry>>
     std::unordered_map<std::string, MapEntry> mZstoreMap;
     std::mutex mObjTableMutex;
 

@@ -32,8 +32,6 @@ static void busyWait(bool *ready)
     }
 }
 
-static auto quit(void *args) { exit(0); }
-
 void ZstoreController::initHttpThread()
 {
     // struct spdk_cpuset cpumask;
@@ -151,7 +149,6 @@ void ZstoreController::Init(bool need_env)
     //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     assert(rc == 0);
 
-    // initIoThread();
     // initCompletionThread();
     // initHttpThread();
 
@@ -160,7 +157,7 @@ void ZstoreController::Init(bool need_env)
 
 ZstoreController::~ZstoreController()
 {
-    thread_send_msg(mIoThread.thread, quit, nullptr);
+    // thread_send_msg(mIoThread.thread, quit, nullptr);
     // thread_send_msg(mDispatchThread, quit, nullptr);
     // thread_send_msg(mHttpThread, quit, nullptr);
     // thread_send_msg(mIndexThread, quit, nullptr);
