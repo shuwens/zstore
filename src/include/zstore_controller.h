@@ -1,18 +1,19 @@
 #pragma once
-
 #include "device.h"
 #include "global.h"
-// #include "helper.h"
-// #include "messages_and_functions.h"
-// #include "object.h"
-// #include "request_handler.h"
-// #include "segment.h"
 #include "utils.hpp"
-// #include "zns_device.h"
-// #include "zone.h"
 #include <chrono>
 #include <fmt/core.h>
-#include <fstream>
+#include <isa-l.h>
+#include <rte_errno.h>
+#include <rte_mempool.h>
+#include <spdk/env.h>
+#include <spdk/event.h>
+#include <spdk/init.h>
+#include <spdk/nvme.h>
+#include <spdk/nvmf.h>
+#include <spdk/rpc.h>
+#include <spdk/string.h>
 
 class ZstoreController
 {

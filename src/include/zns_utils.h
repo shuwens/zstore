@@ -104,10 +104,10 @@ static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr, void *args)
         }
 
         if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            printf("ns %d is not zns ns\n", nsid);
+            log_info("ns {} is not zns ns", nsid);
             // continue;
         } else {
-            printf("ns %d is zns ns\n", nsid);
+            log_info("ns {} is zns ns", nsid);
         }
         register_ns(ctrlr, ns, zctrlr);
     }
@@ -125,14 +125,14 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 
     task = (struct arb_task *)spdk_mempool_get(zctrlr->mTaskPool);
     if (!task) {
-        fprintf(stderr, "Failed to get task from mTaskPool\n");
+        log_error("Failed to get task from mTaskPool");
         exit(1);
     }
 
     task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
     if (!task->buf) {
         spdk_mempool_put(zctrlr->mTaskPool, task);
-        fprintf(stderr, "task->buf spdk_dma_zmalloc failed\n");
+        log_error("task->buf spdk_dma_zmalloc failed");
         exit(1);
     }
 
@@ -167,7 +167,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // }
 
     if (rc != 0) {
-        fprintf(stderr, "starting I/O failed\n");
+        log_error("starting I/O failed");
     } else {
         ns_ctx->current_queue_depth++;
     }
@@ -242,7 +242,7 @@ static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
 
     ns_ctx->qpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
     if (!ns_ctx->qpair) {
-        printf("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed\n");
+        log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
         return 1;
     }
 
@@ -291,8 +291,8 @@ static void cleanup(uint32_t task_count, void *args)
     // };
 
     if (spdk_mempool_count(zctrlr->mTaskPool) != (size_t)task_count) {
-        fprintf(stderr, "mTaskPool count is %zu but should be %u\n",
-                spdk_mempool_count(zctrlr->mTaskPool), task_count);
+        log_error("mTaskPool count is {} but should be {}",
+                  spdk_mempool_count(zctrlr->mTaskPool), task_count);
     }
     spdk_mempool_free(zctrlr->mTaskPool);
 }
@@ -311,7 +311,7 @@ static int work_fn(void *args)
     // {
     if (init_ns_worker_ctx(zctrlr->mWorker->ns_ctx, zctrlr->mWorker->qprio,
                            zctrlr) != 0) {
-        printf("ERROR: init_ns_worker_ctx() failed\n");
+        log_error("init_ns_worker_ctx() failed");
         return 1;
         // }
     }
@@ -361,8 +361,8 @@ static int work_fn(void *args)
     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
                                       deltas1.begin(), 0.0);
     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-    printf("qd: %d, mean %f, std %f\n", zctrlr->mWorker->ns_ctx->io_completed,
-           mean1, stdev1);
+    log_info("qd: {}, mean {}, std {}", zctrlr->mWorker->ns_ctx->io_completed,
+             mean1, stdev1);
 
     // clearnup
     deltas1.clear();
@@ -375,10 +375,9 @@ static int work_fn(void *args)
 
 static void usage(char *program_name)
 {
-    printf("%s options", program_name);
-    printf("\t\n");
-    printf("\t[-d DPDK huge memory size in MB]\n");
-    printf("\t[-q io depth]\n");
+    log_info("{} options", program_name);
+    log_info("\t[-d DPDK huge memory size in MB]\n");
+    log_info("\t[-q io depth]\n");
     printf("\t[-o io size in bytes]\n");
     printf("\t[-w io pattern type, must be one of\n");
     printf("\t\t(read, write, randread, randwrite, rw, randrw)]\n");
@@ -412,7 +411,7 @@ static void usage(char *program_name)
 
 static void print_configuration(char *program_name)
 {
-    printf("%s run with configuration:\n", program_name);
+    log_info("{} run with configuration:", program_name);
     printf("%s -q %d -s %d -w %s -M %d -l %d -t %d -c %s -m %d -a %d -b %d -n "
            "%d -i %d\n",
            program_name, g_arbitration.queue_depth, g_arbitration.io_size_bytes,
@@ -441,13 +440,11 @@ static void print_performance(void *args)
     // printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
     //        ns_ctx->entry->name, worker->lcore, io_per_second,
     //        sent_all_io_in_secs, g_arbitration.io_count);
-    printf("%8.2f IO/s %8.2f secs/%d ios\n", io_per_second, sent_all_io_in_secs,
-           g_arbitration.io_count);
+    log_info("{} IO/s {} secs/{} ios", io_per_second, sent_all_io_in_secs,
+             g_arbitration.io_count);
     //     }
     // }
-    printf("========================================================\n");
-
-    printf("\n");
+    log_info("========================================================");
 }
 
 static void print_stats(void *args)
@@ -477,7 +474,7 @@ static int parse_args(int argc, char **argv)
         case 'd':
             g_dpdk_mem = spdk_strtol(optarg, 10);
             if (g_dpdk_mem < 0) {
-                fprintf(stderr, "Invalid DPDK memory size\n");
+                log_error("Invalid DPDK memory size");
                 return g_dpdk_mem;
             }
             break;
@@ -486,7 +483,7 @@ static int parse_args(int argc, char **argv)
             break;
         case 'r':
             if (spdk_nvme_transport_id_parse(&g_trid, optarg) != 0) {
-                fprintf(stderr, "Error parsing transport address\n");
+                log_error("Error parsing transport address");
                 return 1;
             }
             break;
@@ -500,7 +497,7 @@ static int parse_args(int argc, char **argv)
         case 'L':
             rc = spdk_log_set_flag(optarg);
             if (rc < 0) {
-                fprintf(stderr, "unknown flag\n");
+                log_error("unknown flag");
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
             }
@@ -511,7 +508,7 @@ static int parse_args(int argc, char **argv)
         default:
             val = spdk_strtol(optarg, 10);
             if (val < 0) {
-                fprintf(stderr, "Converting a string to integer failed\n");
+                log_error("Converting a string to integer failed");
                 return val;
             }
             switch (op) {
@@ -559,8 +556,8 @@ static int parse_args(int argc, char **argv)
         strcmp(workload_type, "randread") &&
         strcmp(workload_type, "randwrite") && strcmp(workload_type, "rw") &&
         strcmp(workload_type, "randrw")) {
-        fprintf(stderr, "io pattern type must be one of\n"
-                        "(read, write, randread, randwrite, rw, randrw)\n");
+        log_error("io pattern type must be one of"
+                  "(read, write, randread, randwrite, rw, randrw)");
         return 1;
     }
 
@@ -577,16 +574,16 @@ static int parse_args(int argc, char **argv)
         !strcmp(workload_type, "write") ||
         !strcmp(workload_type, "randwrite")) {
         if (mix_specified) {
-            fprintf(stderr, "Ignoring -M option... Please use -M option"
-                            " only when using rw or randrw.\n");
+            log_error("Ignoring -M option... Please use -M option"
+                      " only when using rw or randrw.");
         }
     }
 
     if (!strcmp(workload_type, "rw") || !strcmp(workload_type, "randrw")) {
         if (g_arbitration.rw_percentage < 0 ||
             g_arbitration.rw_percentage > 100) {
-            fprintf(stderr, "-M must be specified to value from 0 to 100 "
-                            "for rw or randrw.\n");
+            log_error("-M must be specified to value from 0 to 100 "
+                      "for rw or randrw.");
             return 1;
         }
     }
@@ -595,13 +592,13 @@ static int parse_args(int argc, char **argv)
         !strcmp(workload_type, "rw")) {
         g_arbitration.is_random = 0;
     } else {
-        printf("workload is random\n");
+        log_info("workload is random");
         g_arbitration.is_random = 1;
     }
 
     if (g_arbitration.latency_tracking_enable != 0 &&
         g_arbitration.latency_tracking_enable != 1) {
-        fprintf(stderr, "-l must be specified to value 0 or 1.\n");
+        log_error("-l must be specified to value 0 or 1.");
         return 1;
     }
 
@@ -611,17 +608,17 @@ static int parse_args(int argc, char **argv)
     case SPDK_NVME_CC_AMS_VS:
         break;
     default:
-        fprintf(stderr, "-a must be specified to value 0, 1, or 7.\n");
+        log_error("-a must be specified to value 0, 1, or 7.");
         return 1;
     }
 
     if (g_arbitration.arbitration_config != 0 &&
         g_arbitration.arbitration_config != 1) {
-        fprintf(stderr, "-b must be specified to value 0 or 1.\n");
+        log_error("-b must be specified to value 0 or 1.");
         return 1;
     } else if (g_arbitration.arbitration_config == 1 &&
                g_arbitration.arbitration_mechanism != SPDK_NVME_CC_AMS_WRR) {
-        fprintf(stderr, "-a must be specified to 1 (WRR) together.\n");
+        log_error("-a must be specified to 1 (WRR) together.");
         return 1;
     }
 
@@ -640,7 +637,7 @@ static int register_workers(void *args)
     zctrlr->mWorker =
         (struct worker_thread *)calloc(1, sizeof(*zctrlr->mWorker));
     if (zctrlr->mWorker == NULL) {
-        fprintf(stderr, "Unable to allocate worker\n");
+        log_error("Unable to allocate worker");
         return -1;
     }
 
@@ -691,7 +688,7 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)), zctrlr);
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
-    printf("Found %d namspaces\n", g_arbitration.num_namespaces);
+    log_info("Found {} namspaces", g_arbitration.num_namespaces);
 }
 
 static int register_controllers(struct arb_context *ctx, void *args)
@@ -705,7 +702,7 @@ static int register_controllers(struct arb_context *ctx, void *args)
     zns_dev_init(ctx, "12.12.12.2", "5520", zctrlr);
 
     if (g_arbitration.num_namespaces == 0) {
-        fprintf(stderr, "No valid namespaces to continue IO testing\n");
+        log_error("No valid namespaces to continue IO testing");
         return 1;
     }
 
@@ -743,8 +740,8 @@ static int associate_workers_with_ns(void *args)
                 ? g_arbitration.num_namespaces
                 : g_arbitration.num_workers;
     count = 1;
-    printf("DEBUG ns %d, workers %d, count %d\n", g_arbitration.num_namespaces,
-           g_arbitration.num_workers, count);
+    log_debug("DEBUG ns {}, workers {}, count {}", g_arbitration.num_namespaces,
+              g_arbitration.num_workers, count);
     // for (i = 0; i < count; i++) {
     if (zctrlr->mNamespace == NULL) {
         return -1;
@@ -756,8 +753,8 @@ static int associate_workers_with_ns(void *args)
     }
     memset(ns_ctx, 0, sizeof(*ns_ctx));
 
-    printf("Associating %s with lcore %d\n", zctrlr->mNamespace->name,
-           zctrlr->mWorker->lcore);
+    log_info("Associating {} with lcore {}", zctrlr->mNamespace->name,
+             zctrlr->mWorker->lcore);
     ns_ctx->entry = zctrlr->mNamespace;
     // TAILQ_INSERT_TAIL(&worker->ns_ctx, ns_ctx, link);
 

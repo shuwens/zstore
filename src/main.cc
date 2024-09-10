@@ -1,32 +1,13 @@
 #include "include/zns_utils.h"
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
-#include "spdk/log.h"
-#include "spdk/nvme.h"
-#include "spdk/nvme_intel.h"
-#include "spdk/string.h"
 #include "zstore_controller.cc"
-#include <algorithm>
 #include <bits/stdc++.h>
-#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
-#include <isa-l.h>
-#include <rte_errno.h>
-#include <rte_mempool.h>
-#include <spdk/env.h>
-#include <spdk/event.h>
-#include <spdk/init.h>
-#include <spdk/nvme.h>
-#include <spdk/nvmf.h>
-#include <spdk/rpc.h>
-#include <spdk/string.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include <thread>
-#include <tuple>
-#include <vector>
 
 int main(int argc, char **argv)
 {
@@ -55,7 +36,7 @@ int main(int argc, char **argv)
 
     rc = spdk_thread_lib_init(nullptr, 0);
     if (rc < 0) {
-        fprintf(stderr, "Unable to initialize SPDK thread lib.\n");
+        log_error("Unable to initialize SPDK thread lib.");
         return 1;
     }
 
@@ -105,7 +86,7 @@ int main(int argc, char **argv)
         spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
                             0, SPDK_ENV_SOCKET_ID_ANY);
     if (gZstoreController->mTaskPool == NULL) {
-        fprintf(stderr, "could not initialize task pool\n");
+        log_error("could not initialize task pool");
         rc = 1;
         zstore_cleanup(task_count, gZstoreController);
         return rc;
@@ -129,11 +110,12 @@ int main(int argc, char **argv)
 
     print_configuration(argv[0]);
 
-    printf("Initialization complete. Launching workers.\n");
+    log_info("Initialization complete. Launching workers.");
 
     /* Launch all of the secondary workers */
-    main_core = spdk_env_get_current_core();
-    main_worker = NULL;
+    // main_core = spdk_env_get_current_core();
+    // main_worker = NULL;
+
     // TAILQ_FOREACH(worker, &g_workers, link)
     // {
     //     if (worker->lcore != main_core) {
@@ -143,10 +125,11 @@ int main(int argc, char **argv)
     // main_worker = g_worker;
     // }
     // }
-    assert(main_worker == NULL);
-    main_worker = gZstoreController->mWorker;
-    assert(main_worker != NULL);
-    rc = work_fn(gZstoreController);
+
+    // assert(main_worker == NULL);
+    // main_worker = gZstoreController->mWorker;
+    // assert(main_worker != NULL);
+    // rc = work_fn(gZstoreController);
 
     spdk_env_thread_wait_all();
 
