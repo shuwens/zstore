@@ -34,12 +34,12 @@ void ZstoreController::initHttpThread()
     spdk_cpuset_zero(&cpumask);
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(), true);
     mHttpThread = spdk_thread_create("HttpThread", &cpumask);
-    printf("Create HTTP processing thread %s %lu\n",
-           spdk_thread_get_name(mHttpThread), spdk_thread_get_id(mHttpThread));
+    log_info("Create HTTP thread {} {}", spdk_thread_get_name(mHttpThread),
+             spdk_thread_get_id(mHttpThread));
     int rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
                                            httpWorker, this);
     if (rc < 0) {
-        printf("Failed to launch ec thread error: %s\n", spdk_strerror(rc));
+        log_error("Failed to launch ec thread error: {}", spdk_strerror(rc));
     }
 }
 
@@ -50,14 +50,14 @@ void ZstoreController::initCompletionThread()
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetCompletionThreadCoreId(),
                         true);
     // mCompletionThread = spdk_thread_create("CompletionThread", &cpumask);
-    printf("Create index and completion thread %s %lu\n",
-           spdk_thread_get_name(mCompletionThread),
-           spdk_thread_get_id(mCompletionThread));
+    log_info("Create completion thread {} {}",
+             spdk_thread_get_name(mCompletionThread),
+             spdk_thread_get_id(mCompletionThread));
     int rc = spdk_env_thread_launch_pinned(
         Configuration::GetCompletionThreadCoreId(), completionWorker, this);
     if (rc < 0) {
-        printf("Failed to launch completion thread, error: %s\n",
-               spdk_strerror(rc));
+        log_error("Failed to launch completion thread, error: {}",
+                  spdk_strerror(rc));
     }
 }
 
@@ -68,14 +68,14 @@ void ZstoreController::initDispatchThread()
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetDispatchThreadCoreId(),
                         true);
     mDispatchThread = spdk_thread_create("DispatchThread", &cpumask);
-    printf("Create dispatch thread %s %lu\n",
-           spdk_thread_get_name(mDispatchThread),
-           spdk_thread_get_id(mDispatchThread));
+    log_info("Create dispatch thread {} {}",
+             spdk_thread_get_name(mDispatchThread),
+             spdk_thread_get_id(mDispatchThread));
     int rc = spdk_env_thread_launch_pinned(
         Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
     if (rc < 0) {
-        printf("Failed to launch dispatch thread error: %s %s\n", strerror(rc),
-               spdk_strerror(rc));
+        log_error("Failed to launch dispatch thread error: {} {}", strerror(rc),
+                  spdk_strerror(rc));
     }
 }
 
@@ -143,8 +143,13 @@ void ZstoreController::Init(bool need_env)
     //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     assert(rc == 0);
 
+    SetQueuDepth(64);
     // initCompletionThread();
     // initHttpThread();
+
+    tsc_end =
+        spdk_get_ticks() - g_arbitration.time_in_sec * g_arbitration.tsc_rate;
+    log_debug("TSC Now: {}, End: {}", spdk_get_ticks(), tsc_end);
 
     // Create and configure Zstore instance
     // std::string zstore_name, bucket_name;
@@ -166,21 +171,41 @@ void ZstoreController::Init(bool need_env)
     log_info("ZstoreController Init finish");
 }
 
-struct spdk_thread *ZstoreController::GetIoThread() { return mIoThread.thread; }
+void ZstoreController::ReadInDispatchThread(RequestContext *ctx) {}
 
-struct spdk_thread *ZstoreController::GetDispatchThread()
+void ZstoreController::WriteInDispatchThread(RequestContext *ctx) {}
+
+void ZstoreController::CheckIoQpair(std::string msg)
 {
-    return mDispatchThread;
+    assert(mWorker != nullptr);
+    assert(mWorker->ns_ctx != nullptr);
+    assert(mWorker->ns_ctx->qpair != nullptr);
+    assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+    log_debug("{}, qpair connected: {}", msg,
+              spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
 }
 
-struct spdk_thread *ZstoreController::GetHttpThread() { return mHttpThread; }
-
-// struct spdk_thread *ZstoreController::GetIndexThread() { return mIndexThread;
-// }
-
-struct spdk_thread *ZstoreController::GetCompletionThread()
+struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 {
-    return mCompletionThread;
+    assert(mWorker != nullptr);
+    assert(mWorker->ns_ctx != nullptr);
+    assert(mWorker->ns_ctx->qpair != nullptr);
+    assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+
+    return mWorker->ns_ctx->qpair;
+}
+
+void ZstoreController::CheckTaskPool(std::string msg)
+{
+    assert(mTaskPool != nullptr);
+    auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
+    if (!task) {
+        log_error("Failed to get task from mTaskPool: {}", msg);
+        exit(1);
+    }
+    spdk_mempool_put(mTaskPool, task);
+
+    log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
 }
 
 ZstoreController::~ZstoreController()

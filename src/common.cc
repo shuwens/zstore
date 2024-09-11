@@ -2,9 +2,11 @@
 #include "include/configuration.h"
 #include "include/request_handler.h"
 #include "include/utils.hpp"
+#include "include/zns_utils.h"
 #include "include/zstore.h"
 #include "include/zstore_controller.h"
 #include "spdk/thread.h"
+#include <cstdlib>
 #include <isa-l.h>
 #include <queue>
 #include <sched.h>
@@ -15,18 +17,21 @@
 int handleHttpRequest(void *args)
 {
     bool busy = false;
-    ZstoreController *zstoreController = (ZstoreController *)args;
-    // log_info("XXXX");
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    // log_info("http fn: once");
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
 int httpWorker(void *args)
 {
-    ZstoreController *zstoreController = (ZstoreController *)args;
-    struct spdk_thread *thread = zstoreController->GetHttpThread();
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    struct spdk_thread *thread = zctrlr->GetHttpThread();
     spdk_set_thread(thread);
-    spdk_poller_register(handleHttpRequest, zstoreController, 0);
+    spdk_poller *p;
+    // called once x microseconds
+    p = spdk_poller_register(handleHttpRequest, zctrlr, 0);
+    zctrlr->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
@@ -35,9 +40,10 @@ int httpWorker(void *args)
 int handleIoCompletions(void *args)
 {
     int rc;
-    ZstoreController *zstoreController = (ZstoreController *)args;
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    // log_debug("XXX");
     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
-    rc = spdk_nvme_qpair_process_completions(zstoreController->GetIoQpair(), 0);
+    rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
     if (rc < 0) {
         // NXIO is expected when the connection is down.
         if (rc != -ENXIO) {
@@ -51,34 +57,117 @@ int handleIoCompletions(void *args)
 
 int ioWorker(void *args)
 {
-    ZstoreController *zstoreController = (ZstoreController *)args;
-    struct spdk_thread *thread = zstoreController->mIoThread.thread;
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    struct spdk_thread *thread = zctrlr->mIoThread.thread;
     spdk_set_thread(thread);
-    spdk_poller_register(handleIoCompletions, zstoreController, 0);
+    spdk_poller *p;
+    p = spdk_poller_register(handleIoCompletions, zctrlr, 0);
+    zctrlr->SetCompletionPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
 }
 
+int handleEventsDispatch(void *args)
+{
+    bool busy = false;
+    ZstoreController *ctrl = (ZstoreController *)args;
+
+    std::queue<RequestContext *> &writeQ = ctrl->GetWriteQueue();
+    while (!writeQ.empty()) {
+        RequestContext *ctx = writeQ.front();
+        ctrl->WriteInDispatchThread(ctx);
+
+        // if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
+        busy = true;
+        writeQ.pop();
+        // } else {
+        //     break;
+        // }
+    }
+
+    std::queue<RequestContext *> &readQ = ctrl->GetReadQueue();
+    while (!readQ.empty()) {
+        RequestContext *ctx = readQ.front();
+        ctrl->ReadInDispatchThread(ctx);
+        readQ.pop();
+        busy = true;
+    }
+
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
+int handleSubmit(void *args)
+{
+    bool busy = false;
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    // zctrlr->CheckTaskPool("submit IO");
+    // int queue_depth = zctrlr->GetQueueDepth();
+    int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
+    // log_debug("queue depth {}, task pool size {}", queue_depth,
+    //           spdk_mempool_count(zctrlr->mTaskPool));
+    while (queue_depth-- > 0) {
+        submit_single_io(zctrlr);
+        // busy = true;
+    }
+
+    // if (spdk_get_ticks() > zctrlr->tsc_end) {
+    // if (zctrlr->mWorker->ns_ctx->io_completed > 1000'000) {
+    if (zctrlr->mWorker->ns_ctx->io_completed > 1000) {
+        log_debug("drain io: {}", spdk_get_ticks());
+        drain_io(zctrlr);
+        log_debug("clean up ns worker");
+        cleanup_ns_worker_ctx(zctrlr);
+        //
+        //     std::vector<uint64_t> deltas1;
+        //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)
+        //     {
+        //         deltas1.push_back(
+        //             std::chrono::duration_cast<std::chrono::microseconds>(
+        //                 zctrlr->mWorker->ns_ctx->etimes[i] -
+        //                 zctrlr->mWorker->ns_ctx->stimes[i])
+        //                 .count());
+        //     }
+        //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        //     auto mean1 = sum1 / deltas1.size();
+        //     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+        //                                       deltas1.begin(), 0.0);
+        //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
+        //     mean1); log_info("qd: {}, mean {}, std {}",
+        //              zctrlr->mWorker->ns_ctx->io_completed, mean1, stdev1);
+        //
+        //     // clearnup
+        //     deltas1.clear();
+        //     zctrlr->mWorker->ns_ctx->etimes.clear();
+        //     zctrlr->mWorker->ns_ctx->stimes.clear();
+        //     // }
+        //
+        log_debug("end work fn");
+        print_stats(zctrlr);
+        exit(-1);
+    }
+
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
 int dispatchWorker(void *args)
 {
-    // ZstoreController *raidController = (ZstoreController *)args;
-    // struct spdk_thread *thread = raidController->GetDispatchThread();
-    // spdk_set_thread(thread);
-    // spdk_poller *p1, *p2;
-    // p1 = spdk_poller_register(handleEventsDispatch, raidController, 1);
-    // p2 = spdk_poller_register(handleBackgroundTasks, raidController, 1);
-    // raidController->SetEventPoller(p1);
-    // raidController->SetBackgroundPoller(p2);
-    // while (true) {
-    //     spdk_thread_poll(thread, 0, 0);
-    // }
+    ZstoreController *zctrl = (ZstoreController *)args;
+    struct spdk_thread *thread = zctrl->GetDispatchThread();
+    spdk_set_thread(thread);
+    spdk_poller *p;
+    // p = spdk_poller_register(handleEventsDispatch, zctrl, 1);
+    p = spdk_poller_register(handleSubmit, zctrl, 1);
+    zctrl->SetDispatchPoller(p);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
 }
 
 int completionWorker(void *args)
 {
-    // ZstoreController *raidController = (ZstoreController *)args;
-    // struct spdk_thread *thread = raidController->GetCompletionThread();
+    // ZstoreController *zctrl = (ZstoreController *)args;
+    // struct spdk_thread *thread = zctrl->GetCompletionThread();
     // spdk_set_thread(thread);
     // while (true) {
     //     spdk_thread_poll(thread, 0, 0);

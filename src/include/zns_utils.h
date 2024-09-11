@@ -201,10 +201,10 @@ static void task_complete(struct arb_task *task)
      * the one just completed.
      */
     // FIXME
-    if (!zctrlr->mWorker->ns_ctx->is_draining) {
-        // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
-        submit_single_io(zctrlr);
-    }
+    // if (!zctrlr->mWorker->ns_ctx->is_draining) {
+    //     // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
+    //     submit_single_io(zctrlr);
+    // }
 }
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
@@ -349,6 +349,7 @@ static void print_stats(void *args)
 
 static int work_fn(void *args)
 {
+
     ZstoreController *zctrlr = (ZstoreController *)args;
     uint64_t tsc_end;
     // struct worker_thread *worker = (struct worker_thread *)arg;
@@ -450,7 +451,8 @@ static void usage(char *program_name)
     printf("\t\t(0: default round robin mechanism)]\n");
     printf("\t\t(1: weighted round robin mechanism)]\n");
     printf("\t\t(2: vendor specific mechanism)]\n");
-    printf("\t[-b enable arbitration user configuration, default: disabled]\n");
+    printf("\t[-b enable arbitration user configuration, default: "
+           "disabled]\n");
     printf("\t\t(0 - disabled; 1 - enabled)\n");
     printf("\t[-n subjected IOs for performance comparison]\n");
     printf("\t[-i shared memory group ID]\n");

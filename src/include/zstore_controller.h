@@ -49,9 +49,10 @@ class ZstoreController
     // void EnqueueWrite(RequestContext *ctx);
     // void EnqueueReadPrepare(RequestContext *ctx);
     // void EnqueueReadReaping(RequestContext *ctx);
-    // std::queue<RequestContext *> &GetWriteQueue();
-    // std::queue<RequestContext *> &GetReadPrepareQueue();
-    // std::queue<RequestContext *> &GetReadReapingQueue();
+
+    std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
+
+    std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
 
     // std::queue<RequestContext *> &GetEventsToDispatch();
 
@@ -70,27 +71,18 @@ class ZstoreController
     // void UpdateIndexNeedLock(uint64_t lba, PhysicalAddr phyAddr);
     // void UpdateIndex(uint64_t lba, PhysicalAddr phyAddr);
     int GetNumInflightRequests();
-    // bool ProceedGc();
-    // bool ExistsGc();
-    // bool CheckSegments();
 
     void WriteInDispatchThread(RequestContext *ctx);
     void ReadInDispatchThread(RequestContext *ctx);
     // void EnqueueEvent(RequestContext *ctx);
 
-    // uint32_t GcBatchUpdateIndex(
-    //     const std::vector<uint64_t> &lbas,
-    //     const std::vector<std::pair<PhysicalAddr, PhysicalAddr>> &pbas);
+    struct spdk_thread *GetIoThread() { return mIoThread.thread; }
 
-    struct spdk_thread *GetIoThread();
+    struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
 
-    struct spdk_thread *GetDispatchThread();
+    struct spdk_thread *GetHttpThread() { return mHttpThread; }
 
-    // struct spdk_thread *GetIndexThread();
-
-    struct spdk_thread *GetCompletionThread();
-
-    struct spdk_thread *GetHttpThread();
+    struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
 
     void ReclaimContexts();
     void Flush();
@@ -99,9 +91,6 @@ class ZstoreController
     // uint32_t GetHeaderRegionSize();
     // uint32_t GetDataRegionSize();
     // uint32_t GetFooterRegionSize();
-
-    // GcTask *GetGcTask();
-    // void RemoveRequestFromGcEpochIfNecessary(RequestContext *ctx);
 
     bool Append(RequestContext *ctx, uint32_t offset);
     bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
@@ -115,38 +104,19 @@ class ZstoreController
     const std::vector<Zone *> &GetZones();
     void PrintStats();
 
-    void CheckIoQpair(std::string msg)
-    {
-        assert(mWorker != nullptr);
-        assert(mWorker->ns_ctx != nullptr);
-        assert(mWorker->ns_ctx->qpair != nullptr);
-        assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
-        log_debug("qpair connected? {}, {}",
-                  spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair), msg);
-    }
+    void CheckIoQpair(std::string msg);
 
-    struct spdk_nvme_qpair *GetIoQpair()
-    {
-        assert(mWorker != nullptr);
-        assert(mWorker->ns_ctx != nullptr);
-        assert(mWorker->ns_ctx->qpair != nullptr);
-        assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+    struct spdk_nvme_qpair *GetIoQpair();
 
-        return mWorker->ns_ctx->qpair;
-    }
+    void CheckTaskPool(std::string msg);
 
-    void CheckTaskPool(std::string msg)
-    {
-        assert(mTaskPool != nullptr);
-        auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
-        if (!task) {
-            log_error("Failed to get task from mTaskPool: {}", msg);
-            exit(1);
-        }
-        spdk_mempool_put(mTaskPool, task);
+    void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
+    void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
+    void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
+    void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
 
-        log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
-    }
+    void SetQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
+    int GetQueueDepth() { return mQueueDepth; };
 
     ZstoreHandler *mHandler;
 
@@ -163,6 +133,9 @@ class ZstoreController
     // void initIndexThread();
     void initCompletionThread();
     void initHttpThread();
+
+    // simple way to terminate the server
+    uint64_t tsc_end;
 
   private:
     RequestContext *getContextForUserRequest();
@@ -186,9 +159,12 @@ class ZstoreController
     std::queue<RequestContext *> mRequestQueue;
     std::mutex mRequestQueueMutex;
 
-    // struct GcTask mGcTask;
+    spdk_poller *mEventsPoller = nullptr;
+    spdk_poller *mDispatchPoller = nullptr;
+    spdk_poller *mHttpPoller = nullptr;
+    spdk_poller *mCompletionPoller = nullptr;
 
-    // uint32_t mNumOpenSegments = 1;
+    int mQueueDepth = 1;
 
     // IoThread mIoThread[16];
     // struct spdk_thread *mIoThread;
@@ -201,11 +177,9 @@ class ZstoreController
 
     std::queue<RequestContext *> mEventsToDispatch;
     std::queue<RequestContext *> mWriteQueue;
-    std::queue<RequestContext *> mReadPrepareQueue;
-    std::queue<RequestContext *> mReadReapingQueue;
+    std::queue<RequestContext *> mReadQueue;
 
     // uint32_t mAvailableStorageSpaceInSegments = 0;
-    // uint32_t mStorageSpaceThresholdForGcInSegments = 0;
     // uint32_t mNumTotalZones = 0;
 
     // uint32_t mNextAppendOpenSegment = 0;
@@ -215,8 +189,6 @@ class ZstoreController
     // uint32_t mHeaderRegionSize = 0;
     // uint32_t mDataRegionSize = 0;
     // uint32_t mFooterRegionSize = 0;
-
-    // std::unordered_set<RequestContext *> mReadsInCurrentGcEpoch;
 
     // ZSTORE
 

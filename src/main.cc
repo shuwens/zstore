@@ -49,20 +49,17 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    log_info("1111");
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
 
-    log_info("1");
     if (register_workers(gZstoreController) != 0) {
         rc = 1;
         zstore_cleanup(task_count, gZstoreController);
         return rc;
     }
 
-    log_info("222");
     struct arb_context ctx = {};
     if (register_controllers(&ctx, gZstoreController) != 0) {
         rc = 1;
@@ -70,7 +67,6 @@ int main(int argc, char **argv)
         return rc;
     }
 
-    log_info("333");
     if (associate_workers_with_ns(gZstoreController) != 0) {
         rc = 1;
         zstore_cleanup(task_count, gZstoreController);
@@ -84,11 +80,6 @@ int main(int argc, char **argv)
         return 1;
         // }
     }
-
-    gZstoreController->CheckIoQpair("");
-
-    gZstoreController->initIoThread();
-    gZstoreController->initHttpThread();
 
     snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
 
@@ -136,6 +127,12 @@ int main(int argc, char **argv)
 
     log_info("Initialization complete. Launching workers.");
 
+    gZstoreController->CheckIoQpair("Starting all the threads");
+
+    gZstoreController->initIoThread();
+    // gZstoreController->initHttpThread();
+    // gZstoreController->initDispatchThread();
+
     // while (1) {
     //     sleep(1);
     // }
@@ -150,9 +147,6 @@ int main(int argc, char **argv)
 
     spdk_env_thread_wait_all();
 
-    log_info("xxxx");
-
-    log_info("xxxx");
     zstore_cleanup(task_count, gZstoreController);
     return rc;
 }
