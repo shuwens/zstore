@@ -118,10 +118,10 @@ class Configuration
 
     // StripeConfig *gStripeConfig = new StripeConfig[1];
     int gBlockSize = 4096;
-    int gMetadataSize = 64;
+    // int gMetadataSize = 64;
     int gNumIoThreads = 1;
     // bool gDeviceSupportMetadata = true;
-    int gZoneCapacity = 0;
+    // int gZoneCapacity = 0;
 
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
@@ -135,5 +135,5 @@ class Configuration
     uint32_t gHttpThreadCoreId = 7;
     uint32_t gIoThreadCoreIdBase = 8;
 
-    int gLargeRequestThreshold = 16 * 1024;
+    // int gLargeRequestThreshold = 16 * 1024;
 };
