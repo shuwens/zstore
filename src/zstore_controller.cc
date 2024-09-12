@@ -190,7 +190,7 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
     assert(mWorker != nullptr);
     assert(mWorker->ns_ctx != nullptr);
     assert(mWorker->ns_ctx->qpair != nullptr);
-    assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+    // assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
 
     return mWorker->ns_ctx->qpair;
 }

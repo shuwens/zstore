@@ -59,7 +59,7 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns,
 
 static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr, void *args)
 {
-    log_debug("register_ctrlr");
+    // log_debug("register_ctrlr");
     ZstoreController *zctrlr = (ZstoreController *)args;
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
@@ -130,6 +130,7 @@ static void submit_single_io(void *args)
     int rc;
     struct ns_entry *entry = zctrlr->mWorker->ns_ctx->entry;
 
+    // log_debug("Before getting a task {}", zctrlr->GetTaskPoolSize());
     task = (struct arb_task *)spdk_mempool_get(zctrlr->mTaskPool);
     if (!task) {
         log_error("Failed to get task from mTaskPool");
@@ -145,6 +146,7 @@ static void submit_single_io(void *args)
 
     // task->ns_ctx = zctrlr->mWorker->ns_ctx;
     task->zctrlr = zctrlr;
+    assert(task->zctrlr == zctrlr);
 
     if (g_arbitration.is_random) {
         offset_in_ios = rand_r(&seed) % entry->size_in_ios;
@@ -160,6 +162,8 @@ static void submit_single_io(void *args)
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
     zctrlr->mWorker->ns_ctx->stime = std::chrono::high_resolution_clock::now();
     zctrlr->mWorker->ns_ctx->stimes.push_back(zctrlr->mWorker->ns_ctx->stime);
+
+    // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
 
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, zctrlr->mWorker->ns_ctx->qpair,
                                task->buf, offset_in_ios * entry->io_size_blocks,
@@ -185,14 +189,20 @@ static void task_complete(struct arb_task *task)
 {
     ZstoreController *zctrlr = (ZstoreController *)task->zctrlr;
 
+    assert(zctrlr != nullptr);
+    assert(zctrlr->mWorker != nullptr);
+    assert(zctrlr->mWorker->ns_ctx != nullptr);
     // zctrlr->mWorker->ns_ctx = task->ns_ctx;
     zctrlr->mWorker->ns_ctx->current_queue_depth--;
     zctrlr->mWorker->ns_ctx->io_completed++;
     zctrlr->mWorker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
     zctrlr->mWorker->ns_ctx->etimes.push_back(zctrlr->mWorker->ns_ctx->etime);
 
+    // log_debug("Before returning task {}", zctrlr->GetTaskPoolSize());
     spdk_dma_free(task->buf);
     spdk_mempool_put(zctrlr->mTaskPool, task);
+
+    // log_debug("After returning task {}", zctrlr->GetTaskPoolSize());
 
     /*
      * is_draining indicates when time has expired for the test run
@@ -209,8 +219,10 @@ static void task_complete(struct arb_task *task)
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
 {
-    // ZstoreController *zctrlr = (ZstoreController *)args;
     task_complete((struct arb_task *)ctx);
+
+    // ZstoreController *zctrlr = (ZstoreController *)args;
+    // task_complete((struct arb_task *)ctx);
 }
 
 static void check_io(void *args)
@@ -224,6 +236,7 @@ static void submit_io(void *args, int queue_depth)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
     zctrlr->CheckTaskPool("submit IO");
+    // while (queue_depth-- > 0) {
     while (queue_depth-- > 0) {
         submit_single_io(zctrlr);
     }

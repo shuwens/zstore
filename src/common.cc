@@ -43,6 +43,7 @@ int handleIoCompletions(void *args)
     ZstoreController *zctrlr = (ZstoreController *)args;
     // log_debug("XXX");
     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
+
     rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
     if (rc < 0) {
         // NXIO is expected when the connection is down.
@@ -102,13 +103,16 @@ int handleSubmit(void *args)
     bool busy = false;
     ZstoreController *zctrlr = (ZstoreController *)args;
     // zctrlr->CheckTaskPool("submit IO");
-    // int queue_depth = zctrlr->GetQueueDepth();
-    int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
-    // log_debug("queue depth {}, task pool size {}", queue_depth,
-    //           spdk_mempool_count(zctrlr->mTaskPool));
-    while (queue_depth-- > 0) {
+    int queue_depth = zctrlr->GetQueueDepth();
+    // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
+
+    // log_debug("queue depth {}, task pool size {}, completed {}", queue_depth,
+    //           spdk_mempool_count(zctrlr->mTaskPool),
+    //           zctrlr->mWorker->ns_ctx->io_completed);
+
+    while (zctrlr->mTaskCount - zctrlr->GetTaskPoolSize() < queue_depth) {
         submit_single_io(zctrlr);
-        // busy = true;
+        busy = true;
     }
 
     // if (spdk_get_ticks() > zctrlr->tsc_end) {
@@ -157,7 +161,7 @@ int dispatchWorker(void *args)
     spdk_set_thread(thread);
     spdk_poller *p;
     // p = spdk_poller_register(handleEventsDispatch, zctrl, 1);
-    p = spdk_poller_register(handleSubmit, zctrl, 1);
+    p = spdk_poller_register(handleSubmit, zctrl, 0);
     zctrl->SetDispatchPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);

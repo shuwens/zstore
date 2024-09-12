@@ -110,6 +110,9 @@ class ZstoreController
 
     void CheckTaskPool(std::string msg);
 
+    int GetTaskPoolSize() { return spdk_mempool_count(mTaskPool); }
+    void SetTaskCount(int task_count) { mTaskCount = task_count; }
+
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
     void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
     void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
@@ -121,6 +124,7 @@ class ZstoreController
     ZstoreHandler *mHandler;
 
     struct spdk_mempool *mTaskPool;
+    int mTaskCount;
 
     struct ctrlr_entry *mController;
     struct ns_entry *mNamespace;

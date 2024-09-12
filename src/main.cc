@@ -92,6 +92,7 @@ int main(int argc, char **argv)
                      ? g_arbitration.num_namespaces
                      : g_arbitration.num_workers;
     task_count *= g_arbitration.queue_depth;
+    gZstoreController->SetTaskCount(task_count);
 
     log_info("Creating task pool: name {}, count {}", task_pool_name,
              task_count);
