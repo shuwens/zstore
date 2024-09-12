@@ -148,8 +148,12 @@ int main(int argc, char **argv)
     // assert(main_worker != NULL);
     // rc = work_fn(gZstoreController);
 
+    // log_debug("XXXX");
     spdk_env_thread_wait_all();
 
+    // log_debug("XXXX");
     zstore_cleanup(task_count, gZstoreController);
+
+    // log_debug("XXXX");
     return rc;
 }

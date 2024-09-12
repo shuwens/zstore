@@ -115,8 +115,7 @@ int handleSubmit(void *args)
         busy = true;
     }
 
-    // if (spdk_get_ticks() > zctrlr->tsc_end) {
-    if (zctrlr->mWorker->ns_ctx->io_completed > 1000'000) {
+    if (zctrlr->mWorker->ns_ctx->io_completed > 400'000) {
         log_debug("drain io: {}", spdk_get_ticks());
         drain_io(zctrlr);
         log_debug("clean up ns worker");
@@ -147,9 +146,8 @@ int handleSubmit(void *args)
         //
         log_debug("end work fn");
         print_stats(zctrlr);
-        exit(-1);
+        exit(0);
     }
-
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 

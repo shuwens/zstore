@@ -210,9 +210,39 @@ void ZstoreController::CheckTaskPool(std::string msg)
 
 ZstoreController::~ZstoreController()
 {
-    // thread_send_msg(mIoThread.thread, quit, nullptr);
-    // thread_send_msg(mDispatchThread, quit, nullptr);
+    thread_send_msg(mIoThread.thread, quit, nullptr);
+    thread_send_msg(mDispatchThread, quit, nullptr);
     // thread_send_msg(mHttpThread, quit, nullptr);
     // thread_send_msg(mIndexThread, quit, nullptr);
     // thread_send_msg(mCompletionThread, quit, nullptr);
+    log_debug("drain io: {}", spdk_get_ticks());
+    drain_io(this);
+    log_debug("clean up ns worker");
+    cleanup_ns_worker_ctx(this);
+    //
+    //     std::vector<uint64_t> deltas1;
+    //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)
+    //     {
+    //         deltas1.push_back(
+    //             std::chrono::duration_cast<std::chrono::microseconds>(
+    //                 zctrlr->mWorker->ns_ctx->etimes[i] -
+    //                 zctrlr->mWorker->ns_ctx->stimes[i])
+    //                 .count());
+    //     }
+    //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+    //     auto mean1 = sum1 / deltas1.size();
+    //     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+    //                                       deltas1.begin(), 0.0);
+    //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
+    //     mean1); log_info("qd: {}, mean {}, std {}",
+    //              zctrlr->mWorker->ns_ctx->io_completed, mean1, stdev1);
+    //
+    //     // clearnup
+    //     deltas1.clear();
+    //     zctrlr->mWorker->ns_ctx->etimes.clear();
+    //     zctrlr->mWorker->ns_ctx->stimes.clear();
+    //     // }
+    //
+    log_debug("end work fn");
+    print_stats(this);
 }
