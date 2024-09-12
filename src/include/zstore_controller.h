@@ -22,7 +22,7 @@ class ZstoreController
 {
   public:
     ~ZstoreController();
-    void Init(bool need_env);
+    int Init(bool need_env);
 
     // Add an object to the store
     void putObject(std::string key, void *data);
@@ -121,14 +121,13 @@ class ZstoreController
     void SetQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     int GetQueueDepth() { return mQueueDepth; };
 
-    ZstoreHandler *mHandler;
+    void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr);
+    void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
 
-    struct spdk_mempool *mTaskPool;
-    int mTaskCount;
-
-    struct ctrlr_entry *mController;
-    struct ns_entry *mNamespace;
-    struct worker_thread *mWorker;
+    int GetTaskCount() { return mTaskCount; };
+    struct spdk_mempool *GetTaskPool() { return mTaskPool; };
+    struct worker_thread *GetWorker() { return mWorker; };
+    struct ns_entry *GetNamespace() { return mNamespace; };
 
     IoThread mIoThread;
     void initIoThread();
@@ -138,10 +137,52 @@ class ZstoreController
     void initCompletionThread();
     void initHttpThread();
 
+    int register_workers();
+    int register_controllers(struct arb_context *ctx);
+
+    void unregister_controllers();
+    int associate_workers_with_ns();
+    void zstore_cleanup();
+    void zns_dev_init(struct arb_context *ctx, std::string ip1,
+                      std::string port1);
+
+    void cleanup_ns_worker_ctx();
+    void cleanup(uint32_t task_count);
+
+    int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
+                           enum spdk_nvme_qprio qprio);
+
+  private:
+    // ZStore Map: this maps key to tuple of ZNS target and lba
+
+    // key -> tuple of <zns target, lba>
+    // std::unordered_map<std::string, std::tuple<std::pair<std::string,
+    // int32_t>>>
+    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
+    // MapEntry>>
+    std::unordered_map<std::string, MapEntry> mMap;
+    std::mutex mMapMutex;
+
+    // ZStore Bloom Filter: this maintains a bloom filter of hashes of
+    // object name (key).
+    //
+    // For simplicity, right now we are just using a set to keep track of
+    // the hashes
+    std::unordered_set<std::string> mBF;
+    std::mutex mBFMutex;
+
+    ZstoreHandler *mHandler;
+
+    struct spdk_mempool *mTaskPool;
+    int mTaskCount;
+
+    struct ctrlr_entry *mController;
+    struct ns_entry *mNamespace;
+    struct worker_thread *mWorker;
+
     // simple way to terminate the server
     uint64_t tsc_end;
 
-  private:
     RequestContext *getContextForUserRequest();
     void doWrite(RequestContext *context);
     void doRead(RequestContext *context);
@@ -193,17 +234,6 @@ class ZstoreController
     // uint32_t mHeaderRegionSize = 0;
     // uint32_t mDataRegionSize = 0;
     // uint32_t mFooterRegionSize = 0;
-
-    // ZSTORE
-
-    // object tables, used only by zstore
-    // key -> tuple of <zns target, lba>
-    // std::unordered_map<std::string, std::tuple<std::pair<std::string,
-    // int32_t>>>
-    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
-    // MapEntry>>
-    std::unordered_map<std::string, MapEntry> mZstoreMap;
-    std::mutex mObjTableMutex;
 
     // in memory object tables, used only by kv store
     // std::map<std::string, kvobject> mem_obj_table;

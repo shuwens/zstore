@@ -109,17 +109,17 @@ int handleSubmit(void *args)
     // log_debug("queue depth {}, task pool size {}, completed {}", queue_depth,
     //           spdk_mempool_count(zctrlr->mTaskPool),
     //           zctrlr->mWorker->ns_ctx->io_completed);
-
-    while (zctrlr->mTaskCount - zctrlr->GetTaskPoolSize() < queue_depth) {
+    auto task_count = zctrlr->GetTaskCount();
+    while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
         submit_single_io(zctrlr);
         busy = true;
     }
-
-    if (zctrlr->mWorker->ns_ctx->io_completed > 400'000) {
+    auto worker = zctrlr->GetWorker();
+    if (worker->ns_ctx->io_completed > 400'000) {
         log_debug("drain io: {}", spdk_get_ticks());
         drain_io(zctrlr);
         log_debug("clean up ns worker");
-        cleanup_ns_worker_ctx(zctrlr);
+        zctrlr->cleanup_ns_worker_ctx();
         //
         //     std::vector<uint64_t> deltas1;
         //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)

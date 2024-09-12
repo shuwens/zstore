@@ -24,8 +24,6 @@ int main(int argc, char **argv)
 
     struct worker_thread *worker, *main_worker;
     unsigned main_core;
-    char task_pool_name[30];
-    uint32_t task_count = 0;
     struct spdk_env_opts opts;
 
     rc = parse_args(argc, argv);
@@ -52,59 +50,6 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
-    g_arbitration.tsc_rate = spdk_get_ticks_hz();
-
-    if (register_workers(gZstoreController) != 0) {
-        rc = 1;
-        zstore_cleanup(task_count, gZstoreController);
-        return rc;
-    }
-
-    struct arb_context ctx = {};
-    if (register_controllers(&ctx, gZstoreController) != 0) {
-        rc = 1;
-        zstore_cleanup(task_count, gZstoreController);
-        return rc;
-    }
-
-    if (associate_workers_with_ns(gZstoreController) != 0) {
-        rc = 1;
-        zstore_cleanup(task_count, gZstoreController);
-        return rc;
-    }
-
-    if (init_ns_worker_ctx(gZstoreController->mWorker->ns_ctx,
-                           gZstoreController->mWorker->qprio,
-                           gZstoreController) != 0) {
-        log_error("init_ns_worker_ctx() failed");
-        return 1;
-        // }
-    }
-
-    snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
-
-    /*
-     * The task_count will be dynamically calculated based on the
-     * number of attached active namespaces, queue depth and number
-     * of cores (workers) involved in the IO perations.
-     */
-    task_count = g_arbitration.num_namespaces > g_arbitration.num_workers
-                     ? g_arbitration.num_namespaces
-                     : g_arbitration.num_workers;
-    task_count *= g_arbitration.queue_depth;
-    gZstoreController->SetTaskCount(task_count);
-
-    log_info("Creating task pool: name {}, count {}", task_pool_name,
-             task_count);
-    gZstoreController->mTaskPool =
-        spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
-                            0, SPDK_ENV_SOCKET_ID_ANY);
-    if (gZstoreController->mTaskPool == NULL) {
-        log_error("could not initialize task pool");
-        rc = 1;
-        zstore_cleanup(task_count, gZstoreController);
-        return rc;
-    }
     gZstoreController->CheckTaskPool("Task pool created");
 
     // Create poll groups for the io threads and perform initialization
@@ -152,7 +97,7 @@ int main(int argc, char **argv)
     spdk_env_thread_wait_all();
 
     // log_debug("XXXX");
-    zstore_cleanup(task_count, gZstoreController);
+    gZstoreController->zstore_cleanup();
 
     // log_debug("XXXX");
     return rc;

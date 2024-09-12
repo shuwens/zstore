@@ -13,112 +13,6 @@ static void task_complete(struct arb_task *task);
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion);
 
-static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns,
-                        void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // struct ns_entry *entry;
-    const struct spdk_nvme_ctrlr_data *cdata;
-
-    cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-
-    if (spdk_nvme_ns_get_size(ns) < g_arbitration.io_size_bytes ||
-        spdk_nvme_ns_get_extended_sector_size(ns) >
-            g_arbitration.io_size_bytes ||
-        g_arbitration.io_size_bytes %
-            spdk_nvme_ns_get_extended_sector_size(ns)) {
-        printf("WARNING: controller %-20.20s (%-20.20s) ns %u has invalid "
-               "ns size %" PRIu64 " / block size %u for I/O size %u\n",
-               cdata->mn, cdata->sn, spdk_nvme_ns_get_id(ns),
-               spdk_nvme_ns_get_size(ns),
-               spdk_nvme_ns_get_extended_sector_size(ns),
-               g_arbitration.io_size_bytes);
-        return;
-    }
-
-    zctrlr->mNamespace = (struct ns_entry *)malloc(sizeof(struct ns_entry));
-    if (zctrlr->mNamespace == NULL) {
-        perror("ns_entry malloc");
-        exit(1);
-    }
-
-    zctrlr->mNamespace->nvme.ctrlr = ctrlr;
-    zctrlr->mNamespace->nvme.ns = ns;
-
-    zctrlr->mNamespace->size_in_ios =
-        spdk_nvme_ns_get_size(ns) / g_arbitration.io_size_bytes;
-    zctrlr->mNamespace->io_size_blocks =
-        g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
-
-    snprintf(zctrlr->mNamespace->name, 44, "%-20.20s (%-20.20s)", cdata->mn,
-             cdata->sn);
-
-    g_arbitration.num_namespaces++;
-    // mNamespace = ;
-}
-
-static void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr, void *args)
-{
-    // log_debug("register_ctrlr");
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    uint32_t nsid;
-    struct spdk_nvme_ns *ns;
-    // struct ctrlr_entry *entry =
-    zctrlr->mController =
-        (struct ctrlr_entry *)calloc(1, sizeof(struct ctrlr_entry));
-    union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
-    const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-
-    if (zctrlr->mController == NULL) {
-        perror("ctrlr_entry malloc");
-        exit(1);
-    }
-
-    snprintf(zctrlr->mController->name, sizeof(zctrlr->mController->name),
-             "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
-
-    // entry->ctrlr = ctrlr;
-    // mController = entry;
-
-    // if ((g_arbitration.latency_tracking_enable != 0) &&
-    //     spdk_nvme_ctrlr_is_feature_supported(
-    //         ctrlr, SPDK_NVME_INTEL_FEAT_LATENCY_TRACKING)) {
-    //     set_latency_tracking_feature(ctrlr, true);
-    // }
-
-    for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
-         nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
-        ns = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
-        if (ns == NULL) {
-            continue;
-        }
-
-        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            log_info("ns {} is not zns ns", nsid);
-            // continue;
-        } else {
-            log_info("ns {} is zns ns", nsid);
-        }
-        register_ns(ctrlr, ns, zctrlr);
-    }
-
-    // TODO log and store stats
-
-    auto zone_size_sectors = spdk_nvme_zns_ns_get_zone_size_sectors(ns);
-    auto zone_size_bytes = spdk_nvme_zns_ns_get_zone_size(ns);
-    auto num_zones = spdk_nvme_zns_ns_get_num_zones(ns);
-    uint32_t max_open_zones = spdk_nvme_zns_ns_get_max_open_zones(ns);
-    uint32_t active_zones = spdk_nvme_zns_ns_get_max_active_zones(ns);
-    uint32_t max_zone_append_size =
-        spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
-
-    log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
-             zone_size_bytes);
-    log_info("Zones: num {}, max open {}, active {}", num_zones, max_open_zones,
-             active_zones);
-    log_info("Max zones append size: {}", max_zone_append_size);
-}
-
 static __thread unsigned int seed = 0;
 
 static void submit_single_io(void *args)
@@ -128,10 +22,14 @@ static void submit_single_io(void *args)
     struct arb_task *task = NULL;
     uint64_t offset_in_ios;
     int rc;
-    struct ns_entry *entry = zctrlr->mWorker->ns_ctx->entry;
+
+    auto worker = zctrlr->GetWorker();
+    auto taskpool = zctrlr->GetTaskPool();
+
+    struct ns_entry *entry = worker->ns_ctx->entry;
 
     // log_debug("Before getting a task {}", zctrlr->GetTaskPoolSize());
-    task = (struct arb_task *)spdk_mempool_get(zctrlr->mTaskPool);
+    task = (struct arb_task *)spdk_mempool_get(taskpool);
     if (!task) {
         log_error("Failed to get task from mTaskPool");
         exit(1);
@@ -139,7 +37,7 @@ static void submit_single_io(void *args)
 
     task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
     if (!task->buf) {
-        spdk_mempool_put(zctrlr->mTaskPool, task);
+        spdk_mempool_put(taskpool, task);
         log_error("task->buf spdk_dma_zmalloc failed");
         exit(1);
     }
@@ -151,22 +49,22 @@ static void submit_single_io(void *args)
     if (g_arbitration.is_random) {
         offset_in_ios = rand_r(&seed) % entry->size_in_ios;
     } else {
-        offset_in_ios = zctrlr->mWorker->ns_ctx->offset_in_ios++;
-        if (zctrlr->mWorker->ns_ctx->offset_in_ios == entry->size_in_ios) {
-            zctrlr->mWorker->ns_ctx->offset_in_ios = 0;
+        offset_in_ios = worker->ns_ctx->offset_in_ios++;
+        if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
+            worker->ns_ctx->offset_in_ios = 0;
         }
     }
 
     // if ((g_arbitration.rw_percentage == 100) ||
     //     (g_arbitration.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-    zctrlr->mWorker->ns_ctx->stime = std::chrono::high_resolution_clock::now();
-    zctrlr->mWorker->ns_ctx->stimes.push_back(zctrlr->mWorker->ns_ctx->stime);
+    worker->ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    worker->ns_ctx->stimes.push_back(worker->ns_ctx->stime);
 
     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
 
-    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, zctrlr->mWorker->ns_ctx->qpair,
-                               task->buf, offset_in_ios * entry->io_size_blocks,
+    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, worker->ns_ctx->qpair, task->buf,
+                               offset_in_ios * entry->io_size_blocks,
                                entry->io_size_blocks, io_complete, task, 0);
     // } else {
     //     ns_ctx->stime = std::chrono::high_resolution_clock::now();
@@ -181,26 +79,28 @@ static void submit_single_io(void *args)
     if (rc != 0) {
         log_error("starting I/O failed");
     } else {
-        zctrlr->mWorker->ns_ctx->current_queue_depth++;
+        worker->ns_ctx->current_queue_depth++;
     }
 }
 
 static void task_complete(struct arb_task *task)
 {
     ZstoreController *zctrlr = (ZstoreController *)task->zctrlr;
+    auto worker = zctrlr->GetWorker();
+    auto taskpool = zctrlr->GetTaskPool();
 
     assert(zctrlr != nullptr);
-    assert(zctrlr->mWorker != nullptr);
-    assert(zctrlr->mWorker->ns_ctx != nullptr);
+    assert(worker != nullptr);
+    assert(worker->ns_ctx != nullptr);
     // zctrlr->mWorker->ns_ctx = task->ns_ctx;
-    zctrlr->mWorker->ns_ctx->current_queue_depth--;
-    zctrlr->mWorker->ns_ctx->io_completed++;
-    zctrlr->mWorker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
-    zctrlr->mWorker->ns_ctx->etimes.push_back(zctrlr->mWorker->ns_ctx->etime);
+    worker->ns_ctx->current_queue_depth--;
+    worker->ns_ctx->io_completed++;
+    worker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    worker->ns_ctx->etimes.push_back(worker->ns_ctx->etime);
 
     // log_debug("Before returning task {}", zctrlr->GetTaskPoolSize());
     spdk_dma_free(task->buf);
-    spdk_mempool_put(zctrlr->mTaskPool, task);
+    spdk_mempool_put(taskpool, task);
 
     // log_debug("After returning task {}", zctrlr->GetTaskPoolSize());
 
@@ -210,7 +110,7 @@ static void task_complete(struct arb_task *task)
      * to complete.  In this case, do not submit a new I/O to replace
      * the one just completed.
      */
-    if (!zctrlr->mWorker->ns_ctx->is_draining) {
+    if (!worker->ns_ctx->is_draining) {
         // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
         submit_single_io(zctrlr);
     }
@@ -227,7 +127,8 @@ static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
 static void check_io(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
-    spdk_nvme_qpair_process_completions(zctrlr->mWorker->ns_ctx->qpair,
+    auto worker = zctrlr->GetWorker();
+    spdk_nvme_qpair_process_completions(worker->ns_ctx->qpair,
                                         g_arbitration.max_completions);
 }
 
@@ -244,104 +145,22 @@ static void submit_io(void *args, int queue_depth)
 static void drain_io(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
-    zctrlr->mWorker->ns_ctx->is_draining = true;
+    auto worker = zctrlr->GetWorker();
+    worker->ns_ctx->is_draining = true;
     // while (zctrlr->mWorker->ns_ctx->current_queue_depth > 0) {
     //     check_io(zctrlr);
     // }
 }
 
-static int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
-                              enum spdk_nvme_qprio qprio, void *args)
-{
-    // TODO dont need ns_ctx anymore
-    ZstoreController *zctrlr = (ZstoreController *)args;
-
-    assert(zctrlr->mWorker != nullptr);
-    assert(zctrlr->mWorker->ns_ctx != nullptr);
-    assert(zctrlr->mWorker->ns_ctx->entry != nullptr);
-    assert(zctrlr->mWorker->ns_ctx->entry->nvme.ctrlr != nullptr);
-    struct spdk_nvme_ctrlr *ctrlr = zctrlr->mWorker->ns_ctx->entry->nvme.ctrlr;
-
-    struct spdk_nvme_io_qpair_opts opts;
-    spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
-    opts.qprio = qprio;
-
-    zctrlr->mWorker->ns_ctx->qpair =
-        spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
-    if (!ns_ctx->qpair) {
-        log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
-        return 1;
-    }
-
-    // allocate space for times
-    zctrlr->mWorker->ns_ctx->stimes.reserve(1000000);
-    zctrlr->mWorker->ns_ctx->etimes.reserve(1000000);
-
-    // zctrlr->mWorker->ns_ctx->zctrlr = zctrlr;
-
-    return 0;
-}
-
 static auto quit(void *args) { exit(0); }
-
-static void cleanup_ns_worker_ctx(void *args)
-{
-    log_info("here");
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    thread_send_msg(zctrlr->mIoThread.thread, quit, nullptr);
-    spdk_nvme_ctrlr_free_io_qpair(zctrlr->mWorker->ns_ctx->qpair);
-}
-
-static void cleanup(uint32_t task_count, void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // struct ns_entry *entry, *tmp_entry;
-    // struct worker_thread *worker, *tmp_worker;
-    // struct ns_worker_ctx *ns_ctx, *tmp_ns_ctx;
-
-    free(zctrlr->mNamespace);
-    // TAILQ_FOREACH_SAFE(entry, &mNamespaces, link, tmp_entry)
-    // {
-    //     TAILQ_REMOVE(&mNamespaces, entry, link);
-    //     free(entry);
-    // };
-
-    free(zctrlr->mWorker->ns_ctx);
-    free(zctrlr->mWorker);
-    // TAILQ_FOREACH_SAFE(worker, &mWorkers, link, tmp_worker)
-    // {
-    //     TAILQ_REMOVE(&mWorkers, worker, link);
-    //
-    //     /* ns_worker_ctx is a list in the worker */
-    //     TAILQ_FOREACH_SAFE(ns_ctx, &worker->ns_ctx, link, tmp_ns_ctx)
-    //     {
-    //         TAILQ_REMOVE(&worker->ns_ctx, ns_ctx, link);
-    //         free(ns_ctx);
-    //     }
-    //
-    //     free(worker);
-    // };
-
-    if (spdk_mempool_count(zctrlr->mTaskPool) != (size_t)task_count) {
-        log_error("mTaskPool count is {} but should be {}",
-                  spdk_mempool_count(zctrlr->mTaskPool), task_count);
-    }
-    spdk_mempool_free(zctrlr->mTaskPool);
-}
 
 static void print_performance(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
     float io_per_second, sent_all_io_in_secs;
-    // struct worker_thread *worker;
-    // struct ns_worker_ctx *ns_ctx;
-
-    // TAILQ_FOREACH(worker, &mWorkers, link)
-    // {
-    //     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
-    //     {
-    io_per_second = (float)zctrlr->mWorker->ns_ctx->io_completed /
-                    g_arbitration.time_in_sec;
+    auto worker = zctrlr->GetWorker();
+    io_per_second =
+        (float)worker->ns_ctx->io_completed / g_arbitration.time_in_sec;
     sent_all_io_in_secs = g_arbitration.io_count / io_per_second;
     // printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
     //        ns_ctx->entry->name, worker->lcore, io_per_second,
@@ -361,18 +180,12 @@ static void print_stats(void *args)
 
 static int work_fn(void *args)
 {
-
     ZstoreController *zctrlr = (ZstoreController *)args;
     uint64_t tsc_end;
-    // struct worker_thread *worker = (struct worker_thread *)arg;
-    // struct ns_worker_ctx *ns_ctx;
 
+    auto worker = zctrlr->GetWorker();
     gZstoreController->CheckTaskPool("work fn start");
-    log_info("Starting thread on core {}", zctrlr->mWorker->lcore);
-
-    /* Allocate a queue pair for each namespace. */
-    // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
-    // {
+    log_info("Starting thread on core {}", worker->lcore);
 
     tsc_end =
         spdk_get_ticks() + g_arbitration.time_in_sec * g_arbitration.tsc_rate;
@@ -407,27 +220,27 @@ static int work_fn(void *args)
     log_debug("drain io");
     drain_io(zctrlr);
     log_debug("clean up ns worker");
-    cleanup_ns_worker_ctx(zctrlr);
+    zctrlr->cleanup_ns_worker_ctx();
 
     std::vector<uint64_t> deltas1;
-    for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++) {
-        deltas1.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
-                              zctrlr->mWorker->ns_ctx->etimes[i] -
-                              zctrlr->mWorker->ns_ctx->stimes[i])
-                              .count());
+    for (int i = 0; i < worker->ns_ctx->stimes.size(); i++) {
+        deltas1.push_back(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                worker->ns_ctx->etimes[i] - worker->ns_ctx->stimes[i])
+                .count());
     }
     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
     auto mean1 = sum1 / deltas1.size();
     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
                                       deltas1.begin(), 0.0);
     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-    log_info("qd: {}, mean {}, std {}", zctrlr->mWorker->ns_ctx->io_completed,
-             mean1, stdev1);
+    log_info("qd: {}, mean {}, std {}", worker->ns_ctx->io_completed, mean1,
+             stdev1);
 
     // clearnup
     deltas1.clear();
-    zctrlr->mWorker->ns_ctx->etimes.clear();
-    zctrlr->mWorker->ns_ctx->stimes.clear();
+    worker->ns_ctx->etimes.clear();
+    worker->ns_ctx->stimes.clear();
     // }
 
     log_debug("end work fn");
@@ -656,172 +469,4 @@ static int parse_args(int argc, char **argv)
     }
 
     return 0;
-}
-
-static int register_workers(void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    uint32_t i = 1;
-    // struct worker_thread *worker;
-    enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
-
-    // SPDK_ENV_FOREACH_CORE(i)
-    // {
-    zctrlr->mWorker =
-        (struct worker_thread *)calloc(1, sizeof(*zctrlr->mWorker));
-    if (zctrlr->mWorker == NULL) {
-        log_error("Unable to allocate worker");
-        return -1;
-    }
-
-    // TAILQ_INIT(&worker->ns_ctx);
-    zctrlr->mWorker->lcore = i;
-    // TAILQ_INSERT_TAIL(&mWorkers, worker, link);
-    g_arbitration.num_workers++;
-
-    if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR) {
-        qprio = static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) + 1);
-    }
-
-    zctrlr->mWorker->qprio = static_cast<enum spdk_nvme_qprio>(
-        qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
-    // }
-
-    return 0;
-}
-
-static void zns_dev_init(struct arb_context *ctx, std::string ip1,
-                         std::string port1, void *args)
-{
-    int rc = 0;
-
-    log_debug("zns dev");
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // 1. connect nvmf device
-    struct spdk_nvme_transport_id trid1 = {};
-    snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
-    snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
-    snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
-    trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
-    // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
-
-    // struct spdk_nvme_transport_id trid2 = {};
-    // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
-    // snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
-    // snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
-    // trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    // trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
-
-    struct spdk_nvme_ctrlr_opts opts;
-    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
-    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
-
-    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)), zctrlr);
-    // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
-
-    log_info("Found {} namspaces", g_arbitration.num_namespaces);
-}
-
-static int register_controllers(struct arb_context *ctx, void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    log_info("Initializing NVMe Controllers");
-
-    // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    // TCP
-    zns_dev_init(ctx, "12.12.12.2", "5520", zctrlr);
-
-    if (g_arbitration.num_namespaces == 0) {
-        log_error("No valid namespaces to continue IO testing");
-        return 1;
-    }
-
-    return 0;
-}
-
-static void unregister_controllers(void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // struct ctrlr_entry *entry, *tmp;
-    struct spdk_nvme_detach_ctx *detach_ctx = NULL;
-
-    // TAILQ_FOREACH_SAFE(entry, &mControllers, link, tmp)
-    // {
-    //     TAILQ_REMOVE(&mControllers, entry, link);
-
-    spdk_nvme_detach_async(zctrlr->mController->ctrlr, &detach_ctx);
-    free(zctrlr->mController);
-    // }
-
-    while (detach_ctx && spdk_nvme_detach_poll_async(detach_ctx) == -EAGAIN) {
-        ;
-    }
-}
-
-static int associate_workers_with_ns(void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // struct ns_entry *entry = mNamespace;
-    // struct worker_thread *worker = mWorker;
-    // struct ns_worker_ctx *ns_ctx;
-    int i, count;
-
-    count = g_arbitration.num_namespaces > g_arbitration.num_workers
-                ? g_arbitration.num_namespaces
-                : g_arbitration.num_workers;
-    count = 1;
-    log_debug("DEBUG ns {}, workers {}, count {}", g_arbitration.num_namespaces,
-              g_arbitration.num_workers, count);
-    // for (i = 0; i < count; i++) {
-    if (zctrlr->mNamespace == NULL) {
-        return -1;
-    }
-
-    assert(zctrlr->mWorker != nullptr);
-    zctrlr->mWorker->ns_ctx =
-        (struct ns_worker_ctx *)malloc(sizeof(struct ns_worker_ctx));
-    if (!zctrlr->mWorker->ns_ctx) {
-        log_error("Alloc ns worker failed ");
-        return 1;
-    }
-    memset(zctrlr->mWorker->ns_ctx, 0, sizeof(*zctrlr->mWorker->ns_ctx));
-
-    log_info("Associating {} with lcore {}", zctrlr->mNamespace->name,
-             zctrlr->mWorker->lcore);
-    // FIXME redundent?
-    zctrlr->mWorker->ns_ctx->entry = zctrlr->mNamespace;
-    //
-    // TAILQ_INSERT_TAIL(&worker->ns_ctx, ns_ctx, link);
-
-    // worker = TAILQ_NEXT(worker, link);
-    // if (worker == NULL) {
-    //     worker = TAILQ_FIRST(&mWorkers);
-    // }
-
-    // entry = TAILQ_NEXT(entry, link);
-    // if (entry == NULL) {
-    //     entry = TAILQ_FIRST(&mNamespaces);
-    // }
-    // }
-
-    // zctrlr->mWorker->ns_ctx = ns_ctx;
-    return 0;
-}
-
-static void zstore_cleanup(uint32_t task_count, void *args)
-{
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    log_info("unreg controllers");
-    unregister_controllers(zctrlr);
-    log_info("cleanup ");
-    cleanup(task_count, zctrlr);
-
-    spdk_env_fini();
-
-    // if (rc != 0) {
-    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
-    // }
 }
