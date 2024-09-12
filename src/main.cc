@@ -131,20 +131,22 @@ int main(int argc, char **argv)
     gZstoreController->CheckIoQpair("Starting all the threads");
 
     gZstoreController->initIoThread();
+
     // gZstoreController->initHttpThread();
-    // gZstoreController->initDispatchThread();
 
     // while (1) {
     //     sleep(1);
     // }
 
+    gZstoreController->initDispatchThread();
+
     // ==================================
 
-    main_worker = NULL;
-    assert(main_worker == NULL);
-    main_worker = gZstoreController->mWorker;
-    assert(main_worker != NULL);
-    rc = work_fn(gZstoreController);
+    // main_worker = NULL;
+    // assert(main_worker == NULL);
+    // main_worker = gZstoreController->mWorker;
+    // assert(main_worker != NULL);
+    // rc = work_fn(gZstoreController);
 
     spdk_env_thread_wait_all();
 

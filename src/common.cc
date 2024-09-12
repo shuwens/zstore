@@ -116,8 +116,7 @@ int handleSubmit(void *args)
     }
 
     // if (spdk_get_ticks() > zctrlr->tsc_end) {
-    // if (zctrlr->mWorker->ns_ctx->io_completed > 1000'000) {
-    if (zctrlr->mWorker->ns_ctx->io_completed > 1000) {
+    if (zctrlr->mWorker->ns_ctx->io_completed > 1000'000) {
         log_debug("drain io: {}", spdk_get_ticks());
         drain_io(zctrlr);
         log_debug("clean up ns worker");
