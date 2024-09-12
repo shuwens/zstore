@@ -22,8 +22,6 @@ int main(int argc, char **argv)
 {
     int rc;
 
-    struct worker_thread *worker, *main_worker;
-    unsigned main_core;
     struct spdk_env_opts opts;
 
     rc = parse_args(argc, argv);
@@ -87,6 +85,8 @@ int main(int argc, char **argv)
 
     // ==================================
 
+    // struct worker_thread *worker, *main_worker;
+    // unsigned main_core;
     // main_worker = NULL;
     // assert(main_worker == NULL);
     // main_worker = gZstoreController->mWorker;

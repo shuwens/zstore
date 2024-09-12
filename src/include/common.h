@@ -1,9 +1,6 @@
 #pragma once
-#include "spdk/env.h"
-#include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
-#include "spdk/string.h"
 #include <bits/stdc++.h>
 #include <cassert>
 #include <chrono>
@@ -11,15 +8,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fmt/core.h>
-#include <list>
-#include <map>
-#include <mutex>
 #include <spdk/event.h>
 #include <spdk/nvme.h>
 #include <spdk/thread.h>
-#include <stdio.h>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 typedef std::pair<std::string, int32_t> MapEntry;

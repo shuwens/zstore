@@ -152,6 +152,8 @@ class ZstoreController
     int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
                            enum spdk_nvme_qprio qprio);
 
+    chrono_tp stime;
+
   private:
     // ZStore Map: this maps key to tuple of ZNS target and lba
 

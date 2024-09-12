@@ -1,9 +1,6 @@
 #include "include/common.h"
-#include "include/configuration.h"
-#include "include/request_handler.h"
 #include "include/utils.hpp"
 #include "include/zns_utils.h"
-#include "include/zstore.h"
 #include "include/zstore_controller.h"
 #include "spdk/thread.h"
 #include <cstdlib>
@@ -12,7 +9,6 @@
 #include <sched.h>
 #include <spdk/event.h>
 #include <sys/time.h>
-#include <vector>
 
 int handleHttpRequest(void *args)
 {
@@ -115,7 +111,15 @@ int handleSubmit(void *args)
         busy = true;
     }
     auto worker = zctrlr->GetWorker();
-    if (worker->ns_ctx->io_completed > 400'000) {
+    if (worker->ns_ctx->io_completed > 1'000'000) {
+        auto etime = std::chrono::high_resolution_clock::now();
+        auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+                         etime - zctrlr->stime)
+                         .count();
+        auto tput = worker->ns_ctx->io_completed * 1000000 / delta;
+        log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+                 worker->ns_ctx->io_completed, delta, tput);
+
         log_debug("drain io: {}", spdk_get_ticks());
         drain_io(zctrlr);
         log_debug("clean up ns worker");

@@ -4,7 +4,6 @@
 #include "include/configuration.h"
 #include "include/request_handler.h"
 #include "include/utils.hpp"
-#include <algorithm>
 #include <isa-l.h>
 #include <rte_errno.h>
 #include <rte_mempool.h>
@@ -17,7 +16,6 @@
 #include <spdk/string.h>
 #include <sys/time.h>
 #include <thread>
-#include <tuple>
 
 static void busyWait(bool *ready)
 {
@@ -207,7 +205,8 @@ int ZstoreController::Init(bool need_env)
     task_count = g_arbitration.num_namespaces > g_arbitration.num_workers
                      ? g_arbitration.num_namespaces
                      : g_arbitration.num_workers;
-    task_count *= g_arbitration.queue_depth;
+    // task_count *= g_arbitration.queue_depth;
+    task_count *= mQueueDepth;
     SetTaskCount(task_count);
 
     log_info("Creating task pool: name {}, count {}", task_pool_name,
@@ -222,6 +221,7 @@ int ZstoreController::Init(bool need_env)
         return rc;
     }
 
+    stime = std::chrono::high_resolution_clock::now();
     log_info("ZstoreController Init finish");
     return rc;
 }
@@ -505,7 +505,7 @@ int ZstoreController::associate_workers_with_ns()
     // struct ns_entry *entry = mNamespace;
     // struct worker_thread *worker = mWorker;
     // struct ns_worker_ctx *ns_ctx;
-    int i, count;
+    int count;
 
     count = g_arbitration.num_namespaces > g_arbitration.num_workers
                 ? g_arbitration.num_namespaces
