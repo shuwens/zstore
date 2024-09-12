@@ -58,8 +58,8 @@ static void submit_single_io(void *args)
     // if ((g_arbitration.rw_percentage == 100) ||
     //     (g_arbitration.rw_percentage != 0 &&
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-    worker->ns_ctx->stime = std::chrono::high_resolution_clock::now();
-    worker->ns_ctx->stimes.push_back(worker->ns_ctx->stime);
+    // worker->ns_ctx->stime = std::chrono::high_resolution_clock::now();
+    // worker->ns_ctx->stimes.push_back(worker->ns_ctx->stime);
 
     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
 
@@ -95,8 +95,8 @@ static void task_complete(struct arb_task *task)
     // zctrlr->mWorker->ns_ctx = task->ns_ctx;
     worker->ns_ctx->current_queue_depth--;
     worker->ns_ctx->io_completed++;
-    worker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
-    worker->ns_ctx->etimes.push_back(worker->ns_ctx->etime);
+    // worker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
+    // worker->ns_ctx->etimes.push_back(worker->ns_ctx->etime);
 
     // log_debug("Before returning task {}", zctrlr->GetTaskPoolSize());
     spdk_dma_free(task->buf);
@@ -222,25 +222,25 @@ static int work_fn(void *args)
     log_debug("clean up ns worker");
     zctrlr->cleanup_ns_worker_ctx();
 
-    std::vector<uint64_t> deltas1;
-    for (int i = 0; i < worker->ns_ctx->stimes.size(); i++) {
-        deltas1.push_back(
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                worker->ns_ctx->etimes[i] - worker->ns_ctx->stimes[i])
-                .count());
-    }
-    auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-    auto mean1 = sum1 / deltas1.size();
-    auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
-                                      deltas1.begin(), 0.0);
-    auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-    log_info("qd: {}, mean {}, std {}", worker->ns_ctx->io_completed, mean1,
-             stdev1);
-
-    // clearnup
-    deltas1.clear();
-    worker->ns_ctx->etimes.clear();
-    worker->ns_ctx->stimes.clear();
+    // std::vector<uint64_t> deltas1;
+    // for (int i = 0; i < worker->ns_ctx->stimes.size(); i++) {
+    //     deltas1.push_back(
+    //         std::chrono::duration_cast<std::chrono::microseconds>(
+    //             worker->ns_ctx->etimes[i] - worker->ns_ctx->stimes[i])
+    //             .count());
+    // }
+    // auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+    // auto mean1 = sum1 / deltas1.size();
+    // auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+    //                                   deltas1.begin(), 0.0);
+    // auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
+    // log_info("qd: {}, mean {}, std {}", worker->ns_ctx->io_completed, mean1,
+    //          stdev1);
+    //
+    // // clearnup
+    // deltas1.clear();
+    // worker->ns_ctx->etimes.clear();
+    // worker->ns_ctx->stimes.clear();
     // }
 
     log_debug("end work fn");

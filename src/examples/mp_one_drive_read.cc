@@ -365,7 +365,7 @@ static void task_complete(struct arb_task *task)
     // ns_ctx->etime = std::chrono::high_resolution_clock::now();
     // ns_ctx->etimes.push_back(ns_ctx->etime);
 
-    printf("Read %d: %s\n", ns_ctx->count, (char *)task->buf);
+    // printf("Read %d: %s\n", ns_ctx->count, (char *)task->buf);
 
     spdk_dma_free(task->buf);
     spdk_mempool_put(task_pool, task);
@@ -1252,6 +1252,9 @@ int main(int argc, char **argv)
                      ? g_arbitration.num_namespaces
                      : g_arbitration.num_workers;
     task_count *= g_arbitration.queue_depth;
+
+    printf("Taskpool %d, queue depth %d\n", task_count,
+           g_arbitration.queue_depth);
 
     task_pool =
         spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),

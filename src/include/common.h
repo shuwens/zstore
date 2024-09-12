@@ -268,10 +268,10 @@ struct ns_worker_ctx {
     // TAILQ_ENTRY(ns_worker_ctx) link;
 
     // latency tracking
-    chrono_tp stime;
-    chrono_tp etime;
-    std::vector<chrono_tp> stimes;
-    std::vector<chrono_tp> etimes;
+    // chrono_tp stime;
+    // chrono_tp etime;
+    // std::vector<chrono_tp> stimes;
+    // std::vector<chrono_tp> etimes;
     void *zctrlr;
 };
 

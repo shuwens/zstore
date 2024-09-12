@@ -44,6 +44,8 @@ class Configuration
 
     static int GetBlockSize() { return GetInstance().gBlockSize; }
 
+    static int GetQueueDepth() { return GetInstance().gQueueDepth; }
+
     // static int GetMetadataSize() { return GetInstance().gMetadataSize; }
 
     static int GetNumIoThreads() { return GetInstance().gNumIoThreads; }
@@ -123,17 +125,20 @@ class Configuration
     // bool gDeviceSupportMetadata = true;
     // int gZoneCapacity = 0;
 
+    // FIXME queue size larger than 64 causes issue
+    int gQueueDepth = 64;
+
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     // SystemMode gSystemMode = ZAPRAID;
 
-    uint32_t gReceiverThreadCoreId = 3;
+    uint32_t gIoThreadCoreIdBase = 3;
     uint32_t gDispatchThreadCoreId = 4;
     // Not used for now; functions collocated with dispatch thread.
     uint32_t gCompletionThreadCoreId = 5;
     uint32_t gIndexThreadCoreId = 6;
     uint32_t gHttpThreadCoreId = 7;
-    uint32_t gIoThreadCoreIdBase = 8;
+    uint32_t gReceiverThreadCoreId = 8;
 
     // int gLargeRequestThreshold = 16 * 1024;
 };

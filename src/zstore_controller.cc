@@ -32,8 +32,9 @@ void ZstoreController::initHttpThread()
     spdk_cpuset_zero(&cpumask);
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(), true);
     mHttpThread = spdk_thread_create("HttpThread", &cpumask);
-    log_info("Create HTTP thread {} {}", spdk_thread_get_name(mHttpThread),
-             spdk_thread_get_id(mHttpThread));
+    log_info("Create {} (id {}) on Core {}", spdk_thread_get_name(mHttpThread),
+             spdk_thread_get_id(mHttpThread),
+             Configuration::GetHttpThreadCoreId());
     int rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
                                            httpWorker, this);
     if (rc < 0) {
@@ -48,9 +49,10 @@ void ZstoreController::initCompletionThread()
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetCompletionThreadCoreId(),
                         true);
     // mCompletionThread = spdk_thread_create("CompletionThread", &cpumask);
-    log_info("Create completion thread {} {}",
+    log_info("Create {} (id {}) on Core {}",
              spdk_thread_get_name(mCompletionThread),
-             spdk_thread_get_id(mCompletionThread));
+             spdk_thread_get_id(mCompletionThread),
+             Configuration::GetCompletionThreadCoreId());
     int rc = spdk_env_thread_launch_pinned(
         Configuration::GetCompletionThreadCoreId(), completionWorker, this);
     if (rc < 0) {
@@ -66,9 +68,10 @@ void ZstoreController::initDispatchThread()
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetDispatchThreadCoreId(),
                         true);
     mDispatchThread = spdk_thread_create("DispatchThread", &cpumask);
-    log_info("Create dispatch thread {} {}",
+    log_info("Create {} (id {}) on Core {}",
              spdk_thread_get_name(mDispatchThread),
-             spdk_thread_get_id(mDispatchThread));
+             spdk_thread_get_id(mDispatchThread),
+             Configuration::GetDispatchThreadCoreId());
     int rc = spdk_env_thread_launch_pinned(
         Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
     if (rc < 0) {
@@ -80,7 +83,6 @@ void ZstoreController::initDispatchThread()
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
-    log_debug("init Io thread {}", Configuration::GetNumIoThreads());
     // auto threadId = 0;
     // log_debug("init Io thread {}", threadId);
     spdk_cpuset_zero(&cpumask);
@@ -88,6 +90,10 @@ void ZstoreController::initIoThread()
     mIoThread.thread = spdk_thread_create("IoThread", &cpumask);
     assert(mIoThread.thread != nullptr);
     mIoThread.controller = this;
+    log_debug("Create {} (id {}) on Core {}",
+              spdk_thread_get_name(mIoThread.thread),
+              spdk_thread_get_id(mIoThread.thread),
+              Configuration::GetIoThreadCoreId());
     int rc = spdk_env_thread_launch_pinned(Configuration::GetIoThreadCoreId(),
                                            ioWorker, this);
     if (rc < 0) {
@@ -95,8 +101,6 @@ void ZstoreController::initIoThread()
                   spdk_strerror(rc));
     }
 }
-
-// struct spdk_nvme_qpair *GetIoQpair() { return g_devices[0]->GetIoQueue(0); }
 
 int ZstoreController::Init(bool need_env)
 {
@@ -143,7 +147,7 @@ int ZstoreController::Init(bool need_env)
     //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     assert(rc == 0);
 
-    SetQueuDepth(64);
+    SetQueuDepth(Configuration::GetQueueDepth());
     // initCompletionThread();
     // initHttpThread();
 
@@ -583,9 +587,27 @@ void ZstoreController::cleanup(uint32_t task_count)
     spdk_mempool_free(mTaskPool);
 }
 
+static const char *print_qprio(enum spdk_nvme_qprio qprio)
+{
+    switch (qprio) {
+    case SPDK_NVME_QPRIO_URGENT:
+        return "urgent priority queue";
+    case SPDK_NVME_QPRIO_HIGH:
+        return "high priority queue";
+    case SPDK_NVME_QPRIO_MEDIUM:
+        return "medium priority queue";
+    case SPDK_NVME_QPRIO_LOW:
+        return "low priority queue";
+    default:
+        return "invalid priority queue";
+    }
+}
+
 int ZstoreController::init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
                                          enum spdk_nvme_qprio qprio)
 {
+    log_info("Starting thread with {}", print_qprio(qprio));
+
     // TODO dont need ns_ctx anymore
     assert(mWorker != nullptr);
     assert(mWorker->ns_ctx != nullptr);
@@ -605,8 +627,8 @@ int ZstoreController::init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
     }
 
     // allocate space for times
-    mWorker->ns_ctx->stimes.reserve(1000000);
-    mWorker->ns_ctx->etimes.reserve(1000000);
+    // mWorker->ns_ctx->stimes.reserve(1000000);
+    // mWorker->ns_ctx->etimes.reserve(1000000);
 
     // zctrlr->mWorker->ns_ctx->zctrlr = zctrlr;
 
