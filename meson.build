@@ -44,6 +44,7 @@ zstore_deps = [
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('_spdk'),
+	dependency('boost', modules: ['system', 'filesystem', 'program_options', 'thread', 'regex']),
 ]
 libs = declare_dependency(
 	link_args: [

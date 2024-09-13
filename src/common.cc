@@ -1,4 +1,5 @@
 #include "include/common.h"
+#include "include/configuration.h"
 #include "include/utils.hpp"
 #include "include/zns_utils.h"
 #include "include/zstore_controller.h"
@@ -111,12 +112,12 @@ int handleSubmit(void *args)
         busy = true;
     }
     auto worker = zctrlr->GetWorker();
-    if (worker->ns_ctx->io_completed > 1'000'000) {
+    if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
         auto etime = std::chrono::high_resolution_clock::now();
         auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
                          etime - zctrlr->stime)
                          .count();
-        auto tput = worker->ns_ctx->io_completed * 1000000 / delta;
+        auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
         log_info("Total IO {}, total time {}ms, throughput {} IOPS",
                  worker->ns_ctx->io_completed, delta, tput);
 

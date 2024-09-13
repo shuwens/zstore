@@ -105,6 +105,8 @@ class Configuration
         return GetInstance().gStorageSpaceInBytes;
     }
 
+    static uint32_t GetTotalIo() { return GetInstance().gTotalIO; }
+
     // static void SetL2PTableSizeInBytes(uint64_t bytes)
     // {
     //     GetInstance().gL2PTableSize = bytes;
@@ -125,9 +127,6 @@ class Configuration
     // bool gDeviceSupportMetadata = true;
     // int gZoneCapacity = 0;
 
-    // FIXME queue size larger than 64 causes issue
-    int gQueueDepth = 64;
-
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     // SystemMode gSystemMode = ZAPRAID;
@@ -139,6 +138,13 @@ class Configuration
     uint32_t gIndexThreadCoreId = 6;
     uint32_t gHttpThreadCoreId = 7;
     uint32_t gReceiverThreadCoreId = 8;
-
     // int gLargeRequestThreshold = 16 * 1024;
+
+    // FIXME total IO more than this causes failures
+    // uint32_t gTotalIO = 2'000'000;
+    // FIXME queue size larger than 64 causes issue
+    // int gQueueDepth = 64;
+
+    uint32_t gTotalIO = 4'000'000;
+    int gQueueDepth = 256;
 };

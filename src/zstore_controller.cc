@@ -309,8 +309,6 @@ ZstoreController::~ZstoreController()
 void ZstoreController::register_ns(struct spdk_nvme_ctrlr *ctrlr,
                                    struct spdk_nvme_ns *ns)
 {
-    // ZstoreController *zctrlr = (ZstoreController *)args;
-    // struct ns_entry *entry;
     const struct spdk_nvme_ctrlr_data *cdata;
 
     cdata = spdk_nvme_ctrlr_get_data(ctrlr);

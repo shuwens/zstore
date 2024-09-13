@@ -339,6 +339,8 @@ static struct arb_context g_arbitration = {
 static int g_dpdk_mem = 0;
 static bool g_dpdk_mem_single_seg = false;
 
+static int g_micro_to_second = 1'000'000;
+
 /*
  * For weighted round robin arbitration mechanism, the smaller value between
  * weight and burst will be picked to execute the commands in one queue.
