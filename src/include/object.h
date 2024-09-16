@@ -13,6 +13,7 @@
 
 typedef uint16_t keylen_t;
 typedef uint32_t timestamp_t;
+typedef uint64_t bid_t; // block ID
 
 struct async_read_ctx_t {
     /*
@@ -134,7 +135,7 @@ struct ZstoreObject {
     uint64_t vernum;
 };
 
-// fdb_status obj_init(struct obj_handle *handle, struct filemgr *file,
+// Result<void> obj_init(struct obj_handle *handle, struct filemgr *file,
 //                     bool compress_document_body);
 Result<ZstoreObject> obj_init(struct obj_handle *handle, struct filemgr *file,
                               bool compress_document_body);
@@ -160,8 +161,8 @@ void obj_free(struct obj_handle *handle);
  * @param offset File offset to a KV item
  * @return FDB_RESULT_SUCCESS on success
  */
-fdb_status obj_read_doc_length(struct obj_handle *handle,
-                               struct obj_length *length, uint64_t offset);
+Result<void> obj_read_doc_length(struct obj_handle *handle,
+                                 struct obj_length *length, uint64_t offset);
 
 /**
  * Read a key and its length at a given file offset.
@@ -172,12 +173,12 @@ fdb_status obj_read_doc_length(struct obj_handle *handle,
  * @param keybuf Pointer to a key buffer
  * @return FDB_RESULT_SUCCESS on success
  */
-fdb_status obj_read_doc_key(struct obj_handle *handle, uint64_t offset,
-                            keylen_t *keylen, void *keybuf);
+Result<void> obj_read_doc_key(struct obj_handle *handle, uint64_t offset,
+                              keylen_t *keylen, void *keybuf);
 
-fdb_status obj_read_doc_key_async(struct obj_handle *handle, uint64_t offset,
-                                  keylen_t *keylen, void *keybuf,
-                                  struct async_read_ctx_t *args);
+Result<void> obj_read_doc_key_async(struct obj_handle *handle, uint64_t offset,
+                                    keylen_t *keylen, void *keybuf,
+                                    struct async_read_ctx_t *args);
 
 /**
  * Read a key and its metadata at a given file offset.
@@ -218,9 +219,9 @@ int64_t obj_read_doc(struct obj_handle *handle, uint64_t offset,
  * @return next offset right after a key and its value on succcessful read,
  *         otherwise, the corresponding error code is returned.
  */
-fdb_status obj_read_doc_async(struct obj_handle *handle, uint64_t offset,
-                              struct obj_object *doc, bool read_on_cache_miss,
-                              struct async_read_ctx_t *args);
+Result<void> obj_read_doc_async(struct obj_handle *handle, uint64_t offset,
+                                struct obj_object *doc, bool read_on_cache_miss,
+                                struct async_read_ctx_t *args);
 
 int64_t obj_read_hashed_doc(struct obj_handle *handle, uint64_t offset,
                             struct obj_object *doc, bool read_on_cache_miss);
