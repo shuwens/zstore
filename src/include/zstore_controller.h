@@ -1,22 +1,14 @@
 #pragma once
+#include "common.h"
+#include "configuration.h"
 #include "device.h"
-#include "global.h"
 #include "request_handler.h"
 #include "utils.hpp"
 #include "zstore.h"
-#include <cassert>
-#include <chrono>
-#include <fmt/core.h>
-#include <isa-l.h>
-#include <rte_errno.h>
-#include <rte_mempool.h>
-#include <spdk/env.h>
-#include <spdk/event.h>
-#include <spdk/init.h>
-#include <spdk/nvme.h>
-#include <spdk/nvmf.h>
-#include <spdk/rpc.h>
-#include <spdk/string.h>
+
+// #include "log_disk.h"
+// #include "object_log.h"
+// #include "store.h"
 
 class ZstoreController
 {
@@ -24,8 +16,69 @@ class ZstoreController
     ~ZstoreController();
     int Init(bool need_env);
 
+    // threads
+    IoThread mIoThread;
+    void initIoThread();
+    // void initEcThread();
+    void initDispatchThread(bool use_object);
+    // void initIndexThread();
+    void initCompletionThread();
+    void initHttpThread();
+    struct spdk_thread *GetIoThread() { return mIoThread.thread; }
+    struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
+    struct spdk_thread *GetHttpThread() { return mHttpThread; }
+    struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
+
+    struct spdk_nvme_qpair *GetIoQpair();
+    void CheckIoQpair(std::string msg);
+
+    struct spdk_mempool *GetTaskPool() { return mTaskPool; };
+    void CheckTaskPool(std::string msg);
+    int GetTaskPoolSize() { return spdk_mempool_count(mTaskPool); }
+    int GetTaskCount() { return mTaskCount; };
+    void SetTaskCount(int task_count) { mTaskCount = task_count; }
+
+    void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
+    void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
+    void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
+    void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
+
+    void SetQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
+    int GetQueueDepth() { return mQueueDepth; };
+
+    void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr);
+    void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
+
+    struct worker_thread *GetWorker() { return mWorker; };
+    struct ns_entry *GetNamespace() { return mNamespace; };
+
+    int register_workers();
+    int register_controllers(struct arb_context *ctx);
+    void unregister_controllers();
+    int associate_workers_with_ns();
+    void zstore_cleanup();
+    void zns_dev_init(struct arb_context *ctx, std::string ip1,
+                      std::string port1);
+    void cleanup_ns_worker_ctx();
+    void cleanup(uint32_t task_count);
+
+    int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
+                           enum spdk_nvme_qprio qprio);
+
+    // Object APIs
+
+    Result<MapEntry> find_object(std::string key);
+    Result<void> release_object(std::string key);
+
+    // int64_t alloc_object_entry();
+    // void dealloc_object_entry(int64_t object_index);
+    Result<void> putObject(std::string key, void *data, size_t size);
+    // Result<Object> getObject(std::string key, sm_offset *ptr, size_t *size);
+    // int seal_object(uint64_t object_id);
+    Result<void> delete_object(std::string key);
+
     // Add an object to the store
-    void putObject(std::string key, void *data);
+    // void(std::string key, void *data);
 
     // Retrieve an object from the store by ID
     // Object *getObject(std::string key);
@@ -76,14 +129,6 @@ class ZstoreController
     void ReadInDispatchThread(RequestContext *ctx);
     // void EnqueueEvent(RequestContext *ctx);
 
-    struct spdk_thread *GetIoThread() { return mIoThread.thread; }
-
-    struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
-
-    struct spdk_thread *GetHttpThread() { return mHttpThread; }
-
-    struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
-
     void ReclaimContexts();
     void Flush();
     void Dump();
@@ -103,65 +148,16 @@ class ZstoreController
     void AddZone(Zone *zone);
     const std::vector<Zone *> &GetZones();
     void PrintStats();
-
-    void CheckIoQpair(std::string msg);
-
-    struct spdk_nvme_qpair *GetIoQpair();
-
-    void CheckTaskPool(std::string msg);
-
-    int GetTaskPoolSize() { return spdk_mempool_count(mTaskPool); }
-    void SetTaskCount(int task_count) { mTaskCount = task_count; }
-
-    void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
-    void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
-    void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
-    void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
-
-    void SetQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
-    int GetQueueDepth() { return mQueueDepth; };
-
-    void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr);
-    void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
-
-    int GetTaskCount() { return mTaskCount; };
-    struct spdk_mempool *GetTaskPool() { return mTaskPool; };
-    struct worker_thread *GetWorker() { return mWorker; };
-    struct ns_entry *GetNamespace() { return mNamespace; };
-
-    IoThread mIoThread;
-    void initIoThread();
-    // void initEcThread();
-    void initDispatchThread();
-    // void initIndexThread();
-    void initCompletionThread();
-    void initHttpThread();
-
-    int register_workers();
-    int register_controllers(struct arb_context *ctx);
-
-    void unregister_controllers();
-    int associate_workers_with_ns();
-    void zstore_cleanup();
-    void zns_dev_init(struct arb_context *ctx, std::string ip1,
-                      std::string port1);
-
-    void cleanup_ns_worker_ctx();
-    void cleanup(uint32_t task_count);
-
-    int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
-                           enum spdk_nvme_qprio qprio);
-
     chrono_tp stime;
 
-  private:
     // ZStore Map: this maps key to tuple of ZNS target and lba
-
-    // key -> tuple of <zns target, lba>
-    // std::unordered_map<std::string, std::tuple<std::pair<std::string,
-    // int32_t>>>
+    // TODO
+    // at some point we need to discuss the usage of flat hash map or unordered
+    // map key -> tuple of <zns target, lba> std::unordered_map<std::string,
+    // std::tuple<std::pair<std::string, int32_t>>>
     // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
     // MapEntry>>
+    // std::unordered_map<std::string, MapEntry, std::less<>> mMap;
     std::unordered_map<std::string, MapEntry> mMap;
     std::mutex mMapMutex;
 
@@ -173,6 +169,7 @@ class ZstoreController
     std::unordered_set<std::string> mBF;
     std::mutex mBFMutex;
 
+  private:
     ZstoreHandler *mHandler;
 
     struct spdk_mempool *mTaskPool;

@@ -81,17 +81,18 @@ int main(int argc, char **argv)
     //     sleep(1);
     // }
 
-    // gZstoreController->initDispatchThread();
+    bool use_object = false;
+    gZstoreController->initDispatchThread(use_object);
 
     // ==================================
 
-    struct worker_thread *worker, *main_worker;
-    unsigned main_core;
-    main_worker = NULL;
-    assert(main_worker == NULL);
-    main_worker = gZstoreController->GetWorker();
-    assert(main_worker != NULL);
-    rc = work_fn(gZstoreController);
+    // struct worker_thread *worker, *main_worker;
+    // unsigned main_core;
+    // main_worker = NULL;
+    // assert(main_worker == NULL);
+    // main_worker = gZstoreController->GetWorker();
+    // assert(main_worker != NULL);
+    // rc = work_fn(gZstoreController);
 
     // log_debug("XXXX");
     spdk_env_thread_wait_all();

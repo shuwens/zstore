@@ -170,6 +170,81 @@ int dispatchWorker(void *args)
     }
 }
 
+int handleObjectSubmit(void *args)
+{
+    bool busy = false;
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    // zctrlr->CheckTaskPool("submit IO");
+    int queue_depth = zctrlr->GetQueueDepth();
+    // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
+
+    // log_debug("queue depth {}, task pool size {}, completed {}", queue_depth,
+    //           spdk_mempool_count(zctrlr->mTaskPool),
+    //           zctrlr->mWorker->ns_ctx->io_completed);
+    auto task_count = zctrlr->GetTaskCount();
+    while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
+        submit_single_io(zctrlr);
+        busy = true;
+    }
+    auto worker = zctrlr->GetWorker();
+    if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
+        auto etime = std::chrono::high_resolution_clock::now();
+        auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+                         etime - zctrlr->stime)
+                         .count();
+        auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
+        log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+                 worker->ns_ctx->io_completed, delta, tput);
+
+        log_debug("drain io: {}", spdk_get_ticks());
+        drain_io(zctrlr);
+        log_debug("clean up ns worker");
+        zctrlr->cleanup_ns_worker_ctx();
+        //
+        //     std::vector<uint64_t> deltas1;
+        //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)
+        //     {
+        //         deltas1.push_back(
+        //             std::chrono::duration_cast<std::chrono::microseconds>(
+        //                 zctrlr->mWorker->ns_ctx->etimes[i] -
+        //                 zctrlr->mWorker->ns_ctx->stimes[i])
+        //                 .count());
+        //     }
+        //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
+        //     auto mean1 = sum1 / deltas1.size();
+        //     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+        //                                       deltas1.begin(), 0.0);
+        //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
+        //     mean1); log_info("qd: {}, mean {}, std {}",
+        //              zctrlr->mWorker->ns_ctx->io_completed, mean1, stdev1);
+        //
+        //     // clearnup
+        //     deltas1.clear();
+        //     zctrlr->mWorker->ns_ctx->etimes.clear();
+        //     zctrlr->mWorker->ns_ctx->stimes.clear();
+        //     // }
+        //
+        log_debug("end work fn");
+        print_stats(zctrlr);
+        exit(0);
+    }
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
+int dispatchObjectWorker(void *args)
+{
+    ZstoreController *zctrl = (ZstoreController *)args;
+    struct spdk_thread *thread = zctrl->GetDispatchThread();
+    spdk_set_thread(thread);
+    spdk_poller *p;
+    // p = spdk_poller_register(handleEventsDispatch, zctrl, 1);
+    p = spdk_poller_register(handleObjectSubmit, zctrl, 0);
+    zctrl->SetDispatchPoller(p);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
+}
+
 int completionWorker(void *args)
 {
     // ZstoreController *zctrl = (ZstoreController *)args;
@@ -436,4 +511,18 @@ void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
                spdk_thread_get_name(thread));
         exit(-1);
     }
+}
+
+Result<MapEntry> createMapEntry(std::string device, int32_t lba)
+{
+    MapEntry entry;
+    entry.first = device;
+    entry.second = lba;
+    return entry;
+}
+
+void updateMapEntry(MapEntry *entry, std::string device, int32_t lba)
+{
+    entry->first = device;
+    entry->second = lba;
 }

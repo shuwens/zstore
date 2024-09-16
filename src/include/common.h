@@ -1,6 +1,7 @@
 #pragma once
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
+#include "utils.hpp"
 #include <bits/stdc++.h>
 #include <cassert>
 #include <chrono>
@@ -13,8 +14,6 @@
 #include <spdk/thread.h>
 #include <string>
 #include <vector>
-
-typedef std::pair<std::string, int32_t> MapEntry;
 
 class ZstoreController;
 struct RequestContext;
@@ -348,3 +347,15 @@ static int g_micro_to_second = 1'000'000;
 #define USER_SPECIFIED_HIGH_PRIORITY_WEIGHT 32
 #define USER_SPECIFIED_MEDIUM_PRIORITY_WEIGHT 16
 #define USER_SPECIFIED_LOW_PRIORITY_WEIGHT 8
+
+// Object and Map related
+
+struct Object {
+    int len;
+    void *data;   /* points to after 'name' */
+    char name[0]; /* null terminated */
+};
+
+typedef std::pair<std::string, int32_t> MapEntry;
+Result<MapEntry> createMapEntry(std::string device, int32_t lba);
+void updateMapEntry(MapEntry entry, std::string device, int32_t lba);

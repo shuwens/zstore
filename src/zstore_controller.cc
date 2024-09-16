@@ -4,18 +4,10 @@
 #include "include/configuration.h"
 #include "include/request_handler.h"
 #include "include/utils.hpp"
-#include <isa-l.h>
-#include <rte_errno.h>
-#include <rte_mempool.h>
-#include <spdk/env.h>
-#include <spdk/event.h>
-#include <spdk/init.h>
-#include <spdk/nvme.h>
-#include <spdk/nvmf.h>
-#include <spdk/rpc.h>
-#include <spdk/string.h>
-#include <sys/time.h>
-#include <thread>
+
+// #include "log_disk.h"
+// #include "object_log.h"
+// #include "store.h"
 
 static void busyWait(bool *ready)
 {
@@ -61,7 +53,7 @@ void ZstoreController::initCompletionThread()
     }
 }
 
-void ZstoreController::initDispatchThread()
+void ZstoreController::initDispatchThread(bool use_object)
 {
     struct spdk_cpuset cpumask;
     spdk_cpuset_zero(&cpumask);
@@ -72,8 +64,16 @@ void ZstoreController::initDispatchThread()
              spdk_thread_get_name(mDispatchThread),
              spdk_thread_get_id(mDispatchThread),
              Configuration::GetDispatchThreadCoreId());
-    int rc = spdk_env_thread_launch_pinned(
-        Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
+
+    int rc;
+    if (use_object)
+        rc = spdk_env_thread_launch_pinned(
+            Configuration::GetDispatchThreadCoreId(), dispatchObjectWorker,
+            this);
+    else
+        int rc = spdk_env_thread_launch_pinned(
+            Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
+
     if (rc < 0) {
         log_error("Failed to launch dispatch thread error: {} {}", strerror(rc),
                   spdk_strerror(rc));
@@ -102,7 +102,7 @@ void ZstoreController::initIoThread()
     }
 }
 
-int ZstoreController::Init(bool need_env)
+int ZstoreController::Init(bool object)
 {
     int rc = 0;
     uint32_t task_count = 0;
@@ -113,34 +113,7 @@ int ZstoreController::Init(bool need_env)
     mWorker = g_worker;
     mTaskPool = task_pool;
 
-    // if (need_env) {
-    //     struct spdk_env_opts opts;
-    //     spdk_env_opts_init(&opts);
-    //
-    //     // NOTE allocate 9 cores
-    //     opts.core_mask = "0x1ff";
-    //
-    //     opts.name = "zstore";
-    //     opts.mem_size = g_dpdk_mem;
-    //     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    //     opts.core_mask = g_zstore.core_mask;
-    //
-    //     if (spdk_env_init(&opts) < 0) {
-    //         fprintf(stderr, "Unable to initialize SPDK env.\n");
-    //         exit(-1);
-    //     }
-    //
-    //     rc = spdk_thread_lib_init(nullptr, 0);
-    //     if (rc < 0) {
-    //         fprintf(stderr, "Unable to initialize SPDK thread lib.\n");
-    //         exit(-1);
-    //     }
-    // }
-
-    // log_debug("qpair: connected? {}, enabled? ",
-    //       spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     log_debug("mZone sizes {}", mZones.size());
-
     log_debug("ZstoreController launching threads");
 
     // log_debug("qpair: connected? {}, enabled? ",
@@ -226,6 +199,13 @@ int ZstoreController::Init(bool need_env)
     }
 
     stime = std::chrono::high_resolution_clock::now();
+
+    // bogus setup for Map and BF
+
+    mMap.insert({"apples", createMapEntry("device", 0).value()});
+    mMap.insert({"carrots", createMapEntry("device", 7).value()});
+    mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
+
     log_info("ZstoreController Init finish");
     return rc;
 }
@@ -631,4 +611,190 @@ int ZstoreController::init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
     // zctrlr->mWorker->ns_ctx->zctrlr = zctrlr;
 
     return 0;
+}
+
+// int LightningStore::release_object(uint64_t object_id)
+// {
+//     uint8_t *base = (uint8_t *)store_header_;
+//
+//     int64_t object_index = find_object(object_id);
+//     assert(object_index >= 0);
+//
+//     ObjectEntry *object_entry = &store_header_->object_entries[object_index];
+//     object_entry->ref_count--;
+//     if (object_entry->ref_count == 0) {
+//         allocator_->FreeSharedNoLog(object_entry->offset);
+//         int64_t prev_object_index = object_entry->prev;
+//         int64_t next_object_index = object_entry->next;
+//
+//         if (prev_object_index < 0) {
+//             if (next_object_index >= 0) {
+//                 ObjectEntry *next =
+//                     &store_header_->object_entries[next_object_index];
+//                 next->prev = -1;
+//             }
+//             store_header_->hashmap.hash_entries[object_id %
+//             65536].object_list =
+//                 next_object_index;
+//         } else {
+//             ObjectEntry *prev =
+//                 &store_header_->object_entries[prev_object_index];
+//             prev->next = next_object_index;
+//             if (next_object_index >= 0) {
+//                 ObjectEntry *next =
+//                     &store_header_->object_entries[next_object_index];
+//                 next->prev = prev_object_index;
+//             }
+//         }
+//
+//         int64_t j = store_header_->object_entry_free_list;
+//         store_header_->object_entries[object_index].free_list_next = j;
+//         store_header_->object_entry_free_list = object_index;
+//     }
+//     return 0;
+// }
+//
+// int64_t LightningStore::alloc_object_entry()
+// {
+//     int64_t i = store_header_->object_entry_free_list;
+//     store_header_->object_entry_free_list =
+//         store_header_->object_entries[i].free_list_next;
+//     store_header_->object_entries[i].free_list_next = -1;
+//     return i;
+// }
+//
+// void LightningStore::dealloc_object_entry(int64_t i)
+// {
+//     int64_t j = store_header_->object_entry_free_list;
+//     store_header_->object_entries[i].free_list_next = j;
+//     store_header_->object_entry_free_list = i;
+// }
+//
+// int LightningStore::create_object(uint64_t object_id, sm_offset *offset_ptr,
+//                                   size_t size)
+// {
+//     int64_t object_index = find_object(object_id);
+//
+//     if (object_index >= 0) {
+//         ObjectEntry *object = &store_header_->object_entries[object_index];
+//         if (object->offset > 0) {
+//             // object is already created
+//             return -1;
+//         }
+//         sm_offset object_buffer_offset = allocator_->MallocShared(size);
+//
+//         object->offset = object_buffer_offset;
+//         object->size = size;
+//         object->ref_count = 1;
+//         *offset_ptr = object_buffer_offset;
+//
+//         return 0;
+//     }
+//
+//     int64_t new_object_index = alloc_object_entry();
+//     sm_offset object_buffer_offset = allocator_->MallocShared(size);
+//     ObjectEntry *new_object =
+//     &store_header_->object_entries[new_object_index];
+//     // uint8_t *object_buffer = &base_[object_buffer_offset];
+//
+//     new_object->object_id = object_id;
+//     new_object->num_waiters = 0;
+//     new_object->offset = object_buffer_offset;
+//     new_object->size = size;
+//     new_object->ref_count = 1;
+//     new_object->sealed = false;
+//
+//     int64_t head_index =
+//         store_header_->hashmap.hash_entries[object_id % 65536].object_list;
+//     ObjectEntry *head = &store_header_->object_entries[head_index];
+//
+//     new_object->next = head_index;
+//     new_object->prev = -1;
+//
+//     if (head_index >= 0) {
+//         head->prev = new_object_index;
+//     }
+//     store_header_->hashmap.hash_entries[object_id % 65536].object_list =
+//         new_object_index;
+//
+//     *offset_ptr = object_buffer_offset;
+//     return 0;
+// }
+//
+// int LightningStore::get_object(uint64_t object_id, sm_offset *ptr, size_t
+// *size)
+// {
+//     int64_t object_index = find_object(object_id);
+//     if (object_index < 0) {
+//         // object not found
+//         return -1;
+//     }
+//     ObjectEntry *object_entry = &store_header_->object_entries[object_index];
+//
+//     if (!object_entry->sealed) {
+//         // object is not sealed yet
+//         return -1;
+//     }
+//     *ptr = object_entry->offset;
+//     *size = object_entry->size;
+//     object_entry->ref_count++;
+//
+//     return 0;
+// }
+//
+// int LightningStore::delete_object(uint64_t object_id)
+// {
+//     int64_t object_index = find_object(object_id);
+//     assert(object_index >= 0);
+//
+//     ObjectEntry *object_entry = &store_header_->object_entries[object_index];
+//     assert(object_entry->sealed);
+//     allocator_->FreeShared(object_entry->offset);
+//     int64_t prev_object_index = object_entry->prev;
+//     int64_t next_object_index = object_entry->next;
+//
+//     if (prev_object_index < 0) {
+//         if (next_object_index > 0) {
+//             ObjectEntry *next =
+//                 &store_header_->object_entries[next_object_index];
+//             next->prev = -1;
+//         }
+//         store_header_->hashmap.hash_entries[object_id % 65536].object_list =
+//             next_object_index;
+//     } else {
+//         ObjectEntry *prev =
+//         &store_header_->object_entries[prev_object_index]; prev->next =
+//         next_object_index;
+//
+//         if (next_object_index >= 0) {
+//             ObjectEntry *next =
+//                 &store_header_->object_entries[next_object_index];
+//             next->prev = prev_object_index;
+//         }
+//     }
+//     dealloc_object_entry(object_index);
+//
+//     return 0;
+// }
+
+Result<MapEntry> ZstoreController::find_object(std::string key)
+{
+    // thanks to std::less<> this no longer creates a std::string
+    auto it = mMap.find(key);
+    if (it != mMap.end()) {
+        // std::cout << "I have " << it->second << " apples!\n";
+        return Result<MapEntry>(it->second);
+    }
+
+    // int64_t head_index =
+    //     store_header_->hashmap.hash_entries[object_id % 65536].object_list;
+    // int64_t current_index = head_index;
+    //
+    // while (current_index >= 0) {
+    //     ObjectEntry *current = &store_header_->object_entries[current_index];
+    //     if (current->object_id == object_id) {
+    //         return current_index;
+    //     }
+    //     current_index = current->next;
+    // }
 }
