@@ -4,15 +4,12 @@ project(
 	'c',
 	version: '0.1',
 	default_options: [
-		'cpp_std=c++23',
+		'cpp_std=c++20',
 		'warning_level=2',
-		'default_library=static',
 		'b_colorout=always',
 		# 'b_sanitize=address,undefined',
-		'b_asneeded=false',
 		'b_lto=true',
 		'b_thinlto_cache=true',
-		'b_lundef=false',
 	],
 )
 fs = import('fs')

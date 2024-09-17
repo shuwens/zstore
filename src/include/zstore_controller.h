@@ -10,11 +10,15 @@
 // #include "object_log.h"
 // #include "store.h"
 
+typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
+
 class ZstoreController
 {
   public:
     ~ZstoreController();
     int Init(bool need_env);
+    int PopulateMap(bool bogus);
+    int pivot;
 
     // threads
     IoThread mIoThread;

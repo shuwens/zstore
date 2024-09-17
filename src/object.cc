@@ -1,5 +1,6 @@
 #include "include/object.h"
 #include "include/zstore_controller.h"
+#include "spdk/string.h"
 #include "src/include/utils.hpp"
 #include <boost/outcome/success_failure.hpp>
 #include <stdlib.h>
@@ -99,19 +100,20 @@ Result<ZstoreObject> ReadObject( // struct obj_handle *handle,
     task->zctrlr = ctrl;
     assert(task->zctrlr == ctrl);
 
-    if (g_arbitration.is_random) {
-        offset_in_ios = rand_r(&seed) % entry->size_in_ios;
-    } else {
-        offset_in_ios = worker->ns_ctx->offset_in_ios++;
-        if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
-            worker->ns_ctx->offset_in_ios = 0;
-        }
-    }
+    // if (g_arbitration.is_random) {
+    //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
+    // } else {
+    //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
+    //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
+    //         worker->ns_ctx->offset_in_ios = 0;
+    //     }
+    // }
+    // offset_in_ios * entry->io_size_blocks,
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, worker->ns_ctx->qpair, task->buf,
-                               offset_in_ios * entry->io_size_blocks,
-                               entry->io_size_blocks, io_complete, task, 0);
+                               offset, entry->io_size_blocks, io_complete, task,
+                               0);
     if (rc != 0) {
-        log_error("starting I/O failed");
+        log_error("NVME Read failed: {}", spdk_strerror(-rc));
     } else {
         worker->ns_ctx->current_queue_depth++;
     }

@@ -104,6 +104,22 @@ void ZstoreController::initIoThread()
     }
 }
 
+int ZstoreController::PopulateMap(bool bogus)
+{
+    mMap.insert({"apples", createMapEntry("device", 0).value()});
+    mMap.insert({"carrots", createMapEntry("device", 7).value()});
+    mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
+
+    // if (bogus) {
+    for (int i = 0; i < 2'000'000; i++) {
+        mMap.insert(
+            {"key" + std::to_string(i), createMapEntry("device", i).value()});
+    }
+    // }
+
+    return 0;
+}
+
 int ZstoreController::Init(bool object)
 {
     int rc = 0;
@@ -204,9 +220,8 @@ int ZstoreController::Init(bool object)
 
     // bogus setup for Map and BF
 
-    mMap.insert({"apples", createMapEntry("device", 0).value()});
-    mMap.insert({"carrots", createMapEntry("device", 7).value()});
-    mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
+    PopulateMap(true);
+    pivot = 0;
 
     log_info("ZstoreController Init finish");
     return rc;

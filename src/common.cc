@@ -188,14 +188,30 @@ int handleObjectSubmit(void *args)
     int queue_depth = zctrlr->GetQueueDepth();
     // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
 
-    // log_debug("queue depth {}, task pool size {}, completed {}", queue_depth,
-    //           spdk_mempool_count(zctrlr->mTaskPool),
-    //           zctrlr->mWorker->ns_ctx->io_completed);
     auto task_count = zctrlr->GetTaskCount();
     while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
+        log_debug("queue depth {}, task count {} - task pool size {} ",
+                  queue_depth, task_count, zctrlr->GetTaskPoolSize());
+
+        std::string current_key = "key" + std::to_string(zctrlr->pivot);
+        // MapIter got = zctrlr->mMap.find(curent_key);
+        // if (got == zctrlr->mMap.end())
+        //     log_debug("key {} is not in the map", current_key);
+        // else
+        //     // log_debug("key {} is not in the map", current_key);
+        //     // std::cout << got->first << " is " << got->second;
+        //     MapEntry entry = got->second;
+        auto res = zctrlr->find_object(current_key);
+        log_debug("Found {}, value {}", current_key, res.value());
+        // int offset = res.value().second;
+
+        int offset = 0;
+        // struct ZstoreObject obj = ReadObject(offset, zctrlr).value();
+
         struct ZstoreObject obj = ReadObject(0, zctrlr).value();
-        log_debug("Receive object: key {}, seqnum {}, vernum {}", obj.key,
-                  obj.seqnum, obj.vernum);
+        log_debug("Receive object at LBA {}: key {}, seqnum {}, vernum {}",
+                  offset, obj.key, obj.seqnum, obj.vernum);
+        zctrlr->pivot++;
         busy = true;
     }
     auto worker = zctrlr->GetWorker();

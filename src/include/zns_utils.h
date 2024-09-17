@@ -109,10 +109,10 @@ static void task_complete(struct arb_task *task)
      * to complete.  In this case, do not submit a new I/O to replace
      * the one just completed.
      */
-    if (!worker->ns_ctx->is_draining) {
-        // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
-        submit_single_io(zctrlr);
-    }
+    // if (!worker->ns_ctx->is_draining) {
+    // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
+    //     submit_single_io(zctrlr);
+    // }
 }
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
