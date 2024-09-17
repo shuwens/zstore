@@ -1,19 +1,46 @@
 #pragma once
 #include "common.h"
-// #include "zstore_controller.h"
 #include <cstdint>
+#include <cstring>
+#include <fstream>
+#include <iostream>
 
-// struct Object {
-//     int len;
-//     void *data;   /* points to after 'name' */
-//     char name[0]; /* null terminated */
-// };
-
-// Object and Map related
-
-typedef uint16_t keylen_t;
+// typedef uint16_t keylen_t;
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID
+// typedef char[30] key_t;
+
+struct LogEntry {
+    uint64_t next_offset;  // Offset to the next log entry on disk (0 if no next
+                           // entry)
+    uint64_t seqnum;       // 8 bytes
+    uint64_t chunk_seqnum; // 8 bytes
+    uint64_t next;         // 8 bytes
+    uint16_t key_size;     // 2 bytes
+    char key[];
+
+    // Function to compute the size of the log entry (for writing/reading)
+    static size_t size(uint32_t value_size)
+    {
+        return sizeof(LogEntry) + value_size;
+    }
+};
+
+struct ZstoreObject {
+    // ZstoreObject() : keylen(0), key(nullptr), datalen(0), body(nullptr) {}
+    struct LogEntry entry;
+    uint64_t datalen;
+    void *body;
+    uint16_t key_size; // 2 bytes
+    char key[];
+
+    static size_t size(uint16_t key_size, uint64_t datalen)
+    {
+        return sizeof(ZstoreObject) + key_size + datalen;
+    }
+};
+
+// Object and Map related
 
 struct async_read_ctx_t {
     /*
@@ -100,41 +127,6 @@ struct obj_handle {
     bool compress_document_body;
 };
 
-// this structure will occupy 16 bytes
-struct obj_length {
-    obj_length()
-        : keylen(0), metalen(0), bodylen(0), bodylen_ondisk(0), flag(0x0),
-          checksum(0x0), reserved(0x0)
-    {
-    }
-    keylen_t keylen;
-    uint16_t metalen;
-    uint32_t bodylen;
-    uint32_t bodylen_ondisk;
-    uint8_t flag;
-    uint8_t checksum;
-    uint16_t reserved;
-};
-
-struct ZstoreObject {
-    ZstoreObject()
-        : timestamp(0), key(nullptr), seqnum(0), meta(nullptr), body(nullptr),
-          vernum(0)
-    {
-    }
-    struct obj_length length;
-    timestamp_t timestamp;
-    void *key;
-    union {
-        // fdb_seqnum_t seqnum;
-        uint64_t seqnum;
-        uint64_t doc_offset;
-    };
-    void *meta;
-    void *body;
-    uint64_t vernum;
-};
-
 // Result<void> obj_init(struct obj_handle *handle, struct filemgr *file,
 //                     bool compress_document_body);
 Result<ZstoreObject> obj_init(struct obj_handle *handle, struct filemgr *file,
@@ -173,13 +165,14 @@ Result<void> obj_read_doc_length(struct obj_handle *handle,
  * @param keybuf Pointer to a key buffer
  * @return FDB_RESULT_SUCCESS on success
  */
-Result<void> obj_read_doc_key(struct obj_handle *handle, uint64_t offset,
-                              keylen_t *keylen, void *keybuf);
-
-Result<void> obj_read_doc_key_async(struct obj_handle *handle, uint64_t offset,
-                                    keylen_t *keylen, void *keybuf,
-                                    struct async_read_ctx_t *args);
-
+// Result<void> obj_read_doc_key(struct obj_handle *handle, uint64_t offset,
+//                               keylen_t *keylen, void *keybuf);
+//
+// Result<void> obj_read_doc_key_async(struct obj_handle *handle, uint64_t
+// offset,
+//                                     keylen_t *keylen, void *keybuf,
+//                                     struct async_read_ctx_t *args);
+//
 /**
  * Read a key and its metadata at a given file offset.
  *
@@ -272,9 +265,17 @@ void free_obj_object(struct obj_object *doc, uint8_t key_alloc,
 
 // -----------------------------------------------------
 
-Result<ZstoreObject> ReadObject( // struct obj_handle *handle,
+bool write_to_buffer(ZstoreObject *obj, char *buffer, size_t buffer_size);
+
+ZstoreObject *read_from_buffer(const char *buffer, size_t buffer_size);
+
+// Result<ZstoreObject> ReadObject( // struct obj_handle *handle,
+//     uint64_t offset, void *ctx);
+ZstoreObject *ReadObject( // struct obj_handle *handle,
     uint64_t offset, void *ctx);
 
-Result<struct ZstoreObject *> AppendObject(struct obj_handle *handle,
-                                           uint64_t offset,
-                                           struct obj_object *doc, void *ctx);
+// Result<struct ZstoreObject *> AppendObject(struct obj_handle *handle,
+//                                            uint64_t offset,
+//                                            struct obj_object *doc, void
+//                                            *ctx);
+//

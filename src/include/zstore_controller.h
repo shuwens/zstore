@@ -5,6 +5,10 @@
 #include "request_handler.h"
 #include "utils.hpp"
 #include "zstore.h"
+#include <iostream>
+#include <mutex>
+#include <spdk/env.h> // Include SPDK's environment header
+#include <thread>
 
 // #include "log_disk.h"
 // #include "object_log.h"
@@ -173,11 +177,14 @@ class ZstoreController
     std::unordered_set<std::string> mBF;
     std::mutex mBFMutex;
 
+    std::mutex mTaskPoolMutex;
+
   private:
     ZstoreHandler *mHandler;
 
     struct spdk_mempool *mTaskPool;
     int mTaskCount;
+    // Create a global mutex to protect access to the mempool
 
     struct ctrlr_entry *mController;
     struct ns_entry *mNamespace;

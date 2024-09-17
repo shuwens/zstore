@@ -180,6 +180,19 @@ int dispatchWorker(void *args)
     }
 }
 
+void inspect(void *args)
+{
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    auto worker = zctrlr->GetWorker();
+    log_debug("IO completed {}, task pool {}, task count {}, ns ctx qd {}",
+              worker->ns_ctx->io_completed, zctrlr->GetTaskPoolSize(),
+              zctrlr->GetTaskCount(), worker->ns_ctx->current_queue_depth);
+    assert(zctrlr->GetTaskCount() ==
+           zctrlr->GetTaskPoolSize() + worker->ns_ctx->current_queue_depth
+
+    );
+}
+
 int handleObjectSubmit(void *args)
 {
     bool busy = false;
@@ -188,10 +201,13 @@ int handleObjectSubmit(void *args)
     int queue_depth = zctrlr->GetQueueDepth();
     // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
 
+    auto worker = zctrlr->GetWorker();
     auto task_count = zctrlr->GetTaskCount();
-    while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
-        log_debug("queue depth {}, task count {} - task pool size {} ",
-                  queue_depth, task_count, zctrlr->GetTaskPoolSize());
+    while (task_count - zctrlr->GetTaskPoolSize() < queue_depth &&
+           !worker->ns_ctx->is_draining) {
+
+        // log_debug("queue depth {}, task count {} - task pool size {} ",
+        //           queue_depth, task_count, zctrlr->GetTaskPoolSize());
 
         std::string current_key = "key" + std::to_string(zctrlr->pivot);
         // MapIter got = zctrlr->mMap.find(curent_key);
@@ -202,19 +218,19 @@ int handleObjectSubmit(void *args)
         //     // std::cout << got->first << " is " << got->second;
         //     MapEntry entry = got->second;
         auto res = zctrlr->find_object(current_key);
-        log_debug("Found {}, value {}", current_key, res.value());
+        // log_debug("Found {}, value {}", current_key, res.value());
         // int offset = res.value().second;
 
         int offset = 0;
         // struct ZstoreObject obj = ReadObject(offset, zctrlr).value();
-
-        struct ZstoreObject obj = ReadObject(0, zctrlr).value();
-        log_debug("Receive object at LBA {}: key {}, seqnum {}, vernum {}",
-                  offset, obj.key, obj.seqnum, obj.vernum);
+        inspect(zctrlr);
+        // struct ZstoreObject *obj = ReadObject(0, zctrlr);
+        struct ZstoreObject *obj = ReadObject(zctrlr->pivot, zctrlr);
+        // log_debug("Receive object at LBA {}: key {}, seqnum {}, vernum {}",
+        //           offset, obj.key, obj.seqnum, obj.vernum);
         zctrlr->pivot++;
         busy = true;
     }
-    auto worker = zctrlr->GetWorker();
     if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
         auto etime = std::chrono::high_resolution_clock::now();
         auto delta = std::chrono::duration_cast<std::chrono::microseconds>(

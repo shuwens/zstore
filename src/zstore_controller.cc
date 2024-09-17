@@ -253,6 +253,7 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 
 void ZstoreController::CheckTaskPool(std::string msg)
 {
+    std::lock_guard<std::mutex> lock(mTaskPoolMutex); // Lock the mutex
     assert(mTaskPool != nullptr);
     auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
     if (!task) {

@@ -117,8 +117,14 @@ class Configuration
     //     return GetInstance().gL2PTableSize;
     // }
 
+    static uint64_t GetZslba()
+    {
+        return GetInstance().gZoneDist * GetInstance().current_zone;
+    }
+
   private:
     // uint32_t gRebootMode = 0; // 0: new, 1: restart, 2: rebuild.
+    const uint64_t gZoneDist = 0x80000; // zone size
 
     // StripeConfig *gStripeConfig = new StripeConfig[1];
     int gBlockSize = 4096;
@@ -141,9 +147,12 @@ class Configuration
     // int gLargeRequestThreshold = 16 * 1024;
 
     // FIXME total IO more than this causes failures
-    uint32_t gTotalIO = 2'000'000;
     // FIXME queue size larger than 64 causes issue
-    int gQueueDepth = 64;
+    // uint32_t gTotalIO = 2'000'000;
+    uint32_t gTotalIO = 100'000;
+    int gQueueDepth = 8;
+
+    const int current_zone = 49;
 
     // uint32_t gTotalIO = 4'000'000;
     // int gQueueDepth = 256;

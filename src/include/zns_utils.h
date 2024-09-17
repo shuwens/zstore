@@ -18,6 +18,7 @@ static __thread unsigned int seed = 0;
 static void submit_single_io(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
+    std::lock_guard<std::mutex> lock(zctrlr->mTaskPoolMutex); // Lock the mutex
     // zctrlr->CheckTaskPool("submit single IO");
     struct arb_task *task = NULL;
     uint64_t offset_in_ios;
@@ -61,6 +62,7 @@ static void submit_single_io(void *args)
     // worker->ns_ctx->stimes.push_back(worker->ns_ctx->stime);
 
     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
+    log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
 
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, worker->ns_ctx->qpair, task->buf,
                                offset_in_ios * entry->io_size_blocks,
@@ -85,6 +87,7 @@ static void submit_single_io(void *args)
 static void task_complete(struct arb_task *task)
 {
     ZstoreController *zctrlr = (ZstoreController *)task->zctrlr;
+    std::lock_guard<std::mutex> lock(zctrlr->mTaskPoolMutex); // Lock the mutex
     auto worker = zctrlr->GetWorker();
     auto taskpool = zctrlr->GetTaskPool();
 
