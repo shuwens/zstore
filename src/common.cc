@@ -1,8 +1,10 @@
 #include "include/common.h"
 #include "include/configuration.h"
+#include "include/object.h"
 #include "include/utils.hpp"
 #include "include/zns_utils.h"
 #include "include/zstore_controller.h"
+#include "object.cc"
 #include "spdk/thread.h"
 #include <cstdlib>
 #include <isa-l.h>
@@ -10,6 +12,14 @@
 #include <sched.h>
 #include <spdk/event.h>
 #include <sys/time.h>
+
+// Result<struct ZstoreObject *> ReadObject( // struct obj_handle *handle,
+//     uint64_t offset, void *ctx);
+//
+// Result<struct ZstoreObject *> AppendObject(struct obj_handle *handle,
+//                                            uint64_t offset,
+//                                            struct obj_object *doc, void
+//                                            *ctx);
 
 int handleHttpRequest(void *args)
 {
@@ -183,7 +193,9 @@ int handleObjectSubmit(void *args)
     //           zctrlr->mWorker->ns_ctx->io_completed);
     auto task_count = zctrlr->GetTaskCount();
     while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
-        submit_single_io(zctrlr);
+        struct ZstoreObject obj = ReadObject(0, zctrlr).value();
+        log_debug("Receive object: key {}, seqnum {}, vernum {}", obj.key,
+                  obj.seqnum, obj.vernum);
         busy = true;
     }
     auto worker = zctrlr->GetWorker();

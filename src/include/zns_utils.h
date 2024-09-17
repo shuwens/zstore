@@ -25,7 +25,6 @@ static void submit_single_io(void *args)
 
     auto worker = zctrlr->GetWorker();
     auto taskpool = zctrlr->GetTaskPool();
-
     struct ns_entry *entry = worker->ns_ctx->entry;
 
     // log_debug("Before getting a task {}", zctrlr->GetTaskPoolSize());

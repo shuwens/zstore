@@ -81,7 +81,8 @@ int main(int argc, char **argv)
     //     sleep(1);
     // }
 
-    bool use_object = false;
+    // bool use_object = false;
+    bool use_object = true;
     gZstoreController->initDispatchThread(use_object);
 
     // ==================================

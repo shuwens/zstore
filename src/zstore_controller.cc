@@ -70,10 +70,12 @@ void ZstoreController::initDispatchThread(bool use_object)
         rc = spdk_env_thread_launch_pinned(
             Configuration::GetDispatchThreadCoreId(), dispatchObjectWorker,
             this);
-    else
-        int rc = spdk_env_thread_launch_pinned(
-            Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
+    else {
 
+        log_info("Not using object");
+        rc = spdk_env_thread_launch_pinned(
+            Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
+    }
     if (rc < 0) {
         log_error("Failed to launch dispatch thread error: {} {}", strerror(rc),
                   spdk_strerror(rc));

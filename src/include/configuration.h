@@ -141,10 +141,10 @@ class Configuration
     // int gLargeRequestThreshold = 16 * 1024;
 
     // FIXME total IO more than this causes failures
-    // uint32_t gTotalIO = 2'000'000;
+    uint32_t gTotalIO = 2'000'000;
     // FIXME queue size larger than 64 causes issue
-    // int gQueueDepth = 64;
+    int gQueueDepth = 64;
 
-    uint32_t gTotalIO = 4'000'000;
-    int gQueueDepth = 256;
+    // uint32_t gTotalIO = 4'000'000;
+    // int gQueueDepth = 256;
 };

@@ -1,6 +1,6 @@
 #pragma once
-
 #include "common.h"
+// #include "zstore_controller.h"
 #include <cstdint>
 
 // struct Object {
@@ -262,9 +262,19 @@ bool obj_check_buffer_kvssd_direct(struct obj_handle *handle, void *buf,
 int64_t obj_buf_to_doc(struct obj_handle *handle, uint64_t offset,
                        struct obj_object *doc, void *buf);
 
-INLINE void obj_reset(struct obj_handle *dhandle)
-{
-    dhandle->curblock = BLK_NOT_FOUND;
-}
+// INLINE void obj_reset(struct obj_handle *dhandle)
+// {
+//     dhandle->curblock = BLK_NOT_FOUND;
+// }
+
 void free_obj_object(struct obj_object *doc, uint8_t key_alloc,
                      uint8_t meta_alloc, uint8_t body_alloc);
+
+// -----------------------------------------------------
+
+Result<ZstoreObject> ReadObject( // struct obj_handle *handle,
+    uint64_t offset, void *ctx);
+
+Result<struct ZstoreObject *> AppendObject(struct obj_handle *handle,
+                                           uint64_t offset,
+                                           struct obj_object *doc, void *ctx);
