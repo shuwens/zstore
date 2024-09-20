@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
-    gZstoreController->CheckTaskPool("Task pool created");
+    // gZstoreController->CheckTaskPool("Task pool created");
 
     // Create poll groups for the io threads and perform initialization
     // gZstoreController->mIoThread.group =

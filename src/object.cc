@@ -4,8 +4,46 @@
 #include "src/include/configuration.h"
 #include "src/include/utils.hpp"
 #include <boost/outcome/success_failure.hpp>
+#include <cassert>
 #include <stdlib.h>
 #include <string.h>
+
+void complete(void *arg, const struct spdk_nvme_cpl *completion)
+{
+    RequestContext *slot = (RequestContext *)arg;
+
+    if (spdk_nvme_cpl_is_error(completion)) {
+        fprintf(stderr, "I/O error status: %s\n",
+                spdk_nvme_cpl_get_status_string(&completion->status));
+        fprintf(stderr, "I/O failed, aborting run\n");
+        assert(0);
+        exit(1);
+    }
+
+    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+    // auto worker = ctrl->GetWorker();
+    // assert(ctrl != nullptr);
+    // assert(worker != nullptr);
+    // assert(worker->ns_ctx != nullptr);
+    //
+    // worker->ns_ctx->current_queue_depth--;
+    // worker->ns_ctx->io_completed++;
+
+    // this should move to reclaim context and in controller
+    slot->available = true;
+    slot->Clear();
+    if (ctrl->verbose)
+        log_debug("\nBefore return: pool capacity {}, pool available {}",
+                  ctrl->mRequestContextPool->capacity,
+                  ctrl->mRequestContextPool->availableContexts.size());
+
+    ctrl->mRequestContextPool->ReturnRequestContext(slot);
+
+    // if (ctrl->verbose)
+    log_debug("After return: pool capacity {}, pool available {}\n",
+              ctrl->mRequestContextPool->capacity,
+              ctrl->mRequestContextPool->availableContexts.size());
+}
 
 // Read a ZstoreObject from a 4096-byte buffer
 ZstoreObject *read_from_buffer(const char *buffer, size_t buffer_size)
@@ -48,7 +86,6 @@ ZstoreObject *ReadObject( // struct obj_handle *handle,
 {
     ZstoreController *ctrl = (ZstoreController *)ctx;
     auto worker = ctrl->GetWorker();
-    auto taskpool = ctrl->GetTaskPool();
     struct ns_entry *entry = worker->ns_ctx->entry;
 
     int rc;
@@ -60,53 +97,52 @@ ZstoreObject *ReadObject( // struct obj_handle *handle,
 
     // fdb_seqnum_t _seqnum;
     // timestamp_t _timestamp;
-    void *comp_body = NULL;
     // struct docio_length _length, zero_length;
     struct ZstoreObject object;
 
-    struct arb_task *task = NULL;
-    // err_log_callback *log_callback = handle->log_callback;
-    // memset(&zero_length, 0x0, sizeof(struct docio_length));
+    log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
+              ctrl->mRequestContextPool->capacity,
+              ctrl->mRequestContextPool->availableContexts.size());
 
-    task = (struct arb_task *)spdk_mempool_get(taskpool);
-    if (!task) {
-        log_error("Failed to get task from mTaskPool");
-        exit(1);
-    }
+    RequestContext *slot = ctrl->mRequestContextPool->GetRequestContext(true);
+    assert(slot != nullptr);
+    auto ioCtx = slot->ioContext;
 
-    task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
-    if (!task->buf) {
-        spdk_mempool_put(taskpool, task);
-        log_error("task->buf spdk_dma_zmalloc failed");
-        exit(1);
-    }
+    ioCtx.ns = entry->nvme.ns;
+    ioCtx.qpair = worker->ns_ctx->qpair;
+    // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+    ioCtx.offset = 0;
+    ioCtx.size = entry->io_size_blocks;
+    // ioCtx.cb = io_complete;
+    // ioCtx.ctx = task;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+
+    // log_debug("buffer size {}, Offset: {}", slot->bufferSize, offset);
+
+    // ioCtx.data = slot->dataBuffer;
+    ioCtx.data = (uint8_t *)spdk_zmalloc(
+        4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
 
     // task->ns_ctx = zctrlr->mWorker->ns_ctx;
-    task->zctrlr = ctrl;
-    assert(task->zctrlr == ctrl);
+    slot->ctrl = ctrl;
+    assert(slot->ctrl == ctrl);
 
-    // if (g_arbitration.is_random) {
-    //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
-    // } else {
-    //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
-    //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
-    //         worker->ns_ctx->offset_in_ios = 0;
-    //     }
-    // }
-    // offset_in_ios * entry->io_size_blocks,
+    // log_debug("IO completed {}, Offset: {}", worker->ns_ctx->io_completed,
+    //           offset);
+    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
 
-    log_debug("Offset: {}", offset);
-    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, worker->ns_ctx->qpair, task->buf,
-                               offset, entry->io_size_blocks, io_complete, task,
-                               0);
     if (rc != 0) {
         log_error("NVME Read failed: {}", spdk_strerror(-rc));
+        exit(1);
     } else {
         worker->ns_ctx->current_queue_depth++;
     }
 
     ZstoreObject *read_obj =
-        read_from_buffer((const char *)task->buf, sizeof(task->buf));
+        read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
 
     // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
 
@@ -177,80 +213,80 @@ bool write_to_buffer(ZstoreObject *obj, char *buffer, size_t buffer_size)
     return true;
 }
 
-bool AppendObject(uint64_t offset, void *ctx)
-{
-    ZstoreController *ctrl = (ZstoreController *)ctx;
-    auto worker = ctrl->GetWorker();
-    auto taskpool = ctrl->GetTaskPool();
-    struct ns_entry *entry = worker->ns_ctx->entry;
-
-    int rc;
-    uint64_t offset_in_ios;
-    int64_t _offset = 0;
-    int key_alloc = 0;
-    int meta_alloc = 0;
-    int body_alloc = 0;
-
-    // fdb_seqnum_t _seqnum;
-    // timestamp_t _timestamp;
-    void *comp_body = NULL;
-    // struct docio_length _length, zero_length;
-    struct ZstoreObject *object;
-
-    struct arb_task *task = NULL;
-    // err_log_callback *log_callback = handle->log_callback;
-    // memset(&zero_length, 0x0, sizeof(struct docio_length));
-
-    task = (struct arb_task *)spdk_mempool_get(taskpool);
-    if (!task) {
-        log_error("Failed to get task from mTaskPool");
-        exit(1);
-    }
-
-    task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
-    if (!task->buf) {
-        spdk_mempool_put(taskpool, task);
-        log_error("task->buf spdk_dma_zmalloc failed");
-        exit(1);
-    }
-    _create_dummy_object(object, offset);
-    if (write_to_buffer(object, (char *)task->buf, sizeof(task->buf))) {
-        std::cout << "ZstoreObject written to buffer successfully."
-                  << std::endl;
-    }
-
-    // task->ns_ctx = zctrlr->mWorker->ns_ctx;
-    task->zctrlr = ctrl;
-    assert(task->zctrlr == ctrl);
-
-    auto zslba = Configuration().GetZslba();
-
-    rc = spdk_nvme_zns_zone_append(entry->nvme.ns, worker->ns_ctx->qpair,
-                                   task->buf, zslba, entry->io_size_blocks,
-                                   io_complete, task, 0);
-
-    if (rc != 0) {
-        log_error("NVME Read failed: {}", spdk_strerror(-rc));
-    } else {
-        worker->ns_ctx->current_queue_depth++;
-    }
-
-    // ZstoreObject *read_obj =
-    //     read_from_buffer((const char *)task->buf, sizeof(task->buf));
-
-    // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
-
-    // assert(object.key != NULL);
-    {
-        // object.key = (void *)malloc(object.length.keylen);
-        // key_alloc = 1;
-    }
-    // assert(object.body != NULL && object.length.bodylen);
-    {
-        // object.body = (void *)malloc(object.length.bodylen);
-        // body_alloc = 1;
-    }
-
-    // return outcome::success(read_obj);
-    return true;
-}
+// bool AppendObject(uint64_t offset, void *ctx)
+// {
+//     ZstoreController *ctrl = (ZstoreController *)ctx;
+//     auto worker = ctrl->GetWorker();
+//     // auto taskpool = ctrl->GetTaskPool();
+//     struct ns_entry *entry = worker->ns_ctx->entry;
+//
+//     int rc;
+//     uint64_t offset_in_ios;
+//     int64_t _offset = 0;
+//     int key_alloc = 0;
+//     int meta_alloc = 0;
+//     int body_alloc = 0;
+//
+//     // fdb_seqnum_t _seqnum;
+//     // timestamp_t _timestamp;
+//     void *comp_body = NULL;
+//     // struct docio_length _length, zero_length;
+//     struct ZstoreObject *object;
+//
+//     struct arb_task *task = NULL;
+//     // err_log_callback *log_callback = handle->log_callback;
+//     // memset(&zero_length, 0x0, sizeof(struct docio_length));
+//
+//     task = (struct arb_task *)spdk_mempool_get(taskpool);
+//     if (!task) {
+//         log_error("Failed to get task from mTaskPool");
+//         exit(1);
+//     }
+//
+//     task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
+//     if (!task->buf) {
+//         spdk_mempool_put(taskpool, task);
+//         log_error("task->buf spdk_dma_zmalloc failed");
+//         exit(1);
+//     }
+//     _create_dummy_object(object, offset);
+//     if (write_to_buffer(object, (char *)task->buf, sizeof(task->buf))) {
+//         std::cout << "ZstoreObject written to buffer successfully."
+//                   << std::endl;
+//     }
+//
+//     // task->ns_ctx = zctrlr->mWorker->ns_ctx;
+//     task->zctrlr = ctrl;
+//     assert(task->zctrlr == ctrl);
+//
+//     auto zslba = Configuration().GetZslba();
+//
+//     rc = spdk_nvme_zns_zone_append(entry->nvme.ns, worker->ns_ctx->qpair,
+//                                    task->buf, zslba, entry->io_size_blocks,
+//                                    io_complete, task, 0);
+//
+//     if (rc != 0) {
+//         log_error("NVME Read failed: {}", spdk_strerror(-rc));
+//     } else {
+//         worker->ns_ctx->current_queue_depth++;
+//     }
+//
+//     // ZstoreObject *read_obj =
+//     //     read_from_buffer((const char *)task->buf, sizeof(task->buf));
+//
+//     // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
+//
+//     // assert(object.key != NULL);
+//     {
+//         // object.key = (void *)malloc(object.length.keylen);
+//         // key_alloc = 1;
+//     }
+//     // assert(object.body != NULL && object.length.bodylen);
+//     {
+//         // object.body = (void *)malloc(object.length.bodylen);
+//         // body_alloc = 1;
+//     }
+//
+//     // return outcome::success(read_obj);
+//     return true;
+// }

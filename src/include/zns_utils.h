@@ -18,64 +18,46 @@ static __thread unsigned int seed = 0;
 static void submit_single_io(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
-    std::lock_guard<std::mutex> lock(zctrlr->mTaskPoolMutex); // Lock the mutex
-    // zctrlr->CheckTaskPool("submit single IO");
-    struct arb_task *task = NULL;
-    uint64_t offset_in_ios;
     int rc;
 
     auto worker = zctrlr->GetWorker();
-    auto taskpool = zctrlr->GetTaskPool();
     struct ns_entry *entry = worker->ns_ctx->entry;
 
-    // log_debug("Before getting a task {}", zctrlr->GetTaskPoolSize());
-    task = (struct arb_task *)spdk_mempool_get(taskpool);
-    if (!task) {
-        log_error("Failed to get task from mTaskPool");
-        exit(1);
-    }
+    RequestContext *slot =
+        zctrlr->mRequestContextPool->GetRequestContext(false);
+    auto ioCtx = slot->ioContext;
 
-    task->buf = spdk_dma_zmalloc(g_arbitration.io_size_bytes, 0x200, NULL);
-    if (!task->buf) {
-        spdk_mempool_put(taskpool, task);
-        log_error("task->buf spdk_dma_zmalloc failed");
-        exit(1);
-    }
+    ioCtx.ns = entry->nvme.ns;
+    ioCtx.qpair = worker->ns_ctx->qpair;
+    ioCtx.data = slot->dataBuffer;
+    // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+    ioCtx.offset = 0;
+    ioCtx.size = entry->io_size_blocks;
+    // ioCtx.cb = io_complete;
+    // ioCtx.ctx = task;
+    ioCtx.cb = complete;
+    bool *done = nullptr;
+    ioCtx.ctx = done;
+    ioCtx.flags = 0;
 
     // task->ns_ctx = zctrlr->mWorker->ns_ctx;
-    task->zctrlr = zctrlr;
-    assert(task->zctrlr == zctrlr);
+    slot->ctrl = zctrlr;
+    assert(slot->ctrl == zctrlr);
 
-    if (g_arbitration.is_random) {
-        offset_in_ios = rand_r(&seed) % entry->size_in_ios;
-    } else {
-        offset_in_ios = worker->ns_ctx->offset_in_ios++;
-        if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
-            worker->ns_ctx->offset_in_ios = 0;
-        }
-    }
-
-    // if ((g_arbitration.rw_percentage == 100) ||
-    //     (g_arbitration.rw_percentage != 0 &&
-    //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
-    // worker->ns_ctx->stime = std::chrono::high_resolution_clock::now();
-    // worker->ns_ctx->stimes.push_back(worker->ns_ctx->stime);
+    // if (g_arbitration.is_random) {
+    //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
+    // } else {
+    //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
+    //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
+    //         worker->ns_ctx->offset_in_ios = 0;
+    //     }
+    // }
 
     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
-    log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
+    // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
 
-    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, worker->ns_ctx->qpair, task->buf,
-                               offset_in_ios * entry->io_size_blocks,
-                               entry->io_size_blocks, io_complete, task, 0);
-    // } else {
-    //     ns_ctx->stime = std::chrono::high_resolution_clock::now();
-    //     ns_ctx->stimes.push_back(ns_ctx->stime);
-    //     rc =
-    //         spdk_nvme_ns_cmd_write(entry->nvme.ns, ns_ctx->qpair, task->buf,
-    //                                offset_in_ios * entry->io_size_blocks,
-    //                                entry->io_size_blocks, io_complete, task,
-    //                                0);
-    // }
+    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
 
     if (rc != 0) {
         log_error("starting I/O failed");
@@ -84,47 +66,47 @@ static void submit_single_io(void *args)
     }
 }
 
-static void task_complete(struct arb_task *task)
-{
-    ZstoreController *zctrlr = (ZstoreController *)task->zctrlr;
-    std::lock_guard<std::mutex> lock(zctrlr->mTaskPoolMutex); // Lock the mutex
-    auto worker = zctrlr->GetWorker();
-    auto taskpool = zctrlr->GetTaskPool();
+// static void task_complete(struct arb_task *task)
+// {
+//     ZstoreController *zctrlr = (ZstoreController *)task->zctrlr;
+//     std::lock_guard<std::mutex> lock(zctrlr->mTaskPoolMutex); // Lock the
+//     mutex auto worker = zctrlr->GetWorker(); auto taskpool =
+//     zctrlr->GetTaskPool();
+//
+//     assert(zctrlr != nullptr);
+//     assert(worker != nullptr);
+//     assert(worker->ns_ctx != nullptr);
+//     // zctrlr->mWorker->ns_ctx = task->ns_ctx;
+//     worker->ns_ctx->current_queue_depth--;
+//     worker->ns_ctx->io_completed++;
+//     // worker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
+//     // worker->ns_ctx->etimes.push_back(worker->ns_ctx->etime);
+//
+//     // log_debug("Before returning task {}", zctrlr->GetTaskPoolSize());
+//     spdk_dma_free(task->buf);
+//     spdk_mempool_put(taskpool, task);
+//
+//     // log_debug("After returning task {}", zctrlr->GetTaskPoolSize());
+//
+//     /*
+//      * is_draining indicates when time has expired for the test run
+//      * and we are just waiting for the previously submitted I/O
+//      * to complete.  In this case, do not submit a new I/O to replace
+//      * the one just completed.
+//      */
+//     // if (!worker->ns_ctx->is_draining) {
+//     // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
+//     //     submit_single_io(zctrlr);
+//     // }
+// }
 
-    assert(zctrlr != nullptr);
-    assert(worker != nullptr);
-    assert(worker->ns_ctx != nullptr);
-    // zctrlr->mWorker->ns_ctx = task->ns_ctx;
-    worker->ns_ctx->current_queue_depth--;
-    worker->ns_ctx->io_completed++;
-    // worker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
-    // worker->ns_ctx->etimes.push_back(worker->ns_ctx->etime);
-
-    // log_debug("Before returning task {}", zctrlr->GetTaskPoolSize());
-    spdk_dma_free(task->buf);
-    spdk_mempool_put(taskpool, task);
-
-    // log_debug("After returning task {}", zctrlr->GetTaskPoolSize());
-
-    /*
-     * is_draining indicates when time has expired for the test run
-     * and we are just waiting for the previously submitted I/O
-     * to complete.  In this case, do not submit a new I/O to replace
-     * the one just completed.
-     */
-    // if (!worker->ns_ctx->is_draining) {
-    // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
-    //     submit_single_io(zctrlr);
-    // }
-}
-
-static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
-{
-    task_complete((struct arb_task *)ctx);
-
-    // ZstoreController *zctrlr = (ZstoreController *)args;
-    // task_complete((struct arb_task *)ctx);
-}
+// static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
+// {
+//     task_complete((struct arb_task *)ctx);
+//
+//     // ZstoreController *zctrlr = (ZstoreController *)args;
+//     // task_complete((struct arb_task *)ctx);
+// }
 
 static void check_io(void *args)
 {
@@ -137,7 +119,7 @@ static void check_io(void *args)
 static void submit_io(void *args, int queue_depth)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
-    zctrlr->CheckTaskPool("submit IO");
+    // zctrlr->CheckTaskPool("submit IO");
     // while (queue_depth-- > 0) {
     while (queue_depth-- > 0) {
         submit_single_io(zctrlr);
@@ -186,7 +168,7 @@ static int work_fn(void *args)
     uint64_t tsc_end;
 
     auto worker = zctrlr->GetWorker();
-    gZstoreController->CheckTaskPool("work fn start");
+    // gZstoreController->CheckTaskPool("work fn start");
     log_info("Starting thread on core {}", worker->lcore);
 
     tsc_end =

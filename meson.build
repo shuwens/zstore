@@ -191,14 +191,6 @@ executable(
 )
 
 # FIXME
-# executable(
-# 	'zns_test',
-# 	files('src/tests/device_test.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
 # reads from the drive
 # executable(
 # 	'spdk_read',
@@ -279,3 +271,22 @@ executable(
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
+
+# Tests
+# -----------
+# executable(
+# 	'zns_test',
+# 	files('src/tests/device_test.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+
+executable(
+	'object_test',
+	files('src/tests/object_test.cc'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	include_directories: incdir,
+	install: true,
+)

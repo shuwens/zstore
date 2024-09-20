@@ -5,9 +5,7 @@
 #include "include/request_handler.h"
 #include "include/utils.hpp"
 
-// #include "log_disk.h"
-// #include "object_log.h"
-// #include "store.h"
+static const int request_context_pool_size = 256;
 
 static void busyWait(bool *ready)
 {
@@ -123,13 +121,14 @@ int ZstoreController::PopulateMap(bool bogus)
 int ZstoreController::Init(bool object)
 {
     int rc = 0;
-    uint32_t task_count = 0;
-    char task_pool_name[30];
+    verbose = false;
+    // uint32_t task_count = 0;
+    // char task_pool_name[30];
 
     mController = g_controller;
     mNamespace = g_namespace;
     mWorker = g_worker;
-    mTaskPool = task_pool;
+    // mTaskPool = task_pool;
 
     log_debug("mZone sizes {}", mZones.size());
     log_debug("ZstoreController launching threads");
@@ -190,26 +189,35 @@ int ZstoreController::Init(bool object)
         // }
     }
 
-    snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d", getpid());
+    // Preallocate contexts for user requests
+    // Sufficient to support multiple I/O queues of NVMe-oF target
+    // mRequestContextPool = new RequestContextPool(2048);
+    mRequestContextPool = new RequestContextPool(request_context_pool_size);
+    // mRequestContextPoolForSegments = new RequestContextPool(4096);
+    // mRequestContextPoolForIndex = new RequestContextPool(128);
+
+    // snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d",
+    // getpid());
 
     /*
      * The task_count will be dynamically calculated based on the
      * number of attached active namespaces, queue depth and number
      * of cores (workers) involved in the IO perations.
      */
-    task_count = g_arbitration.num_namespaces > g_arbitration.num_workers
-                     ? g_arbitration.num_namespaces
-                     : g_arbitration.num_workers;
-    // task_count *= g_arbitration.queue_depth;
-    task_count *= mQueueDepth;
-    SetTaskCount(task_count);
+    // task_count = g_arbitration.num_namespaces > g_arbitration.num_workers
+    //                  ? g_arbitration.num_namespaces
+    //                  : g_arbitration.num_workers;
+    // // task_count *= g_arbitration.queue_depth;
+    // task_count *= mQueueDepth;
+    // SetTaskCount(task_count);
 
-    log_info("Creating task pool: name {}, count {}", task_pool_name,
-             task_count);
-    mTaskPool =
-        spdk_mempool_create(task_pool_name, task_count, sizeof(struct arb_task),
-                            0, SPDK_ENV_SOCKET_ID_ANY);
-    if (mTaskPool == NULL) {
+    // log_info("Creating task pool: name {}, count {}", task_pool_name,
+    //          task_count);
+    // mTaskPool =
+    //     spdk_mempool_create(task_pool_name, task_count, sizeof(struct
+    //     arb_task),
+    // 0, SPDK_ENV_SOCKET_ID_ANY);
+    if (mRequestContextPool == NULL) {
         log_error("could not initialize task pool");
         rc = 1;
         zstore_cleanup();
@@ -251,19 +259,19 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
     return mWorker->ns_ctx->qpair;
 }
 
-void ZstoreController::CheckTaskPool(std::string msg)
-{
-    std::lock_guard<std::mutex> lock(mTaskPoolMutex); // Lock the mutex
-    assert(mTaskPool != nullptr);
-    auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
-    if (!task) {
-        log_error("Failed to get task from mTaskPool: {}", msg);
-        exit(1);
-    }
-    spdk_mempool_put(mTaskPool, task);
-
-    log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
-}
+// void ZstoreController::CheckTaskPool(std::string msg)
+// {
+//     std::lock_guard<std::mutex> lock(mTaskPoolMutex); // Lock the mutex
+//     assert(mTaskPool != nullptr);
+//     auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
+//     if (!task) {
+//         log_error("Failed to get task from mTaskPool: {}", msg);
+//         exit(1);
+//     }
+//     spdk_mempool_put(mTaskPool, task);
+//
+//     log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
+// }
 
 ZstoreController::~ZstoreController()
 {
@@ -553,7 +561,7 @@ void ZstoreController::zstore_cleanup()
     log_info("unreg controllers");
     unregister_controllers();
     log_info("cleanup ");
-    cleanup(mTaskCount);
+    cleanup(0);
 
     spdk_env_fini();
 
@@ -576,11 +584,11 @@ void ZstoreController::cleanup(uint32_t task_count)
     free(mWorker->ns_ctx);
     free(mWorker);
 
-    if (spdk_mempool_count(mTaskPool) != (size_t)task_count) {
-        log_error("mTaskPool count is {} but should be {}",
-                  spdk_mempool_count(mTaskPool), task_count);
-    }
-    spdk_mempool_free(mTaskPool);
+    // if (spdk_mempool_count(mTaskPool) != (size_t)task_count) {
+    //     log_error("mTaskPool count is {} but should be {}",
+    //               spdk_mempool_count(mTaskPool), task_count);
+    // }
+    // spdk_mempool_free(mTaskPool);
 }
 
 static const char *print_qprio(enum spdk_nvme_qprio qprio)

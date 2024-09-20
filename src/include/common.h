@@ -84,6 +84,7 @@ struct RequestContext {
     uint32_t curOffset;
     zns_raid_request_complete cb_fn;
     void *cb_args;
+    uint32_t ioOffset;
 
     bool available;
 
@@ -121,6 +122,7 @@ struct RequestContext {
         uint32_t flags;
     } ioContext;
 
+    uint32_t bufferSize; // for recording partial writes
     // GcTask *gcTask;
     std::vector<PhysicalAddr> pbaArray;
 

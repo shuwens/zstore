@@ -40,11 +40,11 @@ class ZstoreController
     struct spdk_nvme_qpair *GetIoQpair();
     void CheckIoQpair(std::string msg);
 
-    struct spdk_mempool *GetTaskPool() { return mTaskPool; };
-    void CheckTaskPool(std::string msg);
-    int GetTaskPoolSize() { return spdk_mempool_count(mTaskPool); }
-    int GetTaskCount() { return mTaskCount; };
-    void SetTaskCount(int task_count) { mTaskCount = task_count; }
+    // struct spdk_mempool *GetTaskPool() { return mTaskPool; };
+    // void CheckTaskPool(std::string msg);
+    // int GetTaskPoolSize() { return spdk_mempool_count(mTaskPool); }
+    // int GetTaskCount() { return mTaskCount; };
+    // void SetTaskCount(int task_count) { mTaskCount = task_count; }
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
     void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
@@ -177,13 +177,17 @@ class ZstoreController
     std::unordered_set<std::string> mBF;
     std::mutex mBFMutex;
 
-    std::mutex mTaskPoolMutex;
+    RequestContextPool *mRequestContextPool;
+    std::unordered_set<RequestContext *> mInflightRequestContext;
+
+    // std::mutex mTaskPoolMutex;
+    bool verbose;
 
   private:
     ZstoreHandler *mHandler;
 
-    struct spdk_mempool *mTaskPool;
-    int mTaskCount;
+    // struct spdk_mempool *mTaskPool;
+    // int mTaskCount;
     // Create a global mutex to protect access to the mempool
 
     struct ctrlr_entry *mController;
@@ -203,9 +207,6 @@ class ZstoreController
     // std::vector<Segment *> mOpenSegments;
     // Segment *mSpareSegment;
     // PhysicalAddr *mAddressMap;
-
-    RequestContextPool *mRequestContextPool;
-    std::unordered_set<RequestContext *> mInflightRequestContext;
 
     // RequestContextPool *mRequestContextPoolForZstore;
     // ReadContextPool *mReadContextPool;
