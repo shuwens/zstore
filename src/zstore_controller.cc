@@ -5,7 +5,7 @@
 #include "include/request_handler.h"
 #include "include/utils.hpp"
 
-static const int request_context_pool_size = 256;
+static const int request_context_pool_size = 1024;
 
 static void busyWait(bool *ready)
 {

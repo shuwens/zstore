@@ -20,9 +20,10 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
+    // FIXME: dont know why but this can be nullptr???
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-    // auto worker = ctrl->GetWorker();
-    // assert(ctrl != nullptr);
+    assert(ctrl != nullptr);
+
     // assert(worker != nullptr);
     // assert(worker->ns_ctx != nullptr);
     //
@@ -30,19 +31,22 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     // worker->ns_ctx->io_completed++;
 
     // this should move to reclaim context and in controller
-    slot->available = true;
-    slot->Clear();
-    if (ctrl->verbose)
+    {
+        // std::unique_lock lock(ctrl->context_pool_mutex_);
+        slot->available = true;
+        slot->Clear();
+        // if (ctrl->verbose)
         log_debug("\nBefore return: pool capacity {}, pool available {}",
                   ctrl->mRequestContextPool->capacity,
                   ctrl->mRequestContextPool->availableContexts.size());
 
-    ctrl->mRequestContextPool->ReturnRequestContext(slot);
+        ctrl->mRequestContextPool->ReturnRequestContext(slot);
 
-    // if (ctrl->verbose)
-    log_debug("After return: pool capacity {}, pool available {}\n",
-              ctrl->mRequestContextPool->capacity,
-              ctrl->mRequestContextPool->availableContexts.size());
+        // if (ctrl->verbose)
+        log_debug("After return: pool capacity {}, pool available {}\n",
+                  ctrl->mRequestContextPool->capacity,
+                  ctrl->mRequestContextPool->availableContexts.size());
+    }
 }
 
 // Read a ZstoreObject from a 4096-byte buffer
@@ -81,8 +85,8 @@ ZstoreObject *read_from_buffer(const char *buffer, size_t buffer_size)
     return obj;
 }
 
-ZstoreObject *ReadObject( // struct obj_handle *handle,
-    uint64_t offset, void *ctx)
+// struct obj_handle *handle,
+ZstoreObject *ReadObject(uint64_t offset, void *ctx)
 {
     ZstoreController *ctrl = (ZstoreController *)ctx;
     auto worker = ctrl->GetWorker();
@@ -98,52 +102,56 @@ ZstoreObject *ReadObject( // struct obj_handle *handle,
     // fdb_seqnum_t _seqnum;
     // timestamp_t _timestamp;
     // struct docio_length _length, zero_length;
-    struct ZstoreObject object;
+    struct ZstoreObject *object;
 
-    log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
-              ctrl->mRequestContextPool->capacity,
-              ctrl->mRequestContextPool->availableContexts.size());
+    {
+        log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
+                  ctrl->mRequestContextPool->capacity,
+                  ctrl->mRequestContextPool->availableContexts.size());
 
-    RequestContext *slot = ctrl->mRequestContextPool->GetRequestContext(true);
-    assert(slot != nullptr);
-    auto ioCtx = slot->ioContext;
+        // std::unique_lock lock(ctrl->context_pool_mutex_);
 
-    ioCtx.ns = entry->nvme.ns;
-    ioCtx.qpair = worker->ns_ctx->qpair;
-    // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
-    ioCtx.offset = 0;
-    ioCtx.size = entry->io_size_blocks;
-    // ioCtx.cb = io_complete;
-    // ioCtx.ctx = task;
-    ioCtx.cb = complete;
-    ioCtx.ctx = slot;
-    ioCtx.flags = 0;
+        RequestContext *slot =
+            ctrl->mRequestContextPool->GetRequestContext(true);
+        assert(slot != nullptr);
+        // task->ns_ctx = zctrlr->mWorker->ns_ctx;
+        slot->ctrl = ctrl;
+        assert(slot->ctrl == ctrl);
 
-    // log_debug("buffer size {}, Offset: {}", slot->bufferSize, offset);
+        auto ioCtx = slot->ioContext;
 
-    // ioCtx.data = slot->dataBuffer;
-    ioCtx.data = (uint8_t *)spdk_zmalloc(
-        4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+        ioCtx.ns = entry->nvme.ns;
+        ioCtx.qpair = worker->ns_ctx->qpair;
+        // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+        ioCtx.offset = 0;
+        ioCtx.size = entry->io_size_blocks;
+        // ioCtx.cb = io_complete;
+        // ioCtx.ctx = task;
+        ioCtx.cb = complete;
+        ioCtx.ctx = slot;
+        ioCtx.flags = 0;
 
-    // task->ns_ctx = zctrlr->mWorker->ns_ctx;
-    slot->ctrl = ctrl;
-    assert(slot->ctrl == ctrl);
+        // log_debug("buffer size {}, Offset: {}", slot->bufferSize, offset);
 
-    // log_debug("IO completed {}, Offset: {}", worker->ns_ctx->io_completed,
-    //           offset);
-    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
-                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
+        // ioCtx.data = slot->dataBuffer;
+        ioCtx.data = (uint8_t *)spdk_zmalloc(
+            4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
 
-    if (rc != 0) {
-        log_error("NVME Read failed: {}", spdk_strerror(-rc));
-        exit(1);
-    } else {
-        worker->ns_ctx->current_queue_depth++;
+        // log_debug("IO completed {}, Offset: {}",
+        // worker->ns_ctx->io_completed,
+        //           offset);
+        rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
+                                   ioCtx.offset, ioCtx.size, ioCtx.cb,
+                                   ioCtx.ctx, ioCtx.flags);
+        if (rc != 0) {
+            log_error("NVME Read failed: {}", spdk_strerror(-rc));
+            exit(1);
+        } else {
+            worker->ns_ctx->current_queue_depth++;
+        }
+
+        object = read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
     }
-
-    ZstoreObject *read_obj =
-        read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
-
     // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
 
     // assert(object.key != NULL);
@@ -158,7 +166,7 @@ ZstoreObject *ReadObject( // struct obj_handle *handle,
     }
 
     // return outcome::success(read_obj);
-    return read_obj;
+    return object;
 }
 
 void _create_dummy_object(ZstoreObject *obj, int offset)

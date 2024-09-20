@@ -139,6 +139,9 @@ int handleSubmit(void *args)
     //           zctrlr->mWorker->ns_ctx->io_completed);
     // auto task_count = zctrlr->GetTaskCount();
     // while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
+
+    // Multiple threads/readers can read the counter's value at the same time.
+    std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth) {
@@ -228,6 +231,8 @@ int handleObjectSubmit(void *args)
     auto worker = zctrlr->GetWorker();
     // auto task_count = zctrlr->GetTaskCount();
 
+    // Multiple threads/readers can read the counter's value at the same time.
+    std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth && !worker->ns_ctx->is_draining) {
@@ -469,6 +474,7 @@ RequestContextPool::RequestContextPool(uint32_t cap)
 
 RequestContext *RequestContextPool::GetRequestContext(bool force)
 {
+    // std::unique_lock lock(gZstoreController->context_pool_mutex_);
     RequestContext *ctx = nullptr;
     if (availableContexts.empty() && force == false) {
         ctx = nullptr;
@@ -504,6 +510,7 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
 
 void RequestContextPool::ReturnRequestContext(RequestContext *slot)
 {
+    // std::unique_lock lock(gZstoreController->context_pool_mutex_);
     assert(slot->available);
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
     if (slot < contexts || slot >= contexts + capacity) {

@@ -7,6 +7,7 @@
 #include "zstore.h"
 #include <iostream>
 #include <mutex>
+#include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
 #include <thread>
 
@@ -179,6 +180,7 @@ class ZstoreController
 
     RequestContextPool *mRequestContextPool;
     std::unordered_set<RequestContext *> mInflightRequestContext;
+    mutable std::shared_mutex context_pool_mutex_;
 
     // std::mutex mTaskPoolMutex;
     bool verbose;
