@@ -239,7 +239,7 @@ double gettimediff(struct timeval s, struct timeval e);
 // unitSize);
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+// static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;

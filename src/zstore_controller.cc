@@ -5,7 +5,7 @@
 #include "include/request_handler.h"
 #include "include/utils.hpp"
 
-static const int request_context_pool_size = 1024;
+static const int request_context_pool_size = 256;
 
 static void busyWait(bool *ready)
 {
@@ -445,6 +445,8 @@ void ZstoreController::zns_dev_init(struct arb_context *ctx, std::string ip1,
 {
     int rc = 0;
 
+    char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+
     log_debug("zns dev");
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid1 = {};
@@ -452,9 +454,7 @@ void ZstoreController::zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-
     trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
-    // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     // struct spdk_nvme_transport_id trid2 = {};
     // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
@@ -465,7 +465,8 @@ void ZstoreController::zns_dev_init(struct arb_context *ctx, std::string ip1,
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
-    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+    snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
+    // memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
 
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));

@@ -21,8 +21,8 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     }
 
     // FIXME: dont know why but this can be nullptr???
-    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-    assert(ctrl != nullptr);
+    // ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+    // assert(ctrl != nullptr);
 
     // assert(worker != nullptr);
     // assert(worker->ns_ctx != nullptr);
@@ -36,16 +36,16 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         slot->available = true;
         slot->Clear();
         // if (ctrl->verbose)
-        log_debug("\nBefore return: pool capacity {}, pool available {}",
-                  ctrl->mRequestContextPool->capacity,
-                  ctrl->mRequestContextPool->availableContexts.size());
+        // log_debug("\nBefore return: pool capacity {}, pool available {}",
+        //           ctrl->mRequestContextPool->capacity,
+        //           ctrl->mRequestContextPool->availableContexts.size());
 
-        ctrl->mRequestContextPool->ReturnRequestContext(slot);
+        gZstoreController->mRequestContextPool->ReturnRequestContext(slot);
 
         // if (ctrl->verbose)
-        log_debug("After return: pool capacity {}, pool available {}\n",
-                  ctrl->mRequestContextPool->capacity,
-                  ctrl->mRequestContextPool->availableContexts.size());
+        // log_debug("After return: pool capacity {}, pool available {}\n",
+        //           ctrl->mRequestContextPool->capacity,
+        //           ctrl->mRequestContextPool->availableContexts.size());
     }
 }
 
@@ -150,7 +150,8 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
             worker->ns_ctx->current_queue_depth++;
         }
 
-        object = read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
+        // object = read_from_buffer((const char *)ioCtx.data,
+        // sizeof(ioCtx.data));
     }
     // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
 

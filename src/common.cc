@@ -514,8 +514,8 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
     assert(slot->available);
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
     if (slot < contexts || slot >= contexts + capacity) {
-        if (ctrl->verbose)
-            log_debug("freeing buffers, not sure why");
+        // if (ctrl->verbose)
+        log_debug("freeing buffers, not sure why");
         // test whether the returned slot is pre-allocated
         spdk_free(slot->dataBuffer);
         spdk_free(slot->metadataBuffer);
