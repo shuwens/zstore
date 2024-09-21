@@ -967,7 +967,8 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
-    memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+    // memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
+    snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
 
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
