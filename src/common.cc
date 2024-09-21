@@ -141,7 +141,7 @@ int handleSubmit(void *args)
     // while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
 
     // Multiple threads/readers can read the counter's value at the same time.
-    std::shared_lock lock(zctrlr->context_pool_mutex_);
+    // std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth) {
@@ -232,7 +232,7 @@ int handleObjectSubmit(void *args)
     // auto task_count = zctrlr->GetTaskCount();
 
     // Multiple threads/readers can read the counter's value at the same time.
-    std::shared_lock lock(zctrlr->context_pool_mutex_);
+    // std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth && !worker->ns_ctx->is_draining) {

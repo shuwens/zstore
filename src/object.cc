@@ -32,21 +32,19 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     // this should move to reclaim context and in controller
     {
-        // std::unique_lock lock(ctrl->context_pool_mutex_);
         slot->available = true;
         slot->Clear();
         // if (ctrl->verbose)
         // log_debug("\nBefore return: pool capacity {}, pool available {}",
         //           ctrl->mRequestContextPool->capacity,
         //           ctrl->mRequestContextPool->availableContexts.size());
-
+        // std::unique_lock lock(gZstoreController->context_pool_mutex_);
         gZstoreController->mRequestContextPool->ReturnRequestContext(slot);
-
-        // if (ctrl->verbose)
-        // log_debug("After return: pool capacity {}, pool available {}\n",
-        //           ctrl->mRequestContextPool->capacity,
-        //           ctrl->mRequestContextPool->availableContexts.size());
     }
+    // if (ctrl->verbose)
+    // log_debug("After return: pool capacity {}, pool available {}\n",
+    //           ctrl->mRequestContextPool->capacity,
+    //           ctrl->mRequestContextPool->availableContexts.size());
 }
 
 // Read a ZstoreObject from a 4096-byte buffer
@@ -108,11 +106,11 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
         log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
                   ctrl->mRequestContextPool->capacity,
                   ctrl->mRequestContextPool->availableContexts.size());
-
-        // std::unique_lock lock(ctrl->context_pool_mutex_);
-
-        RequestContext *slot =
-            ctrl->mRequestContextPool->GetRequestContext(true);
+        RequestContext *slot;
+        {
+            std::unique_lock lock(ctrl->context_pool_mutex_);
+            slot = ctrl->mRequestContextPool->GetRequestContext(true);
+        }
         assert(slot != nullptr);
         // task->ns_ctx = zctrlr->mWorker->ns_ctx;
         slot->ctrl = ctrl;
