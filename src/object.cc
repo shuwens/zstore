@@ -32,6 +32,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     // this should move to reclaim context and in controller
     {
+        // std::unique_lock lock(gZstoreController->context_pool_mutex_);
         slot->available = true;
         slot->Clear();
         // if (ctrl->verbose)
@@ -103,9 +104,9 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
     struct ZstoreObject *object;
 
     {
-        log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
-                  ctrl->mRequestContextPool->capacity,
-                  ctrl->mRequestContextPool->availableContexts.size());
+        // log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
+        //           ctrl->mRequestContextPool->capacity,
+        //           ctrl->mRequestContextPool->availableContexts.size());
         RequestContext *slot;
         {
             std::unique_lock lock(ctrl->context_pool_mutex_);

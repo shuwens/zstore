@@ -140,6 +140,7 @@ void zoneRead(void *arg1)
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
+    log_debug("ding ding: we are running spdk read");
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
     assert(rc == 0);
@@ -213,11 +214,12 @@ int handleSubmit(void *args)
     // std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
-    while (req_inflight < queue_depth) {
+    auto worker = zctrlr->GetWorker();
+    while (req_inflight < queue_depth &&
+           worker->ns_ctx->io_completed < Configuration::GetTotalIo()) {
         issueIo(zctrlr);
         busy = true;
     }
-    auto worker = zctrlr->GetWorker();
     if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
         auto etime = std::chrono::high_resolution_clock::now();
         auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -534,21 +536,19 @@ RequestContextPool::RequestContextPool(uint32_t cap)
 
 RequestContext *RequestContextPool::GetRequestContext(bool force)
 {
-    // std::unique_lock lock(gZstoreController->context_pool_mutex_);
     RequestContext *ctx = nullptr;
     if (availableContexts.empty() && force == false) {
         ctx = nullptr;
     } else {
         if (!availableContexts.empty()) {
             // if (ctrl->verbose)
-            // log_debug("available Context is not empty pop one from the back
-            // .");
+            log_debug("available Context is not empty pop one from the back.");
             ctx = availableContexts.back();
             availableContexts.pop_back();
             ctx->Clear();
             ctx->available = false;
         } else {
-            // log_debug("available Context is empty, BAD.");
+            log_debug("available Context is empty, BAD.");
             ctx = new RequestContext();
             ctx->dataBuffer = (uint8_t *)spdk_zmalloc(
                 4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
@@ -575,14 +575,14 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
     if (slot < contexts || slot >= contexts + capacity) {
         // if (ctrl->verbose)
-        log_debug("freeing buffers, not sure why");
+        // log_debug("freeing buffers, not sure why");
         // test whether the returned slot is pre-allocated
         spdk_free(slot->dataBuffer);
         spdk_free(slot->metadataBuffer);
         delete slot;
     } else {
         // if (ctrl->verbose)
-        log_debug("Puting slot back to avaiable context");
+        // log_debug("Puting slot back to avaiable context");
         assert(availableContexts.size() <= capacity);
         availableContexts.emplace_back(slot);
     }
