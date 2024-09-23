@@ -5,7 +5,7 @@
 #include "include/request_handler.h"
 #include "include/utils.hpp"
 
-static const int request_context_pool_size = 256;
+static const int request_context_pool_size = 4096;
 
 static void busyWait(bool *ready)
 {
@@ -64,12 +64,12 @@ void ZstoreController::initDispatchThread(bool use_object)
              Configuration::GetDispatchThreadCoreId());
 
     int rc;
-    if (use_object)
+    if (use_object) {
+        log_info("Dispatch object worker");
         rc = spdk_env_thread_launch_pinned(
             Configuration::GetDispatchThreadCoreId(), dispatchObjectWorker,
             this);
-    else {
-
+    } else {
         log_info("Not using object");
         rc = spdk_env_thread_launch_pinned(
             Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
@@ -121,7 +121,7 @@ int ZstoreController::PopulateMap(bool bogus)
 int ZstoreController::Init(bool object)
 {
     int rc = 0;
-    verbose = false;
+    verbose = true;
     // uint32_t task_count = 0;
     // char task_pool_name[30];
 
@@ -143,7 +143,7 @@ int ZstoreController::Init(bool object)
 
     tsc_end =
         spdk_get_ticks() - g_arbitration.time_in_sec * g_arbitration.tsc_rate;
-    log_debug("TSC Now: {}, End: {}", spdk_get_ticks(), tsc_end);
+    // log_debug("TSC Now: {}, End: {}", spdk_get_ticks(), tsc_end);
 
     // Create and configure Zstore instance
     // std::string zstore_name, bucket_name;
@@ -235,9 +235,18 @@ int ZstoreController::Init(bool object)
     return rc;
 }
 
-void ZstoreController::ReadInDispatchThread(RequestContext *ctx) {}
+void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
+{
+    log_info("ZstoreController Read in Dispatch Thread");
+    // thread_send_msg(mIoThread.thread, zoneRead, ctx);
+    thread_send_msg(GetIoThread(), zoneRead, ctx);
+}
 
-void ZstoreController::WriteInDispatchThread(RequestContext *ctx) {}
+void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
+{
+    log_info("ZstoreController Write in Dispatch Thread");
+    thread_send_msg(mIoThread.thread, zoneRead, ctx);
+}
 
 void ZstoreController::CheckIoQpair(std::string msg)
 {
@@ -803,6 +812,20 @@ int ZstoreController::init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
 //
 //     return 0;
 // }
+
+void ZstoreController::EnqueueRead(RequestContext *ctx)
+{
+    mReadQueue.push(ctx);
+    // GetWorker()->ns_ctx->current_queue_depth++;
+    log_debug("After READ: read q {}", GetReadQueueSize());
+}
+
+void ZstoreController::EnqueueWrite(RequestContext *ctx)
+{
+    mWriteQueue.push(ctx);
+    // GetWorker()->ns_ctx->current_queue_depth++;
+    log_debug("after push: read q {}", GetWriteQueueSize());
+}
 
 Result<MapEntry> ZstoreController::find_object(std::string key)
 {

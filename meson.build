@@ -8,7 +8,7 @@ project(
 		'warning_level=2',
 		'b_colorout=always',
 		# 'b_sanitize=address,undefined',
-		'b_sanitize=thread',
+		# 'b_sanitize=thread',
 		'b_lto=true',
 		'b_thinlto_cache=true',
 	],

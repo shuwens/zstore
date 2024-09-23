@@ -13,6 +13,47 @@
 #include <spdk/event.h>
 #include <sys/time.h>
 
+void complete(void *arg, const struct spdk_nvme_cpl *completion)
+{
+    log_debug("Complete\n");
+    RequestContext *slot = (RequestContext *)arg;
+
+    if (spdk_nvme_cpl_is_error(completion)) {
+        fprintf(stderr, "I/O error status: %s\n",
+                spdk_nvme_cpl_get_status_string(&completion->status));
+        fprintf(stderr, "I/O failed, aborting run\n");
+        assert(0);
+        exit(1);
+    }
+
+    // FIXME dont know why but this can be nullptr???
+    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+    assert(ctrl != nullptr);
+
+    auto worker = ctrl->GetWorker();
+    assert(worker != nullptr);
+    assert(worker->ns_ctx != nullptr);
+    //
+    // worker->ns_ctx->current_queue_depth--;
+    worker->ns_ctx->io_completed++;
+
+    // this should move to reclaim context and in controller
+    {
+        // std::unique_lock lock(gZstoreController->context_pool_mutex_);
+        slot->available = true;
+        slot->Clear();
+        // if (ctrl->verbose)
+        log_debug("\nBefore return: pool capacity {}, pool available {}",
+                  ctrl->mRequestContextPool->capacity,
+                  ctrl->mRequestContextPool->availableContexts.size());
+        gZstoreController->mRequestContextPool->ReturnRequestContext(slot);
+    }
+    // if (ctrl->verbose)
+    log_debug("After return: pool capacity {}, pool available {}\n",
+              ctrl->mRequestContextPool->capacity,
+              ctrl->mRequestContextPool->availableContexts.size());
+}
+
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
     if (spdk_thread_send_msg(thread, fn, args) < 0) {
@@ -140,7 +181,10 @@ void zoneRead(void *arg1)
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
-    log_debug("ding ding: we are running spdk read");
+    log_debug(
+        "ding ding: we are running spdk read: offset {}, size {}, flags {}\n",
+        ioCtx.offset, ioCtx.size, ioCtx.flags);
+
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
     assert(rc == 0);
@@ -148,6 +192,8 @@ void zoneRead(void *arg1)
 
 static void issueIo(void *args)
 {
+    log_debug("Issue IO");
+
     ZstoreController *zctrlr = (ZstoreController *)args;
     int rc;
 
@@ -164,14 +210,10 @@ static void issueIo(void *args)
     // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
     ioCtx.offset = 0;
     ioCtx.size = entry->io_size_blocks;
-    // ioCtx.cb = io_complete;
-    // ioCtx.ctx = task;
     ioCtx.cb = complete;
-    bool *done = nullptr;
-    ioCtx.ctx = done;
+    ioCtx.ctx = slot;
     ioCtx.flags = 0;
 
-    // task->ns_ctx = zctrlr->mWorker->ns_ctx;
     slot->ctrl = zctrlr;
     assert(slot->ctrl == zctrlr);
 
@@ -192,75 +234,70 @@ static void issueIo(void *args)
     if (rc != 0) {
         log_error("starting I/O failed");
     } else {
-        worker->ns_ctx->current_queue_depth++;
+        // log_error("starting I/O failed");
+        // worker->ns_ctx->current_queue_depth++;
     }
 }
 
 int handleSubmit(void *args)
 {
     bool busy = false;
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // zctrlr->CheckTaskPool("submit IO");
-    int queue_depth = zctrlr->GetQueueDepth();
-    // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
+    ZstoreController *ctrl = (ZstoreController *)args;
 
-    // log_debug("queue depth {}, task pool size {}, completed {}", queue_depth,
-    //           spdk_mempool_count(zctrlr->mTaskPool),
-    //           zctrlr->mWorker->ns_ctx->io_completed);
-    // auto task_count = zctrlr->GetTaskCount();
-    // while (task_count - zctrlr->GetTaskPoolSize() < queue_depth) {
+    std::queue<RequestContext *> &readQ = ctrl->GetReadQueue();
 
-    // Multiple threads/readers can read the counter's value at the same time.
-    // std::shared_lock lock(zctrlr->context_pool_mutex_);
-    auto req_inflight = zctrlr->mRequestContextPool->capacity -
-                        zctrlr->mRequestContextPool->availableContexts.size();
-    auto worker = zctrlr->GetWorker();
-    while (req_inflight < queue_depth &&
-           worker->ns_ctx->io_completed < Configuration::GetTotalIo()) {
-        issueIo(zctrlr);
+    int queue_depth = ctrl->GetQueueDepth();
+    auto req_inflight = ctrl->mRequestContextPool->capacity -
+                        ctrl->mRequestContextPool->availableContexts.size();
+    auto worker = ctrl->GetWorker();
+    // worker->ns_ctx->current_queue_depth
+
+    while (!readQ.empty()) {
+        log_debug(
+            "queue depth {}, req in flight {}, completed {}, current queue "
+            "depth {}",
+            queue_depth, req_inflight, worker->ns_ctx->io_completed,
+            readQ.size());
+
+        RequestContext *ctx = readQ.front();
+        ctrl->ReadInDispatchThread(ctx);
+
+        // if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
         busy = true;
+        readQ.pop();
+        // } else {
+        //     break;
+        // }
     }
-    if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
-        auto etime = std::chrono::high_resolution_clock::now();
-        auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
-                         etime - zctrlr->stime)
-                         .count();
-        auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
-        log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-                 worker->ns_ctx->io_completed, delta, tput);
 
-        log_debug("drain io: {}", spdk_get_ticks());
-        drain_io(zctrlr);
-        log_debug("clean up ns worker");
-        zctrlr->cleanup_ns_worker_ctx();
-        //
-        //     std::vector<uint64_t> deltas1;
-        //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)
-        //     {
-        //         deltas1.push_back(
-        //             std::chrono::duration_cast<std::chrono::microseconds>(
-        //                 zctrlr->mWorker->ns_ctx->etimes[i] -
-        //                 zctrlr->mWorker->ns_ctx->stimes[i])
-        //                 .count());
-        //     }
-        //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-        //     auto mean1 = sum1 / deltas1.size();
-        //     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
-        //                                       deltas1.begin(), 0.0);
-        //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
-        //     mean1); log_info("qd: {}, mean {}, std {}",
-        //              zctrlr->mWorker->ns_ctx->io_completed, mean1, stdev1);
-        //
-        //     // clearnup
-        //     deltas1.clear();
-        //     zctrlr->mWorker->ns_ctx->etimes.clear();
-        //     zctrlr->mWorker->ns_ctx->stimes.clear();
-        //     // }
-        //
-        log_debug("end work fn");
-        print_stats(zctrlr);
-        exit(0);
-    }
+    // log_debug("queue depth {}, req in flight {}, completed {}, current queue
+    // "
+    //           "depth {}",
+    //           queue_depth, req_inflight, worker->ns_ctx->io_completed,
+    //           worker->ns_ctx->current_queue_depth);
+    //
+    // while (req_inflight < queue_depth &&
+    //        worker->ns_ctx->io_completed < Configuration::GetTotalIo()) {
+    //     issueIo(zctrlr);
+    //     busy = true;
+    // }
+    // if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
+    //     auto etime = std::chrono::high_resolution_clock::now();
+    //     auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+    //                      etime - zctrlr->stime)
+    //                      .count();
+    //     auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
+    //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+    //              worker->ns_ctx->io_completed, delta, tput);
+    //
+    //     log_debug("drain io: {}", spdk_get_ticks());
+    //     drain_io(zctrlr);
+    //     log_debug("clean up ns worker");
+    //     zctrlr->cleanup_ns_worker_ctx();
+    //     log_debug("end work fn");
+    //     print_stats(zctrlr);
+    //     exit(0);
+    // }
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
@@ -270,7 +307,6 @@ int dispatchWorker(void *args)
     struct spdk_thread *thread = zctrl->GetDispatchThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    // p = spdk_poller_register(handleEventsDispatch, zctrl, 1);
     p = spdk_poller_register(handleSubmit, zctrl, 0);
     zctrl->SetDispatchPoller(p);
     while (true) {
@@ -324,10 +360,12 @@ int handleObjectSubmit(void *args)
         // int offset = res.value().second;
 
         int offset = 0;
+        // struct ZstoreObject *obj = ReadObject(zctrlr->pivot, zctrlr);
+
         // struct ZstoreObject obj = ReadObject(offset, zctrlr).value();
         // inspect(zctrlr);
         // struct ZstoreObject *obj = ReadObject(0, zctrlr);
-        struct ZstoreObject *obj = ReadObject(zctrlr->pivot, zctrlr);
+        issueIo(zctrlr);
         // log_debug("Receive object at LBA {}: key {}, seqnum {}, vernum {}",
         //           offset, obj.key, obj.seqnum, obj.vernum);
         zctrlr->pivot++;
@@ -548,6 +586,7 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             ctx->Clear();
             ctx->available = false;
         } else {
+            // if (ctrl->verbose)
             log_debug("available Context is empty, BAD.");
             ctx = new RequestContext();
             ctx->dataBuffer = (uint8_t *)spdk_zmalloc(
@@ -575,14 +614,14 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
     if (slot < contexts || slot >= contexts + capacity) {
         // if (ctrl->verbose)
-        // log_debug("freeing buffers, not sure why");
+        log_debug("freeing buffers, not sure why");
         // test whether the returned slot is pre-allocated
         spdk_free(slot->dataBuffer);
         spdk_free(slot->metadataBuffer);
         delete slot;
     } else {
         // if (ctrl->verbose)
-        // log_debug("Puting slot back to avaiable context");
+        log_debug("Puting slot back to avaiable context");
         assert(availableContexts.size() <= capacity);
         availableContexts.emplace_back(slot);
     }

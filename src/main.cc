@@ -3,6 +3,7 @@
 #include "spdk/env.h"
 #include "zstore_controller.cc"
 #include <bits/stdc++.h>
+#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
@@ -78,13 +79,77 @@ int main(int argc, char **argv)
     // gZstoreController->initHttpThread();
 
     // while (1) {
-    //     sleep(1);
     // }
 
-    bool use_object = true;
+    bool use_object = false;
     gZstoreController->initDispatchThread(use_object);
 
     // ==================================
+
+    auto worker = gZstoreController->GetWorker();
+    assert(worker != nullptr);
+    struct ns_entry *entry = worker->ns_ctx->entry;
+    assert(entry != nullptr);
+    assert(entry->nvme.ns != nullptr);
+    assert(worker->ns_ctx->qpair != nullptr);
+
+    sleep(1);
+    log_debug("1 {}", gZstoreController->mRequestContextPool->capacity);
+    log_debug("1 {}",
+              gZstoreController->mRequestContextPool->availableContexts.size());
+
+    auto req_inflight =
+        gZstoreController->mRequestContextPool->capacity -
+        gZstoreController->mRequestContextPool->availableContexts.size();
+
+    log_debug("1 {}", gZstoreController->GetQueueDepth());
+    // log_debug("queue depth {}, req in flight {}, completed {}, current queue"
+    //           "depth {}",
+    //           req_inflight < gZstoreController->GetQueueDepth(),
+    //           req_inflight, g_worker->ns_ctx->io_completed,
+    //           g_worker->ns_ctx->current_queue_depth);
+
+    // worker->ns_ctx->current_queue_depth = 0;
+    while (req_inflight < gZstoreController->GetQueueDepth() &&
+           !gZstoreController->GetWorker()->ns_ctx->is_draining) {
+        // while (1) {
+        RequestContext *slot =
+            gZstoreController->mRequestContextPool->GetRequestContext(true);
+        slot->ctrl = gZstoreController;
+        assert(slot->ctrl == gZstoreController);
+
+        auto ioCtx = slot->ioContext;
+
+        ioCtx.ns = entry->nvme.ns;
+        ioCtx.qpair = worker->ns_ctx->qpair;
+        ioCtx.data = slot->dataBuffer;
+        // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+        ioCtx.offset = 0;
+        ioCtx.size = entry->io_size_blocks;
+        ioCtx.cb = complete;
+        ioCtx.ctx = slot;
+        ioCtx.flags = 0;
+        slot->ioContext = ioCtx;
+
+        // if (g_arbitration.is_random) {
+        //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
+        // } else {
+        //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
+        //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
+        //         worker->ns_ctx->offset_in_ios = 0;
+        //     }
+        // }
+
+        // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
+
+        // thread_send_msg(zctrlr->GetIoThread(), zoneRead, slot);
+
+        log_debug("Before READ: read q {}, io completed {}",
+                  gZstoreController->GetReadQueueSize(),
+                  gZstoreController->GetWorker()->ns_ctx->io_completed);
+        assert(slot->ioContext.cb != nullptr);
+        gZstoreController->EnqueueRead(slot);
+    }
 
     // struct worker_thread *worker, *main_worker;
     // unsigned main_core;

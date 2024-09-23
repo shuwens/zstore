@@ -108,19 +108,16 @@ class ZstoreController
     void Execute(uint64_t offset, uint32_t size, void *data, bool is_write,
                  zns_raid_request_complete cb_fn, void *cb_args);
 
-    // void EnqueueWrite(RequestContext *ctx);
-    // void EnqueueReadPrepare(RequestContext *ctx);
+    void EnqueueWrite(RequestContext *ctx);
+    void EnqueueRead(RequestContext *ctx);
     // void EnqueueReadReaping(RequestContext *ctx);
-
     std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
-
     std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
 
     // std::queue<RequestContext *> &GetEventsToDispatch();
 
-    // int GetWriteQueueSize();
-    // int GetReadPrepareQueueSize();
-    // int GetReadReapingQueueSize();
+    int GetWriteQueueSize() { return mWriteQueue.size(); };
+    int GetReadQueueSize() { return mReadQueue.size(); };
 
     // int GetEventsToDispatchSize();
 
