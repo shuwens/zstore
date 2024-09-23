@@ -13,6 +13,15 @@
 #include <spdk/event.h>
 #include <sys/time.h>
 
+void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
+{
+    if (spdk_thread_send_msg(thread, fn, args) < 0) {
+        printf("Thread send message failed: thread_name %s!\n",
+               spdk_thread_get_name(thread));
+        exit(-1);
+    }
+}
+
 int handleHttpRequest(void *args)
 {
     bool busy = false;
@@ -126,6 +135,66 @@ int handleEventsDispatch(void *args)
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
+void zoneRead(void *arg1)
+{
+    RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
+    auto ioCtx = ctx->ioContext;
+    int rc = 0;
+    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
+    assert(rc == 0);
+}
+
+static void issueIo(void *args)
+{
+    ZstoreController *zctrlr = (ZstoreController *)args;
+    int rc;
+
+    auto worker = zctrlr->GetWorker();
+    struct ns_entry *entry = worker->ns_ctx->entry;
+
+    RequestContext *slot =
+        zctrlr->mRequestContextPool->GetRequestContext(false);
+    auto ioCtx = slot->ioContext;
+
+    ioCtx.ns = entry->nvme.ns;
+    ioCtx.qpair = worker->ns_ctx->qpair;
+    ioCtx.data = slot->dataBuffer;
+    // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+    ioCtx.offset = 0;
+    ioCtx.size = entry->io_size_blocks;
+    // ioCtx.cb = io_complete;
+    // ioCtx.ctx = task;
+    ioCtx.cb = complete;
+    bool *done = nullptr;
+    ioCtx.ctx = done;
+    ioCtx.flags = 0;
+
+    // task->ns_ctx = zctrlr->mWorker->ns_ctx;
+    slot->ctrl = zctrlr;
+    assert(slot->ctrl == zctrlr);
+
+    // if (g_arbitration.is_random) {
+    //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
+    // } else {
+    //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
+    //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
+    //         worker->ns_ctx->offset_in_ios = 0;
+    //     }
+    // }
+
+    // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
+    // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
+
+    thread_send_msg(zctrlr->GetIoThread(), zoneRead, slot);
+
+    if (rc != 0) {
+        log_error("starting I/O failed");
+    } else {
+        worker->ns_ctx->current_queue_depth++;
+    }
+}
+
 int handleSubmit(void *args)
 {
     bool busy = false;
@@ -145,7 +214,7 @@ int handleSubmit(void *args)
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth) {
-        submit_single_io(zctrlr);
+        issueIo(zctrlr);
         busy = true;
     }
     auto worker = zctrlr->GetWorker();
@@ -328,15 +397,6 @@ int completionWorker(void *args)
     // while (true) {
     //     spdk_thread_poll(thread, 0, 0);
     // }
-}
-
-void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
-{
-    if (spdk_thread_send_msg(thread, fn, args) < 0) {
-        printf("Thread send message failed: thread_name %s!\n",
-               spdk_thread_get_name(thread));
-        exit(-1);
-    }
 }
 
 Result<MapEntry> createMapEntry(std::string device, int32_t lba)
