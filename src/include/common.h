@@ -46,30 +46,9 @@ struct Request {
     void *cb_args;
 };
 
-struct PhysicalAddr {
-    uint32_t zoneId;
-    uint32_t offset;
-    void PrintOffset();
-
-    bool operator==(const PhysicalAddr o) const
-    {
-        return (zoneId == o.zoneId) && (offset == o.offset);
-    }
-};
-
-struct ReadContext {
-    uint8_t **data;
-    uint8_t *dataPool;
-    uint8_t *metadata;
-    std::vector<RequestContext *> ioContext;
-};
-
 struct RequestContext {
     // The buffers are pre-allocated
     uint8_t *dataBuffer;
-    uint8_t *metadataBuffer;
-    // ContextType type;
-    // ContextStatus status;
 
     // A user request use the following field:
     // Info: lba, size, req_type, data
@@ -78,11 +57,9 @@ struct RequestContext {
     uint32_t size;
     uint8_t req_type;
     uint8_t *data;
-    uint8_t *meta;
     uint32_t successBytes;
     uint32_t targetBytes;
     uint32_t curOffset;
-    zns_raid_request_complete cb_fn;
     void *cb_args;
     uint32_t ioOffset;
 
@@ -90,11 +67,8 @@ struct RequestContext {
 
     // Used inside a Segment write/read
     ZstoreController *ctrl;
-    // Segment *segment;
     uint32_t zoneId;
-    // uint32_t stripeId;
     uint32_t offset;
-    bool append;
 
     double stime;
     double ctime;
@@ -102,19 +76,10 @@ struct RequestContext {
 
     struct timeval timeA;
 
-    // context during request process
-    RequestContext *associatedRequest;
-    // StripeWriteContext *associatedStripe;
-    ReadContext *associatedRead;
-
-    // bool needDegradedRead;
-    // bool needDecodeMeta;
-
     struct {
         struct spdk_nvme_ns *ns;
         struct spdk_nvme_qpair *qpair;
         void *data;
-        void *metadata;
         uint64_t offset;
         uint32_t size;
         spdk_nvme_cmd_cb cb;
@@ -123,62 +88,13 @@ struct RequestContext {
     } ioContext;
 
     uint32_t bufferSize; // for recording partial writes
-    // GcTask *gcTask;
-    std::vector<PhysicalAddr> pbaArray;
 
     void Clear();
     void Queue();
-    PhysicalAddr GetPba();
     double GetElapsedTime();
     void PrintStats();
     void CopyFrom(const RequestContext &o);
 };
-
-// Data is an array: index is offset, value is the stripe Id in the
-// corresponding group
-// struct GroupMeta {
-//     uint8_t *data;
-//     uint8_t *metadata;
-//     RequestContext slots[16];
-// };
-
-// enum GcTaskStage {
-//     IDLE,
-//     INIT,
-//     REWRITING,
-//     REWRITE_COMPLETE,
-//     INDEX_UPDATING,
-//     INDEX_UPDATING_BATCH,
-//     INDEX_UPDATE_COMPLETE,
-//     RESETTING_INPUT_SEGMENT,
-//     COMPLETE
-// };
-
-// struct GcTask {
-//     GcTaskStage stage;
-//
-//     Segment *inputSegment;
-//     Segment *outputSegment;
-//     uint32_t maxZoneId;
-//     uint32_t maxOffset;
-//
-//     uint8_t *dataBuffer;
-//     uint8_t *metaBuffer;
-//     uint32_t writerPos;
-//     uint32_t readerPos;
-//     RequestContext *contextPool;
-//
-//     uint32_t numWriteSubmitted;
-//     uint32_t numWriteFinish;
-//     uint32_t numReads;
-//
-//     uint32_t curZoneId;
-//     uint32_t nextOffset;
-//
-//     uint32_t numBuffers;
-//
-//     std::map<uint64_t, std::pair<PhysicalAddr, PhysicalAddr>> mappings;
-// };
 
 struct IoThread {
     struct spdk_nvme_poll_group *group;
@@ -197,49 +113,11 @@ struct RequestContextPool {
     void ReturnRequestContext(RequestContext *slot);
 };
 
-struct ReadContextPool {
-    ReadContext *contexts;
-    std::vector<ReadContext *> availableContexts;
-    RequestContextPool *requestPool;
-    uint32_t capacity;
-
-    ReadContextPool(uint32_t cap, RequestContextPool *rp);
-    ReadContext *GetContext();
-    void Recycle();
-    void ReturnContext(ReadContext *readContext);
-
-  private:
-    bool checkReadAvailable(ReadContext *readContext);
-};
-
-// struct StripeWriteContextPool {
-//     uint32_t capacity;
-//     struct StripeWriteContext *contexts;
-//     std::vector<StripeWriteContext *> availableContexts;
-//     std::unordered_set<StripeWriteContext *> inflightContexts;
-//     struct RequestContextPool *rPool;
-//
-//     StripeWriteContextPool(uint32_t cap, struct RequestContextPool *rp);
-//     StripeWriteContext *GetContext();
-//     void Recycle();
-//     bool NoInflightStripes();
-//
-//   private:
-//     bool checkStripeAvailable(StripeWriteContext *stripe);
-// };
-
 double GetTimestampInUs();
 double timestamp();
 double gettimediff(struct timeval s, struct timeval e);
 
-// void InitErasureCoding();
-// void DecodeStripe(uint32_t offset, uint8_t **stripe, bool *alive, uint32_t n,
-//                   uint32_t k, uint32_t decodeZid, uint32_t unitSize);
-// void EncodeStripe(uint8_t **stripe, uint32_t n, uint32_t k, uint32_t
-// unitSize);
-
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-// static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -310,11 +188,6 @@ struct arb_context {
     const char *workload_type;
 };
 
-struct feature {
-    uint32_t result;
-    bool valid;
-};
-
 static struct spdk_nvme_transport_id g_trid = {};
 
 static struct arb_context g_arbitration = {
@@ -353,12 +226,8 @@ static int g_micro_to_second = 1'000'000;
 
 // Object and Map related
 
-struct Object {
-    int len;
-    void *data;   /* points to after 'name' */
-    char name[0]; /* null terminated */
-};
-
 typedef std::pair<std::string, int32_t> MapEntry;
+
 Result<MapEntry> createMapEntry(std::string device, int32_t lba);
+
 void updateMapEntry(MapEntry entry, std::string device, int32_t lba);

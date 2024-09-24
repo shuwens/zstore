@@ -5,11 +5,13 @@
 #include "zstore_controller.cc"
 #include <bits/stdc++.h>
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <thread>
 
 void create_dummy_objects(Zstore zstore)
 {
@@ -94,10 +96,6 @@ int main(int argc, char **argv)
     assert(entry->nvme.ns != nullptr);
     assert(worker->ns_ctx->qpair != nullptr);
 
-    auto req_inflight =
-        gZstoreController->mRequestContextPool->capacity -
-        gZstoreController->mRequestContextPool->availableContexts.size();
-
     // log_debug("queue depth {}, req in flight {}, completed {}, current queue"
     //           "depth {}",
     //           gZstoreController->GetQueueDepth(), req_inflight,
@@ -106,19 +104,21 @@ int main(int argc, char **argv)
 
     // worker->ns_ctx->current_queue_depth = 0;
     gZstoreController->stime = std::chrono::high_resolution_clock::now();
-    while (req_inflight < gZstoreController->GetQueueDepth() &&
-           !worker->ns_ctx->is_draining) {
+    while (!worker->ns_ctx->is_draining) {
 
         // &&!gZstoreController->mRequestContextPool->availableContexts.empty())
         // {
         // if (gZstoreController->verbose)
         // if (worker->ns_ctx->io_completed % 1000 == 0)
-        log_debug(
-            "queue depth {}, req in flight {}, completed {}, "
-            "avalable ctx {}",
-            gZstoreController->GetQueueDepth(), req_inflight,
-            worker->ns_ctx->io_completed,
-            gZstoreController->mRequestContextPool->availableContexts.size());
+        // log_debug(
+        //     "queue depth {}, req in flight {}, read q size {},  "
+        //     "completed {},  avalable ctx {} ",
+        //     gZstoreController->GetQueueDepth(),
+        //     (gZstoreController->mRequestContextPool->capacity -
+        //      gZstoreController->mRequestContextPool->availableContexts.size()),
+        //     gZstoreController->GetReadQueueSize(),
+        //     worker->ns_ctx->io_completed,
+        //     gZstoreController->mRequestContextPool->availableContexts.size());
 
         RequestContext *slot =
             gZstoreController->mRequestContextPool->GetRequestContext(true);
@@ -126,11 +126,12 @@ int main(int argc, char **argv)
         assert(slot->ctrl == gZstoreController);
 
         auto ioCtx = slot->ioContext;
+        auto offset_in_ios = rand_r(&seed) % entry->size_in_ios;
 
         ioCtx.ns = entry->nvme.ns;
         ioCtx.qpair = worker->ns_ctx->qpair;
         ioCtx.data = slot->dataBuffer;
-        // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+        ioCtx.offset = offset_in_ios * entry->io_size_blocks;
         ioCtx.offset = 0;
         ioCtx.size = entry->io_size_blocks;
         ioCtx.cb = complete;
@@ -139,7 +140,6 @@ int main(int argc, char **argv)
         slot->ioContext = ioCtx;
 
         // if (g_arbitration.is_random) {
-        //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
         // } else {
         //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
         //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
@@ -147,7 +147,8 @@ int main(int argc, char **argv)
         //     }
         // }
 
-        // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
+        // log_debug("Before READ {}", offset_in_ios *
+        // entry->io_size_blocks);
 
         // thread_send_msg(zctrlr->GetIoThread(), zoneRead, slot);
 
@@ -158,7 +159,7 @@ int main(int argc, char **argv)
         assert(slot->ioContext.cb != nullptr);
         gZstoreController->EnqueueRead(slot);
     }
-
+    // std::this_thread::sleep_for(boost_swap_impl::chrono::microseconds(1));
     // struct worker_thread *worker, *main_worker;
     // unsigned main_core;
     // main_worker = NULL;

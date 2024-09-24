@@ -28,9 +28,9 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
 
     // FIXME
-    // assert(ctrl != nullptr);
-    if (ctrl == nullptr)
-        ctrl = gZstoreController;
+    assert(ctrl != nullptr);
+    // if (ctrl == nullptr)
+    //     ctrl = gZstoreController;
 
     auto worker = ctrl->GetWorker();
     assert(worker != nullptr);
@@ -59,8 +59,9 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
     if (spdk_thread_send_msg(thread, fn, args) < 0) {
-        printf("Thread send message failed: thread_name %s!\n",
-               spdk_thread_get_name(thread));
+        auto worker = gZstoreController->GetWorker();
+        log_error("Thread send message failed: thread_name {}. io completed {}",
+                  spdk_thread_get_name(thread), worker->ns_ctx->io_completed);
         exit(-1);
     }
 }
@@ -191,7 +192,21 @@ void zoneRead(void *arg1)
 
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
-    // assert(rc == 0);
+
+    if (rc != 0) {
+        auto worker = gZstoreController->GetWorker();
+        log_error("starting I/O failed {}, completed {}", rc,
+                  worker->ns_ctx->io_completed);
+
+    } else {
+        // log_error("starting I/O failed");
+        // worker->ns_ctx->current_queue_depth++;
+    }
+    assert(rc == 0);
+    // struct ZstoreObject *object;
+    // object = read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
+
+    // log_debug("object key {}", object->key);
 }
 
 static void issueIo(void *args)
@@ -234,13 +249,6 @@ static void issueIo(void *args)
     // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
 
     thread_send_msg(zctrlr->GetIoThread(), zoneRead, slot);
-
-    if (rc != 0) {
-        log_error("starting I/O failed");
-    } else {
-        // log_error("starting I/O failed");
-        // worker->ns_ctx->current_queue_depth++;
-    }
 }
 
 int handleSubmit(void *args)
@@ -605,8 +613,8 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
         ctx = nullptr;
     } else {
         if (!availableContexts.empty()) {
-            // log_debug(
-            //     "available Context is not empty pop one from the back.");
+            // log_debug("available Context is not empty pop one from the
+            // back.");
             ctx = availableContexts.back();
             availableContexts.pop_back();
             ctx->Clear();
@@ -626,7 +634,7 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             ctx->Clear();
             ctx->available = false;
             // log_debug("Request Context runs out.");
-            // exit(1);
+            exit(1);
         }
     }
     return ctx;
@@ -640,7 +648,7 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
     // if (ctrl->verbose)
     //     log_error("slot < contexts {}, slot >= contexts+cap {}",
     //               slot < contexts, slot >= contexts + capacity);
-    assert(availableContexts.size() <= capacity);
+    // assert(availableContexts.size() <= capacity);
     availableContexts.emplace_back(slot);
 
     // if (slot < contexts || slot >= contexts + capacity) {
