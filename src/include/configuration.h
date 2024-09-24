@@ -149,7 +149,7 @@ class Configuration
     // FIXME total IO more than this causes failures
     // FIXME queue size larger than 64 causes issue
     // uint32_t gTotalIO = 2'000'000;
-    uint32_t gTotalIO = 100'000;
+    uint32_t gTotalIO = 500'000;
     int gQueueDepth = 64;
 
     const int current_zone = 49;

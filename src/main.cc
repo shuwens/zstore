@@ -1,6 +1,7 @@
 #include "include/zns_utils.h"
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
+#include "src/include/global.h"
 #include "zstore_controller.cc"
 #include <bits/stdc++.h>
 #include <cassert>
@@ -93,26 +94,32 @@ int main(int argc, char **argv)
     assert(entry->nvme.ns != nullptr);
     assert(worker->ns_ctx->qpair != nullptr);
 
-    sleep(1);
-    log_debug("1 {}", gZstoreController->mRequestContextPool->capacity);
-    log_debug("1 {}",
-              gZstoreController->mRequestContextPool->availableContexts.size());
-
     auto req_inflight =
         gZstoreController->mRequestContextPool->capacity -
         gZstoreController->mRequestContextPool->availableContexts.size();
 
-    log_debug("1 {}", gZstoreController->GetQueueDepth());
     // log_debug("queue depth {}, req in flight {}, completed {}, current queue"
     //           "depth {}",
-    //           req_inflight < gZstoreController->GetQueueDepth(),
-    //           req_inflight, g_worker->ns_ctx->io_completed,
+    //           gZstoreController->GetQueueDepth(), req_inflight,
+    //           g_worker->ns_ctx->io_completed,
     //           g_worker->ns_ctx->current_queue_depth);
 
     // worker->ns_ctx->current_queue_depth = 0;
+    gZstoreController->stime = std::chrono::high_resolution_clock::now();
     while (req_inflight < gZstoreController->GetQueueDepth() &&
-           !gZstoreController->GetWorker()->ns_ctx->is_draining) {
-        // while (1) {
+           !worker->ns_ctx->is_draining) {
+
+        // &&!gZstoreController->mRequestContextPool->availableContexts.empty())
+        // {
+        // if (gZstoreController->verbose)
+        // if (worker->ns_ctx->io_completed % 1000 == 0)
+        log_debug(
+            "queue depth {}, req in flight {}, completed {}, "
+            "avalable ctx {}",
+            gZstoreController->GetQueueDepth(), req_inflight,
+            worker->ns_ctx->io_completed,
+            gZstoreController->mRequestContextPool->availableContexts.size());
+
         RequestContext *slot =
             gZstoreController->mRequestContextPool->GetRequestContext(true);
         slot->ctrl = gZstoreController;
@@ -144,9 +151,10 @@ int main(int argc, char **argv)
 
         // thread_send_msg(zctrlr->GetIoThread(), zoneRead, slot);
 
-        log_debug("Before READ: read q {}, io completed {}",
-                  gZstoreController->GetReadQueueSize(),
-                  gZstoreController->GetWorker()->ns_ctx->io_completed);
+        if (gZstoreController->verbose)
+            log_debug("Before READ: read q {}, io completed {}",
+                      gZstoreController->GetReadQueueSize(),
+                      gZstoreController->GetWorker()->ns_ctx->io_completed);
         assert(slot->ioContext.cb != nullptr);
         gZstoreController->EnqueueRead(slot);
     }

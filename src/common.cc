@@ -15,7 +15,6 @@
 
 void complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
-    log_debug("Complete\n");
     RequestContext *slot = (RequestContext *)arg;
 
     if (spdk_nvme_cpl_is_error(completion)) {
@@ -26,9 +25,12 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    // FIXME dont know why but this can be nullptr???
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-    assert(ctrl != nullptr);
+
+    // FIXME
+    // assert(ctrl != nullptr);
+    if (ctrl == nullptr)
+        ctrl = gZstoreController;
 
     auto worker = ctrl->GetWorker();
     assert(worker != nullptr);
@@ -39,19 +41,19 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     // this should move to reclaim context and in controller
     {
-        // std::unique_lock lock(gZstoreController->context_pool_mutex_);
+        std::unique_lock lock(gZstoreController->context_pool_mutex_);
         slot->available = true;
         slot->Clear();
         // if (ctrl->verbose)
-        log_debug("\nBefore return: pool capacity {}, pool available {}",
-                  ctrl->mRequestContextPool->capacity,
-                  ctrl->mRequestContextPool->availableContexts.size());
+        //     log_error("Before return: pool capacity {}, pool available {}",
+        //               ctrl->mRequestContextPool->capacity,
+        //               ctrl->mRequestContextPool->availableContexts.size());
         gZstoreController->mRequestContextPool->ReturnRequestContext(slot);
     }
     // if (ctrl->verbose)
-    log_debug("After return: pool capacity {}, pool available {}\n",
-              ctrl->mRequestContextPool->capacity,
-              ctrl->mRequestContextPool->availableContexts.size());
+    //     log_error("After return: pool capacity {}, pool available {}\n",
+    //               ctrl->mRequestContextPool->capacity,
+    //               ctrl->mRequestContextPool->availableContexts.size());
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
@@ -181,21 +183,23 @@ void zoneRead(void *arg1)
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
-    log_debug(
-        "ding ding: we are running spdk read: offset {}, size {}, flags {}\n",
-        ioCtx.offset, ioCtx.size, ioCtx.flags);
+    // auto ctrl = ctx->ctrl;
+    // if (ctrl->verbose)
+    //     log_debug("ding ding: we are running spdk read: offset {}, size {}, "
+    //               "flags {}\n",
+    //               ioCtx.offset, ioCtx.size, ioCtx.flags);
 
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
-    assert(rc == 0);
+    // assert(rc == 0);
 }
 
 static void issueIo(void *args)
 {
-    log_debug("Issue IO");
-
     ZstoreController *zctrlr = (ZstoreController *)args;
     int rc;
+    if (zctrlr->verbose)
+        log_debug("Issue IO");
 
     auto worker = zctrlr->GetWorker();
     struct ns_entry *entry = worker->ns_ctx->entry;
@@ -253,11 +257,12 @@ int handleSubmit(void *args)
     // worker->ns_ctx->current_queue_depth
 
     while (!readQ.empty()) {
-        log_debug(
-            "queue depth {}, req in flight {}, completed {}, current queue "
-            "depth {}",
-            queue_depth, req_inflight, worker->ns_ctx->io_completed,
-            readQ.size());
+
+        // if (ctrl->verbose)
+        //     log_debug(
+        //         "queue depth {}, req in flight {}, completed {}, current
+        //         queue " "depth {}", queue_depth, req_inflight,
+        //         worker->ns_ctx->io_completed, readQ.size());
 
         RequestContext *ctx = readQ.front();
         ctrl->ReadInDispatchThread(ctx);
@@ -268,6 +273,25 @@ int handleSubmit(void *args)
         // } else {
         //     break;
         // }
+    }
+
+    if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
+        auto etime = std::chrono::high_resolution_clock::now();
+        auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+                         etime - gZstoreController->stime)
+                         .count();
+        auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
+
+        // if (g->verbose)
+        log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+                 worker->ns_ctx->io_completed, delta, tput);
+
+        // log_debug("drain io: {}", spdk_get_ticks());
+        drain_io(gZstoreController);
+        log_debug("clean up ns worker");
+        gZstoreController->cleanup_ns_worker_ctx();
+        print_stats(gZstoreController);
+        exit(0);
     }
 
     // log_debug("queue depth {}, req in flight {}, completed {}, current queue
@@ -377,8 +401,10 @@ int handleObjectSubmit(void *args)
                          etime - zctrlr->stime)
                          .count();
         auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
-        log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-                 worker->ns_ctx->io_completed, delta, tput);
+
+        if (zctrlr->verbose)
+            log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+                     worker->ns_ctx->io_completed, delta, tput);
 
         log_debug("drain io: {}", spdk_get_ticks());
         drain_io(zctrlr);
@@ -579,15 +605,14 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
         ctx = nullptr;
     } else {
         if (!availableContexts.empty()) {
-            // if (ctrl->verbose)
-            log_debug("available Context is not empty pop one from the back.");
+            // log_debug(
+            //     "available Context is not empty pop one from the back.");
             ctx = availableContexts.back();
             availableContexts.pop_back();
             ctx->Clear();
             ctx->available = false;
         } else {
-            // if (ctrl->verbose)
-            log_debug("available Context is empty, BAD.");
+            // log_debug("available Context is empty, BAD.");
             ctx = new RequestContext();
             ctx->dataBuffer = (uint8_t *)spdk_zmalloc(
                 4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
@@ -610,19 +635,25 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
 void RequestContextPool::ReturnRequestContext(RequestContext *slot)
 {
     // std::unique_lock lock(gZstoreController->context_pool_mutex_);
-    assert(slot->available);
-    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-    if (slot < contexts || slot >= contexts + capacity) {
-        // if (ctrl->verbose)
-        log_debug("freeing buffers, not sure why");
-        // test whether the returned slot is pre-allocated
-        spdk_free(slot->dataBuffer);
-        spdk_free(slot->metadataBuffer);
-        delete slot;
-    } else {
-        // if (ctrl->verbose)
-        log_debug("Puting slot back to avaiable context");
-        assert(availableContexts.size() <= capacity);
-        availableContexts.emplace_back(slot);
-    }
+    // assert(slot->available);
+    // ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+    // if (ctrl->verbose)
+    //     log_error("slot < contexts {}, slot >= contexts+cap {}",
+    //               slot < contexts, slot >= contexts + capacity);
+    assert(availableContexts.size() <= capacity);
+    availableContexts.emplace_back(slot);
+
+    // if (slot < contexts || slot >= contexts + capacity) {
+    //     // if (ctrl->verbose)
+    //     log_debug("freeing buffers, not sure why");
+    //     // test whether the returned slot is pre-allocated
+    //     spdk_free(slot->dataBuffer);
+    //     spdk_free(slot->metadataBuffer);
+    //     delete slot;
+    // } else {
+    //     // if (ctrl->verbose)
+    //     log_debug("Puting slot back to avaiable context");
+    //     assert(availableContexts.size() <= capacity);
+    //     availableContexts.emplace_back(slot);
+    // }
 }

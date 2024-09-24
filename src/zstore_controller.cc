@@ -5,7 +5,7 @@
 #include "include/request_handler.h"
 #include "include/utils.hpp"
 
-static const int request_context_pool_size = 4096;
+static const int request_context_pool_size = 65536;
 
 static void busyWait(bool *ready)
 {
@@ -121,7 +121,7 @@ int ZstoreController::PopulateMap(bool bogus)
 int ZstoreController::Init(bool object)
 {
     int rc = 0;
-    verbose = true;
+    verbose = false;
     // uint32_t task_count = 0;
     // char task_pool_name[30];
 
@@ -224,8 +224,6 @@ int ZstoreController::Init(bool object)
         return rc;
     }
 
-    stime = std::chrono::high_resolution_clock::now();
-
     // bogus setup for Map and BF
 
     PopulateMap(true);
@@ -237,14 +235,14 @@ int ZstoreController::Init(bool object)
 
 void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
 {
-    log_info("ZstoreController Read in Dispatch Thread");
+    // log_info("ZstoreController Read in Dispatch Thread");
     // thread_send_msg(mIoThread.thread, zoneRead, ctx);
     thread_send_msg(GetIoThread(), zoneRead, ctx);
 }
 
 void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
 {
-    log_info("ZstoreController Write in Dispatch Thread");
+    // log_info("ZstoreController Write in Dispatch Thread");
     thread_send_msg(mIoThread.thread, zoneRead, ctx);
 }
 
@@ -817,7 +815,8 @@ void ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
     // GetWorker()->ns_ctx->current_queue_depth++;
-    log_debug("After READ: read q {}", GetReadQueueSize());
+    if (verbose)
+        log_debug("After READ: read q {}", GetReadQueueSize());
 }
 
 void ZstoreController::EnqueueWrite(RequestContext *ctx)

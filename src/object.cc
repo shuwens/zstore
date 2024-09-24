@@ -49,7 +49,9 @@ void _zoneRead(void *arg1)
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
-    log_debug("ding ding: we are running spdk read");
+    ZstoreController *ctrl = (ZstoreController *)ctx->ctrl;
+    if (ctrl->verbose)
+        log_debug("ding ding: we are running spdk read");
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, 0);
     assert(rc == 0);
@@ -58,8 +60,10 @@ void _zoneRead(void *arg1)
 // struct obj_handle *handle,
 ZstoreObject *ReadObject(uint64_t offset, void *ctx)
 {
-    log_debug("XXX: Reading object ");
     ZstoreController *ctrl = (ZstoreController *)ctx;
+    if (ctrl->verbose)
+        log_debug("XXX: Reading object ");
+
     auto worker = ctrl->GetWorker();
     struct ns_entry *entry = worker->ns_ctx->entry;
 
@@ -76,9 +80,11 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
     struct ZstoreObject *object;
 
     {
-        log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
-                  ctrl->mRequestContextPool->capacity,
-                  ctrl->mRequestContextPool->availableContexts.size());
+
+        if (ctrl->verbose)
+            log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
+                      ctrl->mRequestContextPool->capacity,
+                      ctrl->mRequestContextPool->availableContexts.size());
         RequestContext *slot;
         {
             std::unique_lock lock(ctrl->context_pool_mutex_);
@@ -102,14 +108,16 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
         ioCtx.ctx = slot;
         ioCtx.flags = 0;
 
-        log_debug("buffer size {}, Offset: {}", slot->bufferSize, offset);
+        if (ctrl->verbose)
+            log_debug("buffer size {}, Offset: {}", slot->bufferSize, offset);
 
         // ioCtx.data = slot->dataBuffer;
         ioCtx.data = (uint8_t *)spdk_zmalloc(
             4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
 
-        log_debug("IO completed {}, Offset: {}", worker->ns_ctx->io_completed,
-                  offset);
+        if (ctrl->verbose)
+            log_debug("IO completed {}, Offset: {}",
+                      worker->ns_ctx->io_completed, offset);
 
         thread_send_msg(ctrl->GetIoThread(), _zoneRead, slot);
 
