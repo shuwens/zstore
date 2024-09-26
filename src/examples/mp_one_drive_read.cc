@@ -184,6 +184,8 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
     entry->io_size_blocks =
         g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
 
+    printf("size in io: %d, io size blocks %d\n", entry->size_in_ios,
+           entry->io_size_blocks);
     snprintf(entry->name, 44, "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
 
     g_arbitration.num_namespaces++;

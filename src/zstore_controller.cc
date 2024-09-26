@@ -1,20 +1,16 @@
 #include "include/zstore_controller.h"
 #include "common.cc"
+#include "device.cc"
 #include "include/common.h"
 #include "include/configuration.h"
+#include "include/device.h"
 #include "include/request_handler.h"
 #include "include/utils.hpp"
+#include "src/include/global.h"
 
-static const int request_context_pool_size = 128000;
-
-static void busyWait(bool *ready)
-{
-    while (!*ready) {
-        if (spdk_get_thread() == nullptr) {
-            std::this_thread::sleep_for(std::chrono::seconds(0));
-        }
-    }
-}
+// static const int request_context_pool_size = 128000;
+static const int request_context_pool_size = 32;
+static std::vector<Device *> g_devices;
 
 void ZstoreController::initHttpThread()
 {
@@ -121,73 +117,55 @@ int ZstoreController::PopulateMap(bool bogus)
 int ZstoreController::Init(bool object)
 {
     int rc = 0;
-    verbose = false;
-    // uint32_t task_count = 0;
-    // char task_pool_name[30];
-
-    mController = g_controller;
-    mNamespace = g_namespace;
-    mWorker = g_worker;
-    // mTaskPool = task_pool;
+    verbose = true;
 
     log_debug("mZone sizes {}", mZones.size());
     log_debug("ZstoreController launching threads");
 
-    // log_debug("qpair: connected? {}, enabled? ",
-    //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     assert(rc == 0);
 
     SetQueuDepth(Configuration::GetQueueDepth());
-    // initCompletionThread();
-    // initHttpThread();
 
     tsc_end =
         spdk_get_ticks() - g_arbitration.time_in_sec * g_arbitration.tsc_rate;
-    // log_debug("TSC Now: {}, End: {}", spdk_get_ticks(), tsc_end);
-
-    // Create and configure Zstore instance
-    // std::string zstore_name, bucket_name;
-    // zstore_name = "test";
-    // mZstore = new Zstore(zstore_name);
-    //
-    // zstore.SetVerbosity(1);
-
-    // create a bucket: this process is now manual, not via create/get bucket
-    // zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, "db"));
-
-    // create_dummy_objects(zstore);
-    // Start the web server controllers.
-
-    // mHandler = new ZstoreHandler;
-    // CivetServer web_server = startWebServer(*mHandler);
-    // log_info("Launching CivetWeb HTTP server in HTTP thread");
-
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
 
-    if (register_workers() != 0) {
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
+    // we add one device for now
 
-    struct arb_context ctx = {};
-    if (register_controllers(&ctx) != 0) {
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
+    {
+        Device *device = new Device();
 
-    if (associate_workers_with_ns() != 0) {
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
-
-    if (init_ns_worker_ctx(mWorker->ns_ctx, mWorker->qprio) != 0) {
-        log_error("init_ns_worker_ctx() failed");
-        return 1;
+        // if (register_workers() != 0) {
+        //     rc = 1;
+        //     zstore_cleanup();
+        //     return rc;
         // }
+
+        // struct arb_context ctx = {};
+        if (register_controllers(device) != 0) {
+            rc = 1;
+            zstore_cleanup();
+            return rc;
+        }
+
+        // if (associate_workers_with_ns(device) != 0) {
+        //     rc = 1;
+        //     zstore_cleanup();
+        //     return rc;
+        // }
+
+        // if (init_ns_worker_ctx(device) != 0) {
+        //     log_error("init_ns_worker_ctx() failed");
+        //     return 1;
+        //     // }
+        // }
+        // TODO
+        // device->Init(ctrlr, nsid);
+        // device->SetDeviceTransportAddress(addr : trid->traddr);
+
+        g_devices.emplace_back(device);
     }
+    mDevices = g_devices;
 
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
@@ -246,24 +224,23 @@ void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
     thread_send_msg(mIoThread.thread, zoneRead, ctx);
 }
 
+// TODO: assume we only have one device, we should check all device in the end
 void ZstoreController::CheckIoQpair(std::string msg)
 {
-    assert(mWorker != nullptr);
-    assert(mWorker->ns_ctx != nullptr);
-    assert(mWorker->ns_ctx->qpair != nullptr);
-    assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+    assert(mDevices[0] != nullptr);
+    assert(mDevices[0]->GetIoQueue() != nullptr);
+    // assert(spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     log_debug("{}, qpair connected: {}", msg,
-              spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
+              spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
 }
 
 struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 {
-    assert(mWorker != nullptr);
-    assert(mWorker->ns_ctx != nullptr);
-    assert(mWorker->ns_ctx->qpair != nullptr);
+    assert(mDevices[0] != nullptr);
+    assert(mDevices[0]->GetIoQueue() != nullptr);
     // assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
 
-    return mWorker->ns_ctx->qpair;
+    return mDevices[0]->GetIoQueue();
 }
 
 // void ZstoreController::CheckTaskPool(std::string msg)
@@ -288,7 +265,7 @@ ZstoreController::~ZstoreController()
     // thread_send_msg(mIndexThread, quit, nullptr);
     // thread_send_msg(mCompletionThread, quit, nullptr);
     log_debug("drain io: {}", spdk_get_ticks());
-    drain_io(this);
+    // drain_io(this);
     log_debug("clean up ns worker");
     cleanup_ns_worker_ctx();
     //
@@ -319,63 +296,66 @@ ZstoreController::~ZstoreController()
     print_stats(this);
 }
 
-void ZstoreController::register_ns(struct spdk_nvme_ctrlr *ctrlr,
-                                   struct spdk_nvme_ns *ns)
-{
-    const struct spdk_nvme_ctrlr_data *cdata;
+// void ZstoreController::register_ns(struct spdk_nvme_ctrlr *ctrlr,
+//                                    struct spdk_nvme_ns *ns)
+// {
+//     const struct spdk_nvme_ctrlr_data *cdata;
+//
+//     cdata = spdk_nvme_ctrlr_get_data(ctrlr);
+//
+//     if (spdk_nvme_ns_get_size(ns) < g_arbitration.io_size_bytes ||
+//         spdk_nvme_ns_get_extended_sector_size(ns) >
+//             g_arbitration.io_size_bytes ||
+//         g_arbitration.io_size_bytes %
+//             spdk_nvme_ns_get_extended_sector_size(ns)) {
+//         printf("WARNING: controller %-20.20s (%-20.20s) ns %u has invalid "
+//                "ns size %" PRIu64 " / block size %u for I/O size %u\n",
+//                cdata->mn, cdata->sn, spdk_nvme_ns_get_id(ns),
+//                spdk_nvme_ns_get_size(ns),
+//                spdk_nvme_ns_get_extended_sector_size(ns),
+//                g_arbitration.io_size_bytes);
+//         return;
+//     }
+//
+//     mNamespace = (struct ns_entry *)malloc(sizeof(struct ns_entry));
+//     if (mNamespace == NULL) {
+//         perror("ns_entry malloc");
+//         exit(1);
+//     }
+//
+//     mNamespace->nvme.ctrlr = ctrlr;
+//     mNamespace->nvme.ns = ns;
+//
+//     mNamespace->size_in_ios =
+//         spdk_nvme_ns_get_size(ns) / g_arbitration.io_size_bytes;
+//     mNamespace->io_size_blocks =
+//         g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
+//
+//     snprintf(mNamespace->name, 44, "%-20.20s (%-20.20s)", cdata->mn,
+//     cdata->sn);
+//
+//     g_arbitration.num_namespaces++;
+//     // mNamespace = ;
+// }
 
-    cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-
-    if (spdk_nvme_ns_get_size(ns) < g_arbitration.io_size_bytes ||
-        spdk_nvme_ns_get_extended_sector_size(ns) >
-            g_arbitration.io_size_bytes ||
-        g_arbitration.io_size_bytes %
-            spdk_nvme_ns_get_extended_sector_size(ns)) {
-        printf("WARNING: controller %-20.20s (%-20.20s) ns %u has invalid "
-               "ns size %" PRIu64 " / block size %u for I/O size %u\n",
-               cdata->mn, cdata->sn, spdk_nvme_ns_get_id(ns),
-               spdk_nvme_ns_get_size(ns),
-               spdk_nvme_ns_get_extended_sector_size(ns),
-               g_arbitration.io_size_bytes);
-        return;
-    }
-
-    mNamespace = (struct ns_entry *)malloc(sizeof(struct ns_entry));
-    if (mNamespace == NULL) {
-        perror("ns_entry malloc");
-        exit(1);
-    }
-
-    mNamespace->nvme.ctrlr = ctrlr;
-    mNamespace->nvme.ns = ns;
-
-    mNamespace->size_in_ios =
-        spdk_nvme_ns_get_size(ns) / g_arbitration.io_size_bytes;
-    mNamespace->io_size_blocks =
-        g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
-
-    snprintf(mNamespace->name, 44, "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
-
-    g_arbitration.num_namespaces++;
-    // mNamespace = ;
-}
-
-void ZstoreController::register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
+void ZstoreController::register_ctrlr(Device *device,
+                                      struct spdk_nvme_ctrlr *ctrlr)
 {
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
     // struct ctrlr_entry *entry =
-    mController = (struct ctrlr_entry *)calloc(1, sizeof(struct ctrlr_entry));
+    // mController = (struct ctrlr_entry *)calloc(1, sizeof(struct
+    // ctrlr_entry));
     union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
     const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
 
-    if (mController == NULL) {
-        perror("ctrlr_entry malloc");
-        exit(1);
-    }
+    // if (device->mController == NULL) {
+    //     perror("ctrlr_entry malloc");
+    //     exit(1);
+    // }
 
-    snprintf(mController->name, sizeof(mController->name),
-             "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
+    // snprintf(device.mController->name, sizeof(device.mController->name),
+    //          "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
 
     // entry->ctrlr = ctrlr;
     // mController = entry;
@@ -399,7 +379,9 @@ void ZstoreController::register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
         } else {
             log_info("ns {} is zns ns", nsid);
         }
-        register_ns(ctrlr, ns);
+
+        // register_ns(ctrlr, ns);
+        device->Init(ctrlr, nsid);
     }
 
     // TODO log and store stats
@@ -411,43 +393,46 @@ void ZstoreController::register_ctrlr(struct spdk_nvme_ctrlr *ctrlr)
     uint32_t active_zones = spdk_nvme_zns_ns_get_max_active_zones(ns);
     uint32_t max_zone_append_size =
         spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
+    auto metadata_size = spdk_nvme_ns_get_md_size(ns);
 
     log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
              zone_size_bytes);
     log_info("Zones: num {}, max open {}, active {}", num_zones, max_open_zones,
              active_zones);
-    log_info("Max zones append size: {}", max_zone_append_size);
+    log_info("Max zones append size: {}, metadata size {}",
+             max_zone_append_size, metadata_size);
 }
 
-int ZstoreController::register_workers()
-{
-    uint32_t i = 1;
-    // struct worker_thread *worker;
-    enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
+// int ZstoreController::register_workers(Device *device)
+// {
+//     uint32_t i = 1;
+//     // struct worker_thread *worker;
+//     // enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
+//
+//     mWorker = (struct worker_thread *)calloc(1, sizeof(*mWorker));
+//     if (mWorker == NULL) {
+//         log_error("Unable to allocate worker");
+//         return -1;
+//     }
+//
+//     // TAILQ_INIT(&worker->ns_ctx);
+//     mWorker->lcore = i;
+//     // TAILQ_INSERT_TAIL(&mWorkers, worker, link);
+//     g_arbitration.num_workers++;
+//
+//     if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR) {
+//         qprio = static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) +
+//         1);
+//     }
+//
+//     mWorker->qprio = static_cast<enum spdk_nvme_qprio>(
+//         qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
+//     // }
+//
+//     return 0;
+// }
 
-    mWorker = (struct worker_thread *)calloc(1, sizeof(*mWorker));
-    if (mWorker == NULL) {
-        log_error("Unable to allocate worker");
-        return -1;
-    }
-
-    // TAILQ_INIT(&worker->ns_ctx);
-    mWorker->lcore = i;
-    // TAILQ_INSERT_TAIL(&mWorkers, worker, link);
-    g_arbitration.num_workers++;
-
-    if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR) {
-        qprio = static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) + 1);
-    }
-
-    mWorker->qprio = static_cast<enum spdk_nvme_qprio>(
-        qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
-    // }
-
-    return 0;
-}
-
-void ZstoreController::zns_dev_init(struct arb_context *ctx, std::string ip1,
+void ZstoreController::zns_dev_init(Device *device, std::string ip1,
                                     std::string port1)
 {
     int rc = 0;
@@ -475,30 +460,33 @@ void ZstoreController::zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
     // memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
 
-    register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+    register_ctrlr(device, spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
+
     // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
+
+    device->SetDeviceTransportAddress(trid1.traddr);
 
     log_info("Found {} namspaces", g_arbitration.num_namespaces);
 }
 
-int ZstoreController::register_controllers(struct arb_context *ctx)
+int ZstoreController::register_controllers(Device *device)
 {
     log_info("Initializing NVMe Controllers");
 
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(ctx, "12.12.12.2", "5520");
+    zns_dev_init(device, "12.12.12.2", "5520");
 
-    if (g_arbitration.num_namespaces == 0) {
-        log_error("No valid namespaces to continue IO testing");
-        return 1;
-    }
+    // if (g_arbitration.num_namespaces == 0) {
+    //     log_error("No valid namespaces to continue IO testing");
+    //     return 1;
+    // }
 
     return 0;
 }
 
-void ZstoreController::unregister_controllers()
+void ZstoreController::unregister_controllers(Device *device)
 {
     // struct ctrlr_entry *entry, *tmp;
     struct spdk_nvme_detach_ctx *detach_ctx = NULL;
@@ -507,67 +495,70 @@ void ZstoreController::unregister_controllers()
     // {
     //     TAILQ_REMOVE(&mControllers, entry, link);
 
-    spdk_nvme_detach_async(mController->ctrlr, &detach_ctx);
-    free(mController);
-    // }
-
-    while (detach_ctx && spdk_nvme_detach_poll_async(detach_ctx) == -EAGAIN) {
-        ;
-    }
-}
-
-int ZstoreController::associate_workers_with_ns()
-{
-    // struct ns_entry *entry = mNamespace;
-    // struct worker_thread *worker = mWorker;
-    // struct ns_worker_ctx *ns_ctx;
-    int count;
-
-    count = g_arbitration.num_namespaces > g_arbitration.num_workers
-                ? g_arbitration.num_namespaces
-                : g_arbitration.num_workers;
-    count = 1;
-    log_debug("DEBUG ns {}, workers {}, count {}", g_arbitration.num_namespaces,
-              g_arbitration.num_workers, count);
-    // for (i = 0; i < count; i++) {
-    if (mNamespace == NULL) {
-        return -1;
-    }
-
-    assert(mWorker != nullptr);
-    mWorker->ns_ctx =
-        (struct ns_worker_ctx *)malloc(sizeof(struct ns_worker_ctx));
-    if (!mWorker->ns_ctx) {
-        log_error("Alloc ns worker failed ");
-        return 1;
-    }
-    memset(mWorker->ns_ctx, 0, sizeof(*mWorker->ns_ctx));
-
-    log_info("Associating {} with lcore {}", mNamespace->name, mWorker->lcore);
-    // FIXME redundent?
-    mWorker->ns_ctx->entry = mNamespace;
+    // spdk_nvme_detach_async(device->mController->ctrlr, &detach_ctx);
+    // free(device.mController);
+    // // }
     //
-    // TAILQ_INSERT_TAIL(&worker->ns_ctx, ns_ctx, link);
-
-    // worker = TAILQ_NEXT(worker, link);
-    // if (worker == NULL) {
-    //     worker = TAILQ_FIRST(&mWorkers);
+    // while (detach_ctx && spdk_nvme_detach_poll_async(detach_ctx) == -EAGAIN)
+    // {
+    //     ;
     // }
-
-    // entry = TAILQ_NEXT(entry, link);
-    // if (entry == NULL) {
-    //     entry = TAILQ_FIRST(&mNamespaces);
-    // }
-    // }
-
-    // zctrlr->mWorker->ns_ctx = ns_ctx;
-    return 0;
 }
+
+// int ZstoreController::associate_workers_with_ns()
+// {
+//     // struct ns_entry *entry = mNamespace;
+//     // struct worker_thread *worker = mWorker;
+//     // struct ns_worker_ctx *ns_ctx;
+//     int count;
+//
+//     count = g_arbitration.num_namespaces > g_arbitration.num_workers
+//                 ? g_arbitration.num_namespaces
+//                 : g_arbitration.num_workers;
+//     count = 1;
+//     log_debug("DEBUG ns {}, workers {}, count {}",
+//     g_arbitration.num_namespaces,
+//               g_arbitration.num_workers, count);
+//     // for (i = 0; i < count; i++) {
+//     if (mNamespace == NULL) {
+//         return -1;
+//     }
+//
+//     assert(mWorker != nullptr);
+//     mWorker->ns_ctx =
+//         (struct ns_worker_ctx *)malloc(sizeof(struct ns_worker_ctx));
+//     if (!mWorker->ns_ctx) {
+//         log_error("Alloc ns worker failed ");
+//         return 1;
+//     }
+//     memset(mWorker->ns_ctx, 0, sizeof(*mWorker->ns_ctx));
+//
+//     log_info("Associating {} with lcore {}", mNamespace->name,
+//     mWorker->lcore);
+//     // FIXME redundent?
+//     mWorker->ns_ctx->entry = mNamespace;
+//     //
+//     // TAILQ_INSERT_TAIL(&worker->ns_ctx, ns_ctx, link);
+//
+//     // worker = TAILQ_NEXT(worker, link);
+//     // if (worker == NULL) {
+//     //     worker = TAILQ_FIRST(&mWorkers);
+//     // }
+//
+//     // entry = TAILQ_NEXT(entry, link);
+//     // if (entry == NULL) {
+//     //     entry = TAILQ_FIRST(&mNamespaces);
+//     // }
+//     // }
+//
+//     // zctrlr->mWorker->ns_ctx = ns_ctx;
+//     return 0;
+// }
 
 void ZstoreController::zstore_cleanup()
 {
     log_info("unreg controllers");
-    unregister_controllers();
+    unregister_controllers(mDevices[0]);
     log_info("cleanup ");
     cleanup(0);
 
@@ -582,15 +573,15 @@ void ZstoreController::cleanup_ns_worker_ctx()
 {
     log_info("here");
     thread_send_msg(mIoThread.thread, quit, nullptr);
-    spdk_nvme_ctrlr_free_io_qpair(mWorker->ns_ctx->qpair);
+    spdk_nvme_ctrlr_free_io_qpair(mDevices[0]->GetIoQueue());
 }
 
 void ZstoreController::cleanup(uint32_t task_count)
 {
-    free(mNamespace);
-
-    free(mWorker->ns_ctx);
-    free(mWorker);
+    // free(mNamespace);
+    //
+    // free(mWorker->ns_ctx);
+    // free(mWorker);
 
     // if (spdk_mempool_count(mTaskPool) != (size_t)task_count) {
     //     log_error("mTaskPool count is {} but should be {}",
@@ -615,37 +606,36 @@ static const char *print_qprio(enum spdk_nvme_qprio qprio)
     }
 }
 
-int ZstoreController::init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
-                                         enum spdk_nvme_qprio qprio)
-{
-    log_info("Starting thread with {}", print_qprio(qprio));
-
-    // TODO dont need ns_ctx anymore
-    assert(mWorker != nullptr);
-    assert(mWorker->ns_ctx != nullptr);
-    assert(mWorker->ns_ctx->entry != nullptr);
-    assert(mWorker->ns_ctx->entry->nvme.ctrlr != nullptr);
-    struct spdk_nvme_ctrlr *ctrlr = mWorker->ns_ctx->entry->nvme.ctrlr;
-
-    struct spdk_nvme_io_qpair_opts opts;
-    spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
-    opts.qprio = qprio;
-
-    mWorker->ns_ctx->qpair =
-        spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
-    if (!ns_ctx->qpair) {
-        log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
-        return 1;
-    }
-
-    // allocate space for times
-    // mWorker->ns_ctx->stimes.reserve(1000000);
-    // mWorker->ns_ctx->etimes.reserve(1000000);
-
-    // zctrlr->mWorker->ns_ctx->zctrlr = zctrlr;
-
-    return 0;
-}
+// int ZstoreController::init_ns_worker_ctx(Device *device)
+// {
+//     // log_info("Starting thread with {}", print_qprio(qprio));
+//
+//     // TODO dont need ns_ctx anymore
+//     assert(device.mWorker != nullptr);
+//     assert(device.mWorker->ns_ctx != nullptr);
+//     assert(device.mWorker->ns_ctx->entry != nullptr);
+//     assert(device.mWorker->ns_ctx->entry->nvme.ctrlr != nullptr);
+//     struct spdk_nvme_ctrlr *ctrlr = mWorker->ns_ctx->entry->nvme.ctrlr;
+//
+//     struct spdk_nvme_io_qpair_opts opts;
+//     spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
+//     opts.qprio = qprio;
+//
+//     mWorker->ns_ctx->qpair =
+//         spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
+//     if (!ns_ctx->qpair) {
+//         log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
+//         return 1;
+//     }
+//
+//     // allocate space for times
+//     // mWorker->ns_ctx->stimes.reserve(1000000);
+//     // mWorker->ns_ctx->etimes.reserve(1000000);
+//
+//     // zctrlr->mWorker->ns_ctx->zctrlr = zctrlr;
+//
+//     return 0;
+// }
 
 // int LightningStore::release_object(uint64_t object_id)
 // {

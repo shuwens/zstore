@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+typedef std::pair<std::string, int32_t> MapEntry;
+
 class ZstoreController;
 struct RequestContext;
 
@@ -225,8 +227,6 @@ static int g_micro_to_second = 1'000'000;
 #define USER_SPECIFIED_LOW_PRIORITY_WEIGHT 8
 
 // Object and Map related
-
-typedef std::pair<std::string, int32_t> MapEntry;
 
 Result<MapEntry> createMapEntry(std::string device, int32_t lba);
 

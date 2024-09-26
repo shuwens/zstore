@@ -60,95 +60,97 @@ void _zoneRead(void *arg1)
 // struct obj_handle *handle,
 ZstoreObject *ReadObject(uint64_t offset, void *ctx)
 {
-    ZstoreController *ctrl = (ZstoreController *)ctx;
-    if (ctrl->verbose)
-        log_debug("XXX: Reading object ");
-
-    auto worker = ctrl->GetWorker();
-    struct ns_entry *entry = worker->ns_ctx->entry;
-
-    int rc;
-    uint64_t offset_in_ios;
-    int64_t _offset = 0;
-    int key_alloc = 0;
-    int meta_alloc = 0;
-    int body_alloc = 0;
-
-    // fdb_seqnum_t _seqnum;
-    // timestamp_t _timestamp;
-    // struct docio_length _length, zero_length;
+    // ZstoreController *ctrl = (ZstoreController *)ctx;
+    // if (ctrl->verbose)
+    //     log_debug("XXX: Reading object ");
+    //
+    // auto worker = ctrl->GetWorker();
+    // struct ns_entry *entry = worker->ns_ctx->entry;
+    //
+    // int rc;
+    // uint64_t offset_in_ios;
+    // int64_t _offset = 0;
+    // int key_alloc = 0;
+    // int meta_alloc = 0;
+    // int body_alloc = 0;
+    //
+    // // fdb_seqnum_t _seqnum;
+    // // timestamp_t _timestamp;
+    // // struct docio_length _length, zero_length;
     struct ZstoreObject *object;
 
-    {
-
-        if (ctrl->verbose)
-            log_debug("Offset: {}, pool capacity {}, pool available {}", offset,
-                      ctrl->mRequestContextPool->capacity,
-                      ctrl->mRequestContextPool->availableContexts.size());
-        RequestContext *slot;
-        {
-            std::unique_lock lock(ctrl->context_pool_mutex_);
-            slot = ctrl->mRequestContextPool->GetRequestContext(true);
-        }
-        assert(slot != nullptr);
-        // task->ns_ctx = zctrlr->mWorker->ns_ctx;
-        slot->ctrl = ctrl;
-        assert(slot->ctrl == ctrl);
-
-        auto ioCtx = slot->ioContext;
-
-        ioCtx.ns = entry->nvme.ns;
-        ioCtx.qpair = worker->ns_ctx->qpair;
-        // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
-        ioCtx.offset = 0;
-        ioCtx.size = entry->io_size_blocks;
-        // ioCtx.cb = io_complete;
-        // ioCtx.ctx = task;
-        ioCtx.cb = complete;
-        ioCtx.ctx = slot;
-        ioCtx.flags = 0;
-
-        if (ctrl->verbose)
-            log_debug("buffer size {}, Offset: {}", slot->bufferSize, offset);
-
-        // ioCtx.data = slot->dataBuffer;
-        ioCtx.data = (uint8_t *)spdk_zmalloc(
-            4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-
-        if (ctrl->verbose)
-            log_debug("IO completed {}, Offset: {}",
-                      worker->ns_ctx->io_completed, offset);
-
-        thread_send_msg(ctrl->GetIoThread(), _zoneRead, slot);
-
-        // rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
-        //                            ioCtx.offset, ioCtx.size, ioCtx.cb,
-        //                            ioCtx.ctx, ioCtx.flags);
-
-        if (rc != 0) {
-            log_error("NVME Read failed: {}", spdk_strerror(-rc));
-            exit(1);
-        } else {
-            log_error("unimplemented");
-            exit(1);
-            worker->ns_ctx->current_queue_depth++;
-        }
-
-        // object = read_from_buffer((const char *)ioCtx.data,
-        // sizeof(ioCtx.data));
-    }
-    // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
-
-    // assert(object.key != NULL);
-    {
-        // object.key = (void *)malloc(object.length.keylen);
-        // key_alloc = 1;
-    }
-    // assert(object.body != NULL && object.length.bodylen);
-    {
-        // object.body = (void *)malloc(object.length.bodylen);
-        // body_alloc = 1;
-    }
+    // {
+    //
+    //     if (ctrl->verbose)
+    //         log_debug("Offset: {}, pool capacity {}, pool available {}",
+    //         offset,
+    //                   ctrl->mRequestContextPool->capacity,
+    //                   ctrl->mRequestContextPool->availableContexts.size());
+    //     RequestContext *slot;
+    //     {
+    //         std::unique_lock lock(ctrl->context_pool_mutex_);
+    //         slot = ctrl->mRequestContextPool->GetRequestContext(true);
+    //     }
+    //     assert(slot != nullptr);
+    //     // task->ns_ctx = zctrlr->mWorker->ns_ctx;
+    //     slot->ctrl = ctrl;
+    //     assert(slot->ctrl == ctrl);
+    //
+    //     auto ioCtx = slot->ioContext;
+    //
+    //     ioCtx.ns = entry->nvme.ns;
+    //     ioCtx.qpair = worker->ns_ctx->qpair;
+    //     // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
+    //     ioCtx.offset = 0;
+    //     ioCtx.size = entry->io_size_blocks;
+    //     // ioCtx.cb = io_complete;
+    //     // ioCtx.ctx = task;
+    //     ioCtx.cb = complete;
+    //     ioCtx.ctx = slot;
+    //     ioCtx.flags = 0;
+    //
+    //     if (ctrl->verbose)
+    //         log_debug("buffer size {}, Offset: {}", slot->bufferSize,
+    //         offset);
+    //
+    //     // ioCtx.data = slot->dataBuffer;
+    //     ioCtx.data = (uint8_t *)spdk_zmalloc(
+    //         4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+    //
+    //     if (ctrl->verbose)
+    //         log_debug("IO completed {}, Offset: {}",
+    //                   worker->ns_ctx->io_completed, offset);
+    //
+    //     thread_send_msg(ctrl->GetIoThread(), _zoneRead, slot);
+    //
+    //     // rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
+    //     //                            ioCtx.offset, ioCtx.size, ioCtx.cb,
+    //     //                            ioCtx.ctx, ioCtx.flags);
+    //
+    //     if (rc != 0) {
+    //         log_error("NVME Read failed: {}", spdk_strerror(-rc));
+    //         exit(1);
+    //     } else {
+    //         log_error("unimplemented");
+    //         exit(1);
+    //         worker->ns_ctx->current_queue_depth++;
+    //     }
+    //
+    //     // object = read_from_buffer((const char *)ioCtx.data,
+    //     // sizeof(ioCtx.data));
+    // }
+    // // std::memcpy(task->buf, &object, sizeof(ZstoreObject));
+    //
+    // // assert(object.key != NULL);
+    // {
+    //     // object.key = (void *)malloc(object.length.keylen);
+    //     // key_alloc = 1;
+    // }
+    // // assert(object.body != NULL && object.length.bodylen);
+    // {
+    //     // object.body = (void *)malloc(object.length.bodylen);
+    //     // body_alloc = 1;
+    // }
 
     // return outcome::success(read_obj);
     return object;

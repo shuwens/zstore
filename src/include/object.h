@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 
+typedef std::pair<std::string, int32_t> MapEntry;
 // typedef uint16_t keylen_t;
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID

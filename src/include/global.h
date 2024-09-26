@@ -16,8 +16,6 @@ static bool verbose = false;
 
 static struct mg_context *g_ctx; /* Set by start_civetweb() */
 
-static std::vector<Device *> g_devices;
-
 // a simple test program to ZapRAID
 // uint64_t gSize = 64 * 1024 * 1024 / Configuration::GetBlockSize();
 // uint64_t gSize = 5;

@@ -55,19 +55,20 @@ class ZstoreController
     void SetQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     int GetQueueDepth() { return mQueueDepth; };
 
-    void register_ctrlr(struct spdk_nvme_ctrlr *ctrlr);
+    Device *GetDevice() { return mDevices[0]; };
+
+    void register_ctrlr(Device *device, struct spdk_nvme_ctrlr *ctrlr);
     void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
 
-    struct worker_thread *GetWorker() { return mWorker; };
-    struct ns_entry *GetNamespace() { return mNamespace; };
+    // struct worker_thread *GetWorker() { return mWorker; };
+    // struct ns_entry *GetNamespace() { return mNamespace; };
 
     int register_workers();
-    int register_controllers(struct arb_context *ctx);
-    void unregister_controllers();
-    int associate_workers_with_ns();
+    int register_controllers(Device *device);
+    void unregister_controllers(Device *device);
+    int associate_workers_with_ns(Device *device);
     void zstore_cleanup();
-    void zns_dev_init(struct arb_context *ctx, std::string ip1,
-                      std::string port1);
+    void zns_dev_init(Device *device, std::string ip1, std::string port1);
     void cleanup_ns_worker_ctx();
     void cleanup(uint32_t task_count);
 
@@ -144,12 +145,12 @@ class ZstoreController
     // uint32_t GetFooterRegionSize();
 
     bool Append(RequestContext *ctx, uint32_t offset);
-    bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
+    // bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
     void Reset(RequestContext *ctx);
     bool IsResetDone();
     void WriteComplete(RequestContext *ctx);
     void ReadComplete(RequestContext *ctx);
-    void ReclaimReadContext(ReadContext *readContext);
+    // void ReclaimReadContext(ReadContext *readContext);
 
     void AddZone(Zone *zone);
     const std::vector<Zone *> &GetZones();
@@ -179,6 +180,8 @@ class ZstoreController
     std::unordered_set<RequestContext *> mInflightRequestContext;
     mutable std::shared_mutex context_pool_mutex_;
 
+    mutable std::shared_mutex g_mutex_;
+
     // std::mutex mTaskPoolMutex;
     bool verbose;
 
@@ -189,9 +192,9 @@ class ZstoreController
     // int mTaskCount;
     // Create a global mutex to protect access to the mempool
 
-    struct ctrlr_entry *mController;
-    struct ns_entry *mNamespace;
-    struct worker_thread *mWorker;
+    // struct ctrlr_entry *mController;
+    // struct ns_entry *mNamespace;
+    // struct worker_thread *mWorker;
 
     // simple way to terminate the server
     uint64_t tsc_end;

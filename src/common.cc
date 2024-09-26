@@ -6,6 +6,7 @@
 #include "include/zstore_controller.h"
 #include "object.cc"
 #include "spdk/thread.h"
+#include <cassert>
 #include <cstdlib>
 #include <isa-l.h>
 #include <queue>
@@ -13,9 +14,20 @@
 #include <spdk/event.h>
 #include <sys/time.h>
 
+static void busyWait(bool *ready)
+{
+    while (!*ready) {
+        if (spdk_get_thread() == nullptr) {
+            std::this_thread::sleep_for(std::chrono::seconds(0));
+        }
+    }
+}
+
 void complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
     RequestContext *slot = (RequestContext *)arg;
+
+    log_debug("in Completion");
 
     if (spdk_nvme_cpl_is_error(completion)) {
         fprintf(stderr, "I/O error status: %s\n",
@@ -32,36 +44,43 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     // if (ctrl == nullptr)
     //     ctrl = gZstoreController;
 
-    auto worker = ctrl->GetWorker();
-    assert(worker != nullptr);
-    assert(worker->ns_ctx != nullptr);
-    //
-    // worker->ns_ctx->current_queue_depth--;
-    worker->ns_ctx->io_completed++;
+    // auto worker = ctrl->GetWorker();
+    // assert(worker != nullptr);
+    // assert(worker->ns_ctx != nullptr);
+    // //
+    // // worker->ns_ctx->current_queue_depth--;
+    // worker->ns_ctx->io_completed++;
 
     // this should move to reclaim context and in controller
-    {
-        std::unique_lock lock(gZstoreController->context_pool_mutex_);
-        slot->available = true;
-        slot->Clear();
-        // if (ctrl->verbose)
-        //     log_error("Before return: pool capacity {}, pool available {}",
-        //               ctrl->mRequestContextPool->capacity,
-        //               ctrl->mRequestContextPool->availableContexts.size());
-        gZstoreController->mRequestContextPool->ReturnRequestContext(slot);
-    }
+    // std::unique_lock lock(gZstoreController->context_pool_mutex_);
+    slot->available = true;
+    slot->Clear();
+    // if (ctrl->verbose)
+    //     log_error("Before return: pool capacity {}, pool available {}",
+    //               ctrl->mRequestContextPool->capacity,
+    //               ctrl->mRequestContextPool->availableContexts.size());
+    ctrl->mRequestContextPool->ReturnRequestContext(slot);
+
     // if (ctrl->verbose)
     //     log_error("After return: pool capacity {}, pool available {}\n",
     //               ctrl->mRequestContextPool->capacity,
     //               ctrl->mRequestContextPool->availableContexts.size());
+    log_debug("end: after return {}",
+              ctrl->mRequestContextPool->availableContexts.size());
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
     if (spdk_thread_send_msg(thread, fn, args) < 0) {
-        auto worker = gZstoreController->GetWorker();
-        log_error("Thread send message failed: thread_name {}. io completed {}",
-                  spdk_thread_get_name(thread), worker->ns_ctx->io_completed);
+        // std::unique_lock lock(gZstoreController->g_mutex_);
+        // auto worker = gZstoreController->GetWorker();
+        // log_error("Thread send message failed: thread_name {}. io completed
+        // {}",
+        //           spdk_thread_get_name(thread),
+        //           worker->ns_ctx->io_completed);
+
+        log_error("Thread send message failed: thread_name {}.",
+                  spdk_thread_get_name(thread));
         exit(-1);
     }
 }
@@ -69,21 +88,85 @@ void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 int handleHttpRequest(void *args)
 {
     bool busy = false;
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // log_info("http fn: once");
+    ZstoreController *ctrl = (ZstoreController *)args;
+
+    // auto worker = ctrl->GetWorker();
+    // struct ns_entry *entry = worker->ns_ctx->entry;
+    // FIXME
+    // if (!worker->ns_ctx->is_draining &&
+    if (ctrl->mRequestContextPool->availableContexts.size() > 0) {
+        log_debug("queue depth {}, req in flight {}, read q size {},  "
+                  "avalable ctx {} ",
+                  ctrl->GetQueueDepth(),
+                  (ctrl->mRequestContextPool->capacity -
+                   ctrl->mRequestContextPool->availableContexts.size()),
+                  ctrl->GetReadQueueSize(),
+                  ctrl->mRequestContextPool->availableContexts.size());
+
+        RequestContext *slot =
+            ctrl->mRequestContextPool->GetRequestContext(true);
+        // std::unique_lock lock(gZstoreController->g_mutex_);
+        slot->ctrl = ctrl;
+        assert(slot->ctrl == ctrl);
+
+        auto ioCtx = slot->ioContext;
+        // FIXME hardcode
+        int size_in_ios = 212860928;
+        int io_size_blocks = 1;
+        auto offset_in_ios = rand_r(&seed) % size_in_ios;
+
+        ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+        ioCtx.qpair = ctrl->GetIoQpair();
+        ioCtx.data = slot->dataBuffer;
+        ioCtx.offset = offset_in_ios * io_size_blocks;
+        // ioCtx.offset = 0;
+        ioCtx.size = io_size_blocks;
+        ioCtx.cb = complete;
+        ioCtx.ctx = slot;
+        ioCtx.flags = 0;
+        slot->ioContext = ioCtx;
+
+        // if (ctrl->verbose)
+        //     log_debug("Before READ: read q {}, io completed {}",
+        //               ctrl->GetReadQueueSize(),
+        //               ctrl->GetWorker()->ns_ctx->io_completed);
+        assert(slot->ioContext.cb != nullptr);
+        assert(slot->ctrl != nullptr);
+        ctrl->EnqueueRead(slot);
+        busy = true;
+    }
+
+    // if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
+    //     auto etime = std::chrono::high_resolution_clock::now();
+    //     auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+    //                      etime - ctrl->stime)
+    //                      .count();
+    //     auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
+    //
+    //     // if (g->verbose)
+    //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+    //              worker->ns_ctx->io_completed, delta, tput);
+    //
+    //     // log_debug("drain io: {}", spdk_get_ticks());
+    //     drain_io(ctrl);
+    //     log_debug("clean up ns worker");
+    //     ctrl->cleanup_ns_worker_ctx();
+    //     print_stats(ctrl);
+    //     exit(0);
+    // }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
 int httpWorker(void *args)
 {
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    struct spdk_thread *thread = zctrlr->GetHttpThread();
+
+    ZstoreController *ctrl = (ZstoreController *)args;
+    struct spdk_thread *thread = ctrl->GetHttpThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    // called once x microseconds
-    p = spdk_poller_register(handleHttpRequest, zctrlr, 0);
-    zctrlr->SetHttpPoller(p);
+    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
+    ctrl->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
@@ -93,7 +176,7 @@ int handleIoCompletions(void *args)
 {
     int rc;
     ZstoreController *zctrlr = (ZstoreController *)args;
-    // log_debug("XXX");
+    log_debug("XXX");
     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
 
     rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
@@ -121,70 +204,12 @@ int ioWorker(void *args)
     }
 }
 
-void handleContext(RequestContext *context)
-{
-    // ContextType type = context->type;
-    // if (type == USER) {
-    //     handleUserContext(context);
-    // } else if (type == STRIPE_UNIT) {
-    //     handleStripeUnitContext(context);
-    // } else if (type == GC) {
-    //     handleGcContext(context);
-    // } else if (type == INDEX) {
-    //     handleIndexContext(context);
-    // }
-}
-
-void handleEventCompletion2(void *arg1, void *arg2)
-{
-    RequestContext *slot = (RequestContext *)arg1;
-    struct timeval s, e;
-    gettimeofday(&s, 0);
-    handleContext(slot);
-    gettimeofday(&e, 0);
-    // slot->ctrl->MarkDispatchThreadHandleContextTime(s, e);
-}
-
-void handleEventCompletion(void *args)
-{
-    handleEventCompletion2(args, nullptr);
-}
-
-int handleEventsDispatch(void *args)
-{
-    bool busy = false;
-    ZstoreController *ctrl = (ZstoreController *)args;
-
-    std::queue<RequestContext *> &writeQ = ctrl->GetWriteQueue();
-    while (!writeQ.empty()) {
-        RequestContext *ctx = writeQ.front();
-        ctrl->WriteInDispatchThread(ctx);
-
-        // if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
-        busy = true;
-        writeQ.pop();
-        // } else {
-        //     break;
-        // }
-    }
-
-    std::queue<RequestContext *> &readQ = ctrl->GetReadQueue();
-    while (!readQ.empty()) {
-        RequestContext *ctx = readQ.front();
-        ctrl->ReadInDispatchThread(ctx);
-        readQ.pop();
-        busy = true;
-    }
-
-    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-}
-
 void zoneRead(void *arg1)
 {
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
-    // auto ctrl = ctx->ctrl;
+    assert(ctx->ctrl != nullptr);
     // if (ctrl->verbose)
     //     log_debug("ding ding: we are running spdk read: offset {}, size {}, "
     //               "flags {}\n",
@@ -193,13 +218,12 @@ void zoneRead(void *arg1)
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
 
+    // auto worker = gZstoreController->GetWorker();
     if (rc != 0) {
-        auto worker = gZstoreController->GetWorker();
-        log_error("starting I/O failed {}, completed {}", rc,
-                  worker->ns_ctx->io_completed);
-
+        // log_error("starting I/O failed {}, completed {}", rc,
+        //           worker->ns_ctx->io_completed);
+        log_error("starting I/O failed {}", rc);
     } else {
-        // log_error("starting I/O failed");
         // worker->ns_ctx->current_queue_depth++;
     }
     assert(rc == 0);
@@ -211,30 +235,31 @@ void zoneRead(void *arg1)
 
 static void issueIo(void *args)
 {
-    ZstoreController *zctrlr = (ZstoreController *)args;
+    ZstoreController *zc = (ZstoreController *)args;
     int rc;
-    if (zctrlr->verbose)
+    if (zc->verbose)
         log_debug("Issue IO");
 
-    auto worker = zctrlr->GetWorker();
-    struct ns_entry *entry = worker->ns_ctx->entry;
+    // auto worker = zctrlr->GetWorker();
+    // struct ns_entry *entry = worker->ns_ctx->entry;
 
-    RequestContext *slot =
-        zctrlr->mRequestContextPool->GetRequestContext(false);
+    RequestContext *slot = zc->mRequestContextPool->GetRequestContext(false);
     auto ioCtx = slot->ioContext;
 
-    ioCtx.ns = entry->nvme.ns;
-    ioCtx.qpair = worker->ns_ctx->qpair;
+    ioCtx.ns = zc->GetDevice()->GetNamespace();
+    ioCtx.qpair = zc->GetIoQpair();
     ioCtx.data = slot->dataBuffer;
     // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
     ioCtx.offset = 0;
-    ioCtx.size = entry->io_size_blocks;
+    int io_size_blocks = 1;
+    ioCtx.size = io_size_blocks;
     ioCtx.cb = complete;
     ioCtx.ctx = slot;
     ioCtx.flags = 0;
 
-    slot->ctrl = zctrlr;
-    assert(slot->ctrl == zctrlr);
+    slot->ctrl = zc;
+    assert(slot->ctrl == zc);
+    assert(slot->ctrl != nullptr);
 
     // if (g_arbitration.is_random) {
     //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
@@ -248,7 +273,7 @@ static void issueIo(void *args)
     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
     // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
 
-    thread_send_msg(zctrlr->GetIoThread(), zoneRead, slot);
+    thread_send_msg(zc->GetIoThread(), zoneRead, slot);
 }
 
 int handleSubmit(void *args)
@@ -261,18 +286,19 @@ int handleSubmit(void *args)
     int queue_depth = ctrl->GetQueueDepth();
     auto req_inflight = ctrl->mRequestContextPool->capacity -
                         ctrl->mRequestContextPool->availableContexts.size();
-    auto worker = ctrl->GetWorker();
+    // auto worker = ctrl->GetWorker();
     // worker->ns_ctx->current_queue_depth
 
+    // log_debug("queue depth {}, req in flight {}, completed {}, current queue
+    // "
+    //           "depth {} ",
+    //           queue_depth, req_inflight, worker->ns_ctx->io_completed,
+    //           readQ.size());
+
     while (!readQ.empty()) {
-
         // if (ctrl->verbose)
-        //     log_debug(
-        //         "queue depth {}, req in flight {}, completed {}, current
-        //         queue " "depth {}", queue_depth, req_inflight,
-        //         worker->ns_ctx->io_completed, readQ.size());
-
         RequestContext *ctx = readQ.front();
+        assert(ctx->ctrl != nullptr);
         ctrl->ReadInDispatchThread(ctx);
 
         // if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
@@ -283,24 +309,25 @@ int handleSubmit(void *args)
         // }
     }
 
-    if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
-        auto etime = std::chrono::high_resolution_clock::now();
-        auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
-                         etime - gZstoreController->stime)
-                         .count();
-        auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
-
-        // if (g->verbose)
-        log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-                 worker->ns_ctx->io_completed, delta, tput);
-
-        // log_debug("drain io: {}", spdk_get_ticks());
-        drain_io(gZstoreController);
-        log_debug("clean up ns worker");
-        gZstoreController->cleanup_ns_worker_ctx();
-        print_stats(gZstoreController);
-        exit(0);
-    }
+    // FIXME
+    // if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
+    //     auto etime = std::chrono::high_resolution_clock::now();
+    //     auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+    //                      etime - ctrl->stime)
+    //                      .count();
+    //     auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
+    //
+    //     // if (g->verbose)
+    //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+    //              worker->ns_ctx->io_completed, delta, tput);
+    //
+    //     // log_debug("drain io: {}", spdk_get_ticks());
+    //     drain_io(ctrl);
+    //     log_debug("clean up ns worker");
+    //     ctrl->cleanup_ns_worker_ctx();
+    //     print_stats(ctrl);
+    //     exit(0);
+    // }
 
     // log_debug("queue depth {}, req in flight {}, completed {}, current queue
     // "
@@ -367,14 +394,14 @@ int handleObjectSubmit(void *args)
     int queue_depth = zctrlr->GetQueueDepth();
     // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
 
-    auto worker = zctrlr->GetWorker();
+    // auto worker = zctrlr->GetWorker();
     // auto task_count = zctrlr->GetTaskCount();
 
     // Multiple threads/readers can read the counter's value at the same time.
     // std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
-    while (req_inflight < queue_depth && !worker->ns_ctx->is_draining) {
+    while (req_inflight < queue_depth) {
 
         // log_debug("queue depth {}, task count {} - task pool size {} ",
         //           queue_depth, task_count, zctrlr->GetTaskPoolSize());
@@ -403,49 +430,53 @@ int handleObjectSubmit(void *args)
         zctrlr->pivot++;
         busy = true;
     }
-    if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
-        auto etime = std::chrono::high_resolution_clock::now();
-        auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
-                         etime - zctrlr->stime)
-                         .count();
-        auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
-
-        if (zctrlr->verbose)
-            log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-                     worker->ns_ctx->io_completed, delta, tput);
-
-        log_debug("drain io: {}", spdk_get_ticks());
-        drain_io(zctrlr);
-        log_debug("clean up ns worker");
-        zctrlr->cleanup_ns_worker_ctx();
-        //
-        //     std::vector<uint64_t> deltas1;
-        //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)
-        //     {
-        //         deltas1.push_back(
-        //             std::chrono::duration_cast<std::chrono::microseconds>(
-        //                 zctrlr->mWorker->ns_ctx->etimes[i] -
-        //                 zctrlr->mWorker->ns_ctx->stimes[i])
-        //                 .count());
-        //     }
-        //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-        //     auto mean1 = sum1 / deltas1.size();
-        //     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
-        //                                       deltas1.begin(), 0.0);
-        //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
-        //     mean1); log_info("qd: {}, mean {}, std {}",
-        //              zctrlr->mWorker->ns_ctx->io_completed, mean1, stdev1);
-        //
-        //     // clearnup
-        //     deltas1.clear();
-        //     zctrlr->mWorker->ns_ctx->etimes.clear();
-        //     zctrlr->mWorker->ns_ctx->stimes.clear();
-        //     // }
-        //
-        log_debug("end work fn");
-        print_stats(zctrlr);
-        exit(0);
-    }
+    // if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
+    //     auto etime = std::chrono::high_resolution_clock::now();
+    //     auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+    //                      etime - zctrlr->stime)
+    //                      .count();
+    //     auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
+    //
+    //     if (zctrlr->verbose)
+    //         log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+    //                  worker->ns_ctx->io_completed, delta, tput);
+    //
+    //     log_debug("drain io: {}", spdk_get_ticks());
+    //     drain_io(zctrlr);
+    //     log_debug("clean up ns worker");
+    //     zctrlr->cleanup_ns_worker_ctx();
+    //     //
+    //     //     std::vector<uint64_t> deltas1;
+    //     //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size();
+    //     i++)
+    //     //     {
+    //     //         deltas1.push_back(
+    //     //             std::chrono::duration_cast<std::chrono::microseconds>(
+    //     //                 zctrlr->mWorker->ns_ctx->etimes[i] -
+    //     //                 zctrlr->mWorker->ns_ctx->stimes[i])
+    //     //                 .count());
+    //     //     }
+    //     //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(),
+    //     0.0);
+    //     //     auto mean1 = sum1 / deltas1.size();
+    //     //     auto sq_sum1 = std::inner_product(deltas1.begin(),
+    //     deltas1.end(),
+    //     //                                       deltas1.begin(), 0.0);
+    //     //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
+    //     //     mean1); log_info("qd: {}, mean {}, std {}",
+    //     //              zctrlr->mWorker->ns_ctx->io_completed, mean1,
+    //     stdev1);
+    //     //
+    //     //     // clearnup
+    //     //     deltas1.clear();
+    //     //     zctrlr->mWorker->ns_ctx->etimes.clear();
+    //     //     zctrlr->mWorker->ns_ctx->stimes.clear();
+    //     //     // }
+    //     //
+    //     log_debug("end work fn");
+    //     print_stats(zctrlr);
+    //     exit(0);
+    // }
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
@@ -493,7 +524,7 @@ void RequestContext::Clear()
     successBytes = 0;
     targetBytes = 0;
     lba = 0;
-    cb_fn = nullptr;
+    // cb_fn = nullptr;
     cb_args = nullptr;
     curOffset = 0;
     ioOffset = 0;
@@ -501,7 +532,7 @@ void RequestContext::Clear()
 
     timestamp = ~0ull;
 
-    append = false;
+    // append = false;
 
     // associatedRequests.clear(); // = nullptr;
     // associatedStripe = nullptr;
@@ -513,24 +544,15 @@ void RequestContext::Clear()
     targetBytes = 0;
 
     // needDegradedRead = false;
-    pbaArray.clear();
+    // pbaArray.clear();
 }
 
 double RequestContext::GetElapsedTime() { return ctime - stime; }
 
-PhysicalAddr RequestContext::GetPba()
-{
-    PhysicalAddr addr;
-    // addr.segment = segment;
-    addr.zoneId = zoneId;
-    addr.offset = offset;
-    return addr;
-}
-
 void RequestContext::Queue()
 {
     struct spdk_thread *th = ctrl->GetDispatchThread();
-    thread_send_msg(ctrl->GetDispatchThread(), handleEventCompletion, this);
+    // thread_send_msg(ctrl->GetDispatchThread(), handleEventCompletion, this);
     // } else {
     //     event_call(Configuration::GetDispatchThreadCoreId(),
     //                handleEventCompletion2, this, nullptr);
@@ -553,13 +575,13 @@ void RequestContext::CopyFrom(const RequestContext &o)
     size = o.size;
     req_type = o.req_type;
     data = o.data;
-    meta = o.meta;
-    pbaArray = o.pbaArray;
+    // meta = o.meta;
+    // pbaArray = o.pbaArray;
     successBytes = o.successBytes;
     targetBytes = o.targetBytes;
     curOffset = o.curOffset;
     // ioOffset = o.ioOffset;
-    cb_fn = o.cb_fn;
+    // cb_fn = o.cb_fn;
     cb_args = o.cb_args;
 
     available = o.available;
@@ -569,7 +591,7 @@ void RequestContext::CopyFrom(const RequestContext &o)
     zoneId = o.zoneId;
     // stripeId = o.stripeId;
     offset = o.offset;
-    append = o.append;
+    // append = o.append;
 
     stime = o.stime;
     ctime = o.ctime;
