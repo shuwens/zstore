@@ -6,12 +6,9 @@
 #include <bits/stdc++.h>
 #include <cassert>
 #include <chrono>
-#include <cstdint>
 #include <cstdlib>
 #include <fmt/core.h>
-#include <stdio.h>
 #include <sys/time.h>
-#include <thread>
 
 void create_dummy_objects(Zstore zstore)
 {

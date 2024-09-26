@@ -14,6 +14,12 @@
 #include <spdk/event.h>
 #include <sys/time.h>
 
+const uint64_t zone_dist = 0x80000; // zone size
+const int current_zone = 0;
+// const int current_zone = 30;
+
+auto zslba = zone_dist * current_zone;
+
 static void busyWait(bool *ready)
 {
     while (!*ready) {
@@ -27,7 +33,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
     RequestContext *slot = (RequestContext *)arg;
 
-    log_debug("in Completion");
+    // log_debug("in Completion");
 
     if (spdk_nvme_cpl_is_error(completion)) {
         fprintf(stderr, "I/O error status: %s\n",
@@ -59,9 +65,9 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     //     log_error("After return: pool capacity {}, pool available {}\n",
     //               ctrl->mRequestContextPool->capacity,
     //               ctrl->mRequestContextPool->availableContexts.size());
-    log_debug("end: ctx after return {}, total IO {}",
-              ctrl->mRequestContextPool->availableContexts.size(),
-              ctrl->GetDevice()->mTotalCounts);
+    // log_debug("end: ctx after return {}, total IO {}",
+    //           ctrl->mRequestContextPool->availableContexts.size(),
+    //           ctrl->GetDevice()->mTotalCounts);
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
@@ -82,13 +88,13 @@ int handleHttpRequest(void *args)
     // ctrl->CheckIoQpair("handle http");
     if (ctrl->CheckIoQpair("handle http") &&
         ctrl->mRequestContextPool->availableContexts.size() > 0) {
-        log_debug("queue depth {}, req in flight {}, read q size {},  "
-                  "avalable ctx {} ",
-                  ctrl->GetQueueDepth(),
-                  (ctrl->mRequestContextPool->capacity -
-                   ctrl->mRequestContextPool->availableContexts.size()),
-                  ctrl->GetReadQueueSize(),
-                  ctrl->mRequestContextPool->availableContexts.size());
+        // log_debug("queue depth {}, req in flight {}, read q size {},  "
+        //           "avalable ctx {} ",
+        //           ctrl->GetQueueDepth(),
+        //           (ctrl->mRequestContextPool->capacity -
+        //            ctrl->mRequestContextPool->availableContexts.size()),
+        //           ctrl->GetReadQueueSize(),
+        //           ctrl->mRequestContextPool->availableContexts.size());
 
         RequestContext *slot =
             ctrl->mRequestContextPool->GetRequestContext(true);
@@ -106,8 +112,7 @@ int handleHttpRequest(void *args)
         ioCtx.ns = ctrl->GetDevice()->GetNamespace();
         ioCtx.qpair = ctrl->GetIoQpair();
         ioCtx.data = slot->dataBuffer;
-        ioCtx.offset = offset_in_ios * io_size_blocks;
-        // ioCtx.offset = 0;
+        ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
         ioCtx.size = io_size_blocks;
         ioCtx.cb = complete;
         ioCtx.ctx = slot;
@@ -149,7 +154,7 @@ int httpWorker(void *args)
     struct spdk_thread *thread = ctrl->GetHttpThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleHttpRequest, ctrl, 100);
+    p = spdk_poller_register(handleHttpRequest, ctrl, 1);
     ctrl->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -181,7 +186,7 @@ int ioWorker(void *args)
     struct spdk_thread *thread = zctrlr->mIoThread.thread;
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleIoCompletions, zctrlr, 0);
+    p = spdk_poller_register(handleIoCompletions, zctrlr, 1);
     zctrlr->SetCompletionPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -200,12 +205,13 @@ void zoneRead(void *arg1)
     //     return;
 
     log_debug("ding ding: we are running spdk read: offset {}, size {}, "
-              "flags {}\n",
+              "flags {}",
               ioCtx.offset, ioCtx.size, ioCtx.flags);
 
     ctx->ctrl->CheckIoQpair("Zone read");
-    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
-                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
+    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
+                               ioCtx.offset + 1808277, ioCtx.size, ioCtx.cb,
+                               ioCtx.ctx, ioCtx.flags);
 
     if (rc != 0) {
         log_error("starting I/O failed {}", rc);
@@ -347,7 +353,7 @@ int dispatchWorker(void *args)
     struct spdk_thread *thread = zctrl->GetDispatchThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleSubmit, zctrl, 0);
+    p = spdk_poller_register(handleSubmit, zctrl, 1);
     zctrl->SetDispatchPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -454,7 +460,7 @@ int dispatchObjectWorker(void *args)
     spdk_set_thread(thread);
     spdk_poller *p;
     // p = spdk_poller_register(handleEventsDispatch, zctrl, 1);
-    p = spdk_poller_register(handleObjectSubmit, zctrl, 0);
+    p = spdk_poller_register(handleObjectSubmit, zctrl, 1);
     zctrl->SetDispatchPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);

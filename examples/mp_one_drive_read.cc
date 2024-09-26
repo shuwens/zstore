@@ -336,6 +336,8 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
                zslba + ns_ctx->count);
         check = true;
     }
+
+    printf("lba: %d \n", zslba + ns_ctx->count);
     rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
                                zslba + ns_ctx->count, entry->io_size_blocks,
                                io_complete, task, 0);

@@ -8,9 +8,10 @@
 #include "include/utils.hpp"
 #include "src/include/global.h"
 
-// static const int request_context_pool_size = 128000;
-static const int request_context_pool_size = 1;
 static std::vector<Device *> g_devices;
+
+static const int request_context_pool_size = 1;
+// static const int request_context_pool_size = 128000;
 
 void ZstoreController::initHttpThread()
 {
@@ -185,8 +186,8 @@ bool ZstoreController::CheckIoQpair(std::string msg)
     assert(mDevices[0] != nullptr);
     assert(mDevices[0]->GetIoQueue() != nullptr);
     // assert(spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
-    log_debug("{}, qpair connected: {}", msg,
-              spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
+    // log_debug("{}, qpair connected: {}", msg,
+    //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
 
     if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()))
         exit(0);
@@ -240,48 +241,6 @@ ZstoreController::~ZstoreController()
     log_debug("end work fn");
     print_stats(this);
 }
-
-// void ZstoreController::register_ns(struct spdk_nvme_ctrlr *ctrlr,
-//                                    struct spdk_nvme_ns *ns)
-// {
-//     const struct spdk_nvme_ctrlr_data *cdata;
-//
-//     cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-//
-//     if (spdk_nvme_ns_get_size(ns) < g_arbitration.io_size_bytes ||
-//         spdk_nvme_ns_get_extended_sector_size(ns) >
-//             g_arbitration.io_size_bytes ||
-//         g_arbitration.io_size_bytes %
-//             spdk_nvme_ns_get_extended_sector_size(ns)) {
-//         printf("WARNING: controller %-20.20s (%-20.20s) ns %u has invalid "
-//                "ns size %" PRIu64 " / block size %u for I/O size %u\n",
-//                cdata->mn, cdata->sn, spdk_nvme_ns_get_id(ns),
-//                spdk_nvme_ns_get_size(ns),
-//                spdk_nvme_ns_get_extended_sector_size(ns),
-//                g_arbitration.io_size_bytes);
-//         return;
-//     }
-//
-//     mNamespace = (struct ns_entry *)malloc(sizeof(struct ns_entry));
-//     if (mNamespace == NULL) {
-//         perror("ns_entry malloc");
-//         exit(1);
-//     }
-//
-//     mNamespace->nvme.ctrlr = ctrlr;
-//     mNamespace->nvme.ns = ns;
-//
-//     mNamespace->size_in_ios =
-//         spdk_nvme_ns_get_size(ns) / g_arbitration.io_size_bytes;
-//     mNamespace->io_size_blocks =
-//         g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
-//
-//     snprintf(mNamespace->name, 44, "%-20.20s (%-20.20s)", cdata->mn,
-//     cdata->sn);
-//
-//     g_arbitration.num_namespaces++;
-//     // mNamespace = ;
-// }
 
 void ZstoreController::register_ctrlr(Device *device,
                                       struct spdk_nvme_ctrlr *ctrlr)
@@ -456,27 +415,11 @@ void ZstoreController::cleanup(uint32_t task_count)
     // spdk_mempool_free(mTaskPool);
 }
 
-static const char *print_qprio(enum spdk_nvme_qprio qprio)
-{
-    switch (qprio) {
-    case SPDK_NVME_QPRIO_URGENT:
-        return "urgent priority queue";
-    case SPDK_NVME_QPRIO_HIGH:
-        return "high priority queue";
-    case SPDK_NVME_QPRIO_MEDIUM:
-        return "medium priority queue";
-    case SPDK_NVME_QPRIO_LOW:
-        return "low priority queue";
-    default:
-        return "invalid priority queue";
-    }
-}
-
 void ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
-    if (verbose)
-        log_debug("After READ: read q {}", GetReadQueueSize());
+    // if (verbose)
+    //     log_debug("After READ: read q {}", GetReadQueueSize());
 }
 
 void ZstoreController::EnqueueWrite(RequestContext *ctx)
