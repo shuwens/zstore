@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <fmt/core.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 void create_dummy_objects(Zstore zstore)
 {
@@ -138,13 +139,15 @@ int main(int argc, char **argv)
     // main_worker = gZstoreController->GetWorker();
     // assert(main_worker != NULL);
     // rc = work_fn(gZstoreController);
+    sleep(10);
+    log_debug("XXXX");
+    gZstoreController->Drain();
 
-    // log_debug("XXXX");
     spdk_env_thread_wait_all();
 
     // log_debug("XXXX");
     gZstoreController->zstore_cleanup();
 
-    // log_debug("XXXX");
+    log_debug("XXXX");
     return rc;
 }

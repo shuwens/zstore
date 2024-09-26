@@ -16,11 +16,19 @@
 #include <string>
 #include <vector>
 
+std::shared_mutex g_mutex_;
+
 typedef std::pair<std::string, int32_t> MapEntry;
 typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
 
 class ZstoreController;
 struct RequestContext;
+
+struct DrainArgs {
+    ZstoreController *ctrl;
+    bool success;
+    bool ready;
+};
 
 inline uint64_t round_up(uint64_t value, uint64_t align)
 {

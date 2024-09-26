@@ -10,7 +10,7 @@
 
 static std::vector<Device *> g_devices;
 
-static const int request_context_pool_size = 1;
+static const int request_context_pool_size = 512;
 // static const int request_context_pool_size = 128000;
 
 void ZstoreController::initHttpThread()
@@ -80,8 +80,6 @@ void ZstoreController::initDispatchThread(bool use_object)
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
-    // auto threadId = 0;
-    // log_debug("init Io thread {}", threadId);
     spdk_cpuset_zero(&cpumask);
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetIoThreadCoreId(), true);
     mIoThread.thread = spdk_thread_create("IoThread", &cpumask);
@@ -149,7 +147,9 @@ int ZstoreController::Init(bool object)
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
     // mRequestContextPool = new RequestContextPool(2048);
+
     mRequestContextPool = new RequestContextPool(request_context_pool_size);
+    // mRequestContext = new RequestContext;
 
     if (mRequestContextPool == NULL) {
         log_error("could not initialize task pool");
@@ -157,7 +157,7 @@ int ZstoreController::Init(bool object)
         zstore_cleanup();
         return rc;
     }
-
+    isDraining = false;
     // bogus setup for Map and BF
 
     PopulateMap(true);
@@ -333,6 +333,8 @@ void ZstoreController::zns_dev_init(Device *device, std::string ip1,
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
     snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
+    // disable keep alive timeout
+    opts.keep_alive_timeout_ms = 0;
     // memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
 
     register_ctrlr(device, spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
@@ -448,4 +450,49 @@ Result<MapEntry> ZstoreController::find_object(std::string key)
     //     }
     //     current_index = current->next;
     // }
+}
+
+void tryDrainController(void *args)
+{
+    DrainArgs *drainArgs = (DrainArgs *)args;
+    // drainArgs->ctrl->CheckSegments();
+    // drainArgs->ctrl->ReclaimContexts();
+    // drainArgs->ctrl->ProceedGc();
+    drainArgs->success =
+        drainArgs->ctrl->mRequestContextPool->availableContexts.size() ==
+        request_context_pool_size;
+
+    drainArgs->ready = true;
+}
+
+void ZstoreController::Drain()
+{
+    log_info("Perform draining on the system.");
+    isDraining = true;
+    DrainArgs args;
+    args.ctrl = this;
+    args.success = false;
+    while (!args.success) {
+        args.ready = false;
+        thread_send_msg(mDispatchThread, tryDrainController, &args);
+        busyWait(&args.ready);
+    }
+
+    auto etime = std::chrono::high_resolution_clock::now();
+    auto delta =
+        std::chrono::duration_cast<std::chrono::microseconds>(etime - stime)
+            .count();
+    auto tput = GetDevice()->mTotalCounts * g_micro_to_second / delta;
+
+    // if (g->verbose)
+    log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+             GetDevice()->mTotalCounts, delta, tput);
+
+    // log_debug("drain io: {}", spdk_get_ticks());
+    log_debug("clean up ns worker");
+    // ctrl->cleanup_ns_worker_ctx();
+    // print_stats(ctrl);
+    // exit(0);
+
+    log_info("done .");
 }

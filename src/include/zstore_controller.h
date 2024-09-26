@@ -163,12 +163,15 @@ class ZstoreController
 
     RequestContextPool *mRequestContextPool;
     std::unordered_set<RequestContext *> mInflightRequestContext;
-    mutable std::shared_mutex context_pool_mutex_;
 
     mutable std::shared_mutex g_mutex_;
+    // mutable std::shared_mutex context_pool_mutex_;
+    std::mutex context_pool_mutex_;
 
     // std::mutex mTaskPoolMutex;
     bool verbose;
+
+    bool isDraining;
 
   private:
     ZstoreHandler *mHandler;

@@ -86,7 +86,7 @@ int handleHttpRequest(void *args)
     ZstoreController *ctrl = (ZstoreController *)args;
 
     // ctrl->CheckIoQpair("handle http");
-    if (ctrl->CheckIoQpair("handle http") &&
+    if (!ctrl->isDraining &&
         ctrl->mRequestContextPool->availableContexts.size() > 0) {
         // log_debug("queue depth {}, req in flight {}, read q size {},  "
         //           "avalable ctx {} ",
@@ -96,9 +96,11 @@ int handleHttpRequest(void *args)
         //           ctrl->GetReadQueueSize(),
         //           ctrl->mRequestContextPool->availableContexts.size());
 
+        // std::unique_lock lock(ctrl->g_mutex_);
+        // ctrl->context_pool_mutex_.lock();
         RequestContext *slot =
             ctrl->mRequestContextPool->GetRequestContext(true);
-        // std::unique_lock lock(gZstoreController->g_mutex_);
+        ctrl->context_pool_mutex_.unlock();
         slot->ctrl = ctrl;
         assert(slot->ctrl == ctrl);
 
@@ -204,9 +206,9 @@ void zoneRead(void *arg1)
     // if (ctx->ctrl == nullptr)
     //     return;
 
-    log_debug("ding ding: we are running spdk read: offset {}, size {}, "
-              "flags {}",
-              ioCtx.offset, ioCtx.size, ioCtx.flags);
+    // log_debug("ding ding: we are running spdk read: offset {}, size {}, "
+    //           "flags {}",
+    //           ioCtx.offset, ioCtx.size, ioCtx.flags);
 
     ctx->ctrl->CheckIoQpair("Zone read");
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
@@ -228,11 +230,13 @@ void zoneRead(void *arg1)
 static void issueIo(void *args)
 {
     ZstoreController *zc = (ZstoreController *)args;
-    int rc;
     if (zc->verbose)
         log_debug("Issue IO");
 
+    // std::unique_lock lock(zc->g_mutex_);
+    // zc->context_pool_mutex_.lock();
     RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
+    zc->context_pool_mutex_.unlock();
     auto ioCtx = slot->ioContext;
 
     ioCtx.ns = zc->GetDevice()->GetNamespace();
@@ -603,6 +607,9 @@ RequestContextPool::RequestContextPool(uint32_t cap)
 
 RequestContext *RequestContextPool::GetRequestContext(bool force)
 {
+    std::unique_lock lock(g_mutex_);
+    // context_pool_mutex_.lock();
+
     RequestContext *ctx = nullptr;
     if (availableContexts.empty() && force == false) {
         ctx = nullptr;
@@ -637,26 +644,14 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
 
 void RequestContextPool::ReturnRequestContext(RequestContext *slot)
 {
-    // std::unique_lock lock(gZstoreController->context_pool_mutex_);
-    // assert(slot->available);
-    // ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-    // if (ctrl->verbose)
-    //     log_error("slot < contexts {}, slot >= contexts+cap {}",
-    //               slot < contexts, slot >= contexts + capacity);
-    // assert(availableContexts.size() <= capacity);
-    availableContexts.emplace_back(slot);
-
-    // if (slot < contexts || slot >= contexts + capacity) {
-    //     // if (ctrl->verbose)
-    //     log_debug("freeing buffers, not sure why");
-    //     // test whether the returned slot is pre-allocated
-    //     spdk_free(slot->dataBuffer);
-    //     spdk_free(slot->metadataBuffer);
-    //     delete slot;
-    // } else {
-    //     // if (ctrl->verbose)
-    //     log_debug("Puting slot back to avaiable context");
-    //     assert(availableContexts.size() <= capacity);
-    //     availableContexts.emplace_back(slot);
-    // }
+    std::unique_lock lock(g_mutex_);
+    assert(slot->available);
+    if (slot < contexts || slot >= contexts + capacity) {
+        // test whether the returned slot is pre-allocated
+        spdk_free(slot->dataBuffer);
+        delete slot;
+    } else {
+        assert(availableContexts.size() <= capacity);
+        availableContexts.emplace_back(slot);
+    }
 }
