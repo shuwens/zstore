@@ -52,25 +52,6 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
-    // gZstoreController->CheckTaskPool("Task pool created");
-
-    // Create poll groups for the io threads and perform initialization
-    // gZstoreController->mIoThread.group =
-    //     spdk_nvme_poll_group_create(NULL, NULL);
-    // gZstoreController->mIoThread.controller = gZstoreController;
-
-    // struct spdk_nvme_qpair *ioQueues =
-    // gZstoreController->mWorker->ns_ctx->qpair;
-    // spdk_nvme_ctrlr_disconnect_io_qpair(*ioQueues);
-    // rc = spdk_nvme_poll_group_add(gZstoreController->mIoThread.group,
-    // ioQueues); assert(rc == 0); if
-    // (spdk_nvme_ctrlr_connect_io_qpair(gZstoreController->mController->ctrlr,
-    //                                      *ioQueues) < 0) {
-    //     printf("Connect ctrl failed!\n");
-    // }
-
-    // gZstoreController->initIoThread();
-
     print_configuration(argv[0]);
 
     log_info("Initialization complete. Launching workers.");
@@ -88,19 +69,6 @@ int main(int argc, char **argv)
     gZstoreController->initDispatchThread(use_object);
 
     // ==================================
-
-    // auto worker = gZstoreController->GetWorker();
-    // assert(worker != nullptr);
-    // struct ns_entry *entry = worker->ns_ctx->entry;
-    // assert(entry != nullptr);
-    // assert(entry->nvme.ns != nullptr);
-    // assert(worker->ns_ctx->qpair != nullptr);
-
-    // log_debug("queue depth {}, req in flight {}, completed {}, current queue"
-    //           "depth {}",
-    //           gZstoreController->GetQueueDepth(), req_inflight,
-    //           g_worker->ns_ctx->io_completed,
-    //           g_worker->ns_ctx->current_queue_depth);
 
     // worker->ns_ctx->current_queue_depth = 0;
     gZstoreController->stime = std::chrono::high_resolution_clock::now();

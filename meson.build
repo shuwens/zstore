@@ -195,7 +195,7 @@ executable(
 # reads from the drive
 # executable(
 # 	'spdk_read',
-# 	files('src/examples/spdk_append.cc'),
+# 	files('examples/spdk_append.cc'),
 # 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
@@ -204,14 +204,14 @@ executable(
 # nvmf multipath signle drive
 executable(
 	'mpsd_append',
-	files('src/examples/mp_one_drive_append.cc'),
+	files('examples/mp_one_drive_append.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'mpsd_read',
-	files('src/examples/mp_one_drive_read.cc'),
+	files('examples/mp_one_drive_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -227,7 +227,7 @@ executable(
 # nvmf arbitration
 executable(
 	'test_read',
-	files('src/examples/arbitration_read.cc'),
+	files('examples/arbitration_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -235,7 +235,7 @@ executable(
 
 executable(
 	'test_append',
-	files('src/examples/arbitration_append.cc'),
+	files('examples/arbitration_append.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -244,7 +244,7 @@ executable(
 # local
 executable(
 	'arbitration',
-	files('src/examples/arbitration.cc'),
+	files('examples/arbitration.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -253,14 +253,14 @@ executable(
 # rdma
 executable(
 	'rdma_read',
-	files('src/examples/arbitration_rdma_read.cc'),
+	files('examples/arbitration_rdma_read.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'rdma_append',
-	files('src/examples/arbitration_rdma_append.cc'),
+	files('examples/arbitration_rdma_append.cc'),
 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,

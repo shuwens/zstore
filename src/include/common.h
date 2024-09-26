@@ -17,6 +17,7 @@
 #include <vector>
 
 typedef std::pair<std::string, int32_t> MapEntry;
+typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
 
 class ZstoreController;
 struct RequestContext;
@@ -120,55 +121,6 @@ double timestamp();
 double gettimediff(struct timeval s, struct timeval e);
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-
-struct ctrlr_entry {
-    struct spdk_nvme_ctrlr *ctrlr;
-    struct spdk_nvme_intel_rw_latency_page latency_page;
-    // TAILQ_ENTRY(ctrlr_entry) link;
-    char name[1024];
-};
-
-struct ns_entry {
-    struct {
-        struct spdk_nvme_ctrlr *ctrlr;
-        struct spdk_nvme_ns *ns;
-    } nvme;
-
-    // TAILQ_ENTRY(ns_entry) link;
-    uint32_t io_size_blocks;
-    uint64_t size_in_ios;
-    char name[1024];
-};
-
-struct ns_worker_ctx {
-    struct ns_entry *entry;
-    uint64_t io_completed;
-    uint64_t current_queue_depth;
-    uint64_t offset_in_ios;
-    bool is_draining;
-    struct spdk_nvme_qpair *qpair;
-    // TAILQ_ENTRY(ns_worker_ctx) link;
-
-    // latency tracking
-    // chrono_tp stime;
-    // chrono_tp etime;
-    // std::vector<chrono_tp> stimes;
-    // std::vector<chrono_tp> etimes;
-    void *zctrlr;
-};
-
-struct arb_task {
-    // struct ns_worker_ctx *ns_ctx;
-    ZstoreController *zctrlr;
-    void *buf;
-};
-
-struct worker_thread {
-    struct ns_worker_ctx *ns_ctx;
-    // TAILQ_ENTRY(worker_thread) link;
-    unsigned lcore;
-    enum spdk_nvme_qprio qprio;
-};
 
 struct arb_context {
     int shm_id;

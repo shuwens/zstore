@@ -11,12 +11,6 @@
 #include <spdk/env.h> // Include SPDK's environment header
 #include <thread>
 
-// #include "log_disk.h"
-// #include "object_log.h"
-// #include "store.h"
-
-typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
-
 class ZstoreController
 {
   public:
@@ -39,13 +33,7 @@ class ZstoreController
     struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
 
     struct spdk_nvme_qpair *GetIoQpair();
-    void CheckIoQpair(std::string msg);
-
-    // struct spdk_mempool *GetTaskPool() { return mTaskPool; };
-    // void CheckTaskPool(std::string msg);
-    // int GetTaskPoolSize() { return spdk_mempool_count(mTaskPool); }
-    // int GetTaskCount() { return mTaskCount; };
-    // void SetTaskCount(int task_count) { mTaskCount = task_count; }
+    bool CheckIoQpair(std::string msg);
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
     void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
@@ -59,9 +47,6 @@ class ZstoreController
 
     void register_ctrlr(Device *device, struct spdk_nvme_ctrlr *ctrlr);
     void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
-
-    // struct worker_thread *GetWorker() { return mWorker; };
-    // struct ns_entry *GetNamespace() { return mNamespace; };
 
     int register_workers();
     int register_controllers(Device *device);
@@ -188,14 +173,6 @@ class ZstoreController
   private:
     ZstoreHandler *mHandler;
 
-    // struct spdk_mempool *mTaskPool;
-    // int mTaskCount;
-    // Create a global mutex to protect access to the mempool
-
-    // struct ctrlr_entry *mController;
-    // struct ns_entry *mNamespace;
-    // struct worker_thread *mWorker;
-
     // simple way to terminate the server
     uint64_t tsc_end;
 
@@ -204,16 +181,6 @@ class ZstoreController
     void doRead(RequestContext *context);
 
     std::vector<Device *> mDevices;
-    // std::unordered_set<Segment *> mSealedSegments;
-    // std::vector<Segment *> mSegmentsToSeal;
-    // std::vector<Segment *> mOpenSegments;
-    // Segment *mSpareSegment;
-    // PhysicalAddr *mAddressMap;
-
-    // RequestContextPool *mRequestContextPoolForZstore;
-    // ReadContextPool *mReadContextPool;
-    // StripeWriteContextPool **mStripeWriteContextPools;
-
     std::queue<RequestContext *> mRequestQueue;
     std::mutex mRequestQueueMutex;
 
@@ -236,17 +203,6 @@ class ZstoreController
     std::queue<RequestContext *> mEventsToDispatch;
     std::queue<RequestContext *> mWriteQueue;
     std::queue<RequestContext *> mReadQueue;
-
-    // uint32_t mAvailableStorageSpaceInSegments = 0;
-    // uint32_t mNumTotalZones = 0;
-
-    // uint32_t mNextAppendOpenSegment = 0;
-    // uint32_t mNextAssignedSegmentId = 0;
-    // uint32_t mGlobalTimestamp = 0;
-
-    // uint32_t mHeaderRegionSize = 0;
-    // uint32_t mDataRegionSize = 0;
-    // uint32_t mFooterRegionSize = 0;
 
     // in memory object tables, used only by kv store
     // std::map<std::string, kvobject> mem_obj_table;

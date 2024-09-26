@@ -38,18 +38,12 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     }
 
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+    ctrl->GetDevice()->mTotalCounts++;
 
     // FIXME
     assert(ctrl != nullptr);
     // if (ctrl == nullptr)
     //     ctrl = gZstoreController;
-
-    // auto worker = ctrl->GetWorker();
-    // assert(worker != nullptr);
-    // assert(worker->ns_ctx != nullptr);
-    // //
-    // // worker->ns_ctx->current_queue_depth--;
-    // worker->ns_ctx->io_completed++;
 
     // this should move to reclaim context and in controller
     // std::unique_lock lock(gZstoreController->context_pool_mutex_);
@@ -65,20 +59,15 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     //     log_error("After return: pool capacity {}, pool available {}\n",
     //               ctrl->mRequestContextPool->capacity,
     //               ctrl->mRequestContextPool->availableContexts.size());
-    log_debug("end: after return {}",
-              ctrl->mRequestContextPool->availableContexts.size());
+    log_debug("end: ctx after return {}, total IO {}",
+              ctrl->mRequestContextPool->availableContexts.size(),
+              ctrl->GetDevice()->mTotalCounts);
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
     if (spdk_thread_send_msg(thread, fn, args) < 0) {
         // std::unique_lock lock(gZstoreController->g_mutex_);
-        // auto worker = gZstoreController->GetWorker();
-        // log_error("Thread send message failed: thread_name {}. io completed
-        // {}",
-        //           spdk_thread_get_name(thread),
-        //           worker->ns_ctx->io_completed);
-
         log_error("Thread send message failed: thread_name {}.",
                   spdk_thread_get_name(thread));
         exit(-1);
@@ -90,11 +79,9 @@ int handleHttpRequest(void *args)
     bool busy = false;
     ZstoreController *ctrl = (ZstoreController *)args;
 
-    // auto worker = ctrl->GetWorker();
-    // struct ns_entry *entry = worker->ns_ctx->entry;
-    // FIXME
-    // if (!worker->ns_ctx->is_draining &&
-    if (ctrl->mRequestContextPool->availableContexts.size() > 0) {
+    // ctrl->CheckIoQpair("handle http");
+    if (ctrl->CheckIoQpair("handle http") &&
+        ctrl->mRequestContextPool->availableContexts.size() > 0) {
         log_debug("queue depth {}, req in flight {}, read q size {},  "
                   "avalable ctx {} ",
                   ctrl->GetQueueDepth(),
@@ -113,7 +100,8 @@ int handleHttpRequest(void *args)
         // FIXME hardcode
         int size_in_ios = 212860928;
         int io_size_blocks = 1;
-        auto offset_in_ios = rand_r(&seed) % size_in_ios;
+        // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+        auto offset_in_ios = 1;
 
         ioCtx.ns = ctrl->GetDevice()->GetNamespace();
         ioCtx.qpair = ctrl->GetIoQpair();
@@ -126,10 +114,6 @@ int handleHttpRequest(void *args)
         ioCtx.flags = 0;
         slot->ioContext = ioCtx;
 
-        // if (ctrl->verbose)
-        //     log_debug("Before READ: read q {}, io completed {}",
-        //               ctrl->GetReadQueueSize(),
-        //               ctrl->GetWorker()->ns_ctx->io_completed);
         assert(slot->ioContext.cb != nullptr);
         assert(slot->ctrl != nullptr);
         ctrl->EnqueueRead(slot);
@@ -165,7 +149,7 @@ int httpWorker(void *args)
     struct spdk_thread *thread = ctrl->GetHttpThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
+    p = spdk_poller_register(handleHttpRequest, ctrl, 100);
     ctrl->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -176,7 +160,7 @@ int handleIoCompletions(void *args)
 {
     int rc;
     ZstoreController *zctrlr = (ZstoreController *)args;
-    log_debug("XXX");
+    // log_debug("XXX");
     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
 
     rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
@@ -209,19 +193,21 @@ void zoneRead(void *arg1)
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
-    assert(ctx->ctrl != nullptr);
-    // if (ctrl->verbose)
-    //     log_debug("ding ding: we are running spdk read: offset {}, size {}, "
-    //               "flags {}\n",
-    //               ioCtx.offset, ioCtx.size, ioCtx.flags);
 
+    // FIXME
+    assert(ctx->ctrl != nullptr);
+    // if (ctx->ctrl == nullptr)
+    //     return;
+
+    log_debug("ding ding: we are running spdk read: offset {}, size {}, "
+              "flags {}\n",
+              ioCtx.offset, ioCtx.size, ioCtx.flags);
+
+    ctx->ctrl->CheckIoQpair("Zone read");
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
 
-    // auto worker = gZstoreController->GetWorker();
     if (rc != 0) {
-        // log_error("starting I/O failed {}, completed {}", rc,
-        //           worker->ns_ctx->io_completed);
         log_error("starting I/O failed {}", rc);
     } else {
         // worker->ns_ctx->current_queue_depth++;
@@ -240,10 +226,7 @@ static void issueIo(void *args)
     if (zc->verbose)
         log_debug("Issue IO");
 
-    // auto worker = zctrlr->GetWorker();
-    // struct ns_entry *entry = worker->ns_ctx->entry;
-
-    RequestContext *slot = zc->mRequestContextPool->GetRequestContext(false);
+    RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
     auto ioCtx = slot->ioContext;
 
     ioCtx.ns = zc->GetDevice()->GetNamespace();
@@ -286,8 +269,6 @@ int handleSubmit(void *args)
     int queue_depth = ctrl->GetQueueDepth();
     auto req_inflight = ctrl->mRequestContextPool->capacity -
                         ctrl->mRequestContextPool->availableContexts.size();
-    // auto worker = ctrl->GetWorker();
-    // worker->ns_ctx->current_queue_depth
 
     // log_debug("queue depth {}, req in flight {}, completed {}, current queue
     // "
@@ -373,19 +354,6 @@ int dispatchWorker(void *args)
     }
 }
 
-// void inspect(void *args)
-// {
-//     ZstoreController *zctrlr = (ZstoreController *)args;
-//     auto worker = zctrlr->GetWorker();
-//     log_debug("IO completed {}, task pool {}, task count {}, ns ctx qd {}",
-//               worker->ns_ctx->io_completed, zctrlr->GetTaskPoolSize(),
-//               zctrlr->GetTaskCount(), worker->ns_ctx->current_queue_depth);
-//     assert(zctrlr->GetTaskCount() ==
-//            zctrlr->GetTaskPoolSize() + worker->ns_ctx->current_queue_depth
-//
-//     );
-// }
-
 int handleObjectSubmit(void *args)
 {
     bool busy = false;
@@ -394,7 +362,6 @@ int handleObjectSubmit(void *args)
     int queue_depth = zctrlr->GetQueueDepth();
     // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
 
-    // auto worker = zctrlr->GetWorker();
     // auto task_count = zctrlr->GetTaskCount();
 
     // Multiple threads/readers can read the counter's value at the same time.

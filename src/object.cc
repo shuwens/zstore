@@ -64,9 +64,6 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
     // if (ctrl->verbose)
     //     log_debug("XXX: Reading object ");
     //
-    // auto worker = ctrl->GetWorker();
-    // struct ns_entry *entry = worker->ns_ctx->entry;
-    //
     // int rc;
     // uint64_t offset_in_ios;
     // int64_t _offset = 0;

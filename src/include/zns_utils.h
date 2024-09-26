@@ -15,104 +15,9 @@ static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion);
 
 static __thread unsigned int seed = 0;
 
-// static void submit_single_io(void *args)
-// {
-//     ZstoreController *zctrlr = (ZstoreController *)args;
-//     int rc;
-//
-//     auto worker = zctrlr->GetWorker();
-//     struct ns_entry *entry = worker->ns_ctx->entry;
-//
-//     RequestContext *slot =
-//         zctrlr->mRequestContextPool->GetRequestContext(false);
-//     auto ioCtx = slot->ioContext;
-//
-//     ioCtx.ns = entry->nvme.ns;
-//     ioCtx.qpair = worker->ns_ctx->qpair;
-//     ioCtx.data = slot->dataBuffer;
-//     // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
-//     ioCtx.offset = 0;
-//     ioCtx.size = entry->io_size_blocks;
-//     // ioCtx.cb = io_complete;
-//     // ioCtx.ctx = task;
-//     ioCtx.cb = complete;
-//     bool *done = nullptr;
-//     ioCtx.ctx = done;
-//     ioCtx.flags = 0;
-//
-//     // task->ns_ctx = zctrlr->mWorker->ns_ctx;
-//     slot->ctrl = zctrlr;
-//     assert(slot->ctrl == zctrlr);
-//
-//     // if (g_arbitration.is_random) {
-//     //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
-//     // } else {
-//     //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
-//     //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
-//     //         worker->ns_ctx->offset_in_ios = 0;
-//     //     }
-//     // }
-//
-//     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
-//     // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
-//
-//     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
-//     ioCtx.offset,
-//                                ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
-//
-//     if (rc != 0) {
-//         log_error("starting I/O failed");
-//     } else {
-//         worker->ns_ctx->current_queue_depth++;
-//     }
-// }
-
-// static void task_complete(struct arb_task *task)
-// {
-//     ZstoreController *zctrlr = (ZstoreController *)task->zctrlr;
-//     std::lock_guard<std::mutex> lock(zctrlr->mTaskPoolMutex); // Lock the
-//     mutex auto worker = zctrlr->GetWorker(); auto taskpool =
-//     zctrlr->GetTaskPool();
-//
-//     assert(zctrlr != nullptr);
-//     assert(worker != nullptr);
-//     assert(worker->ns_ctx != nullptr);
-//     // zctrlr->mWorker->ns_ctx = task->ns_ctx;
-//     worker->ns_ctx->current_queue_depth--;
-//     worker->ns_ctx->io_completed++;
-//     // worker->ns_ctx->etime = std::chrono::high_resolution_clock::now();
-//     // worker->ns_ctx->etimes.push_back(worker->ns_ctx->etime);
-//
-//     // log_debug("Before returning task {}", zctrlr->GetTaskPoolSize());
-//     spdk_dma_free(task->buf);
-//     spdk_mempool_put(taskpool, task);
-//
-//     // log_debug("After returning task {}", zctrlr->GetTaskPoolSize());
-//
-//     /*
-//      * is_draining indicates when time has expired for the test run
-//      * and we are just waiting for the previously submitted I/O
-//      * to complete.  In this case, do not submit a new I/O to replace
-//      * the one just completed.
-//      */
-//     // if (!worker->ns_ctx->is_draining) {
-//     // log_info("IO count {}", zctrlr->mWorker->ns_ctx->io_completed);
-//     //     submit_single_io(zctrlr);
-//     // }
-// }
-
-// static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
-// {
-//     task_complete((struct arb_task *)ctx);
-//
-//     // ZstoreController *zctrlr = (ZstoreController *)args;
-//     // task_complete((struct arb_task *)ctx);
-// }
-
 static void check_io(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
-    // auto worker = zctrlr->GetWorker();
     spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
 }
 
@@ -160,115 +65,6 @@ static void print_stats(void *args)
 {
     ZstoreController *zctrlr = (ZstoreController *)args;
     // print_performance(zctrlr);
-}
-
-// static int work_fn(void *args)
-// {
-//     ZstoreController *zctrlr = (ZstoreController *)args;
-//     uint64_t tsc_end;
-//
-//     auto worker = zctrlr->GetWorker();
-//     // gZstoreController->CheckTaskPool("work fn start");
-//     log_info("Starting thread on core {}", worker->lcore);
-//
-//     tsc_end =
-//         spdk_get_ticks() + g_arbitration.time_in_sec *
-//         g_arbitration.tsc_rate;
-//     // printf("tick %s, time in sec %s, tsc rate %s", spdk_get_ticks(),
-//     //        g_arbitration.time_in_sec, g_arbitration.tsc_rate);
-//
-//     /* Submit initial I/O for each namespace. */
-//     // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
-//     // {
-//     log_info("1111");
-//     submit_io(zctrlr, g_arbitration.queue_depth);
-//     // }
-//
-//     log_info("222");
-//     while (1) {
-//         /*
-//          * Check for completed I/O for each controller. A new
-//          * I/O will be submitted in the io_complete callback
-//          * to replace each I/O that is completed.
-//          */
-//         // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link) {
-//         // check_io(zctrlr->mWorker->ns_ctx);
-//         // }
-//
-//         if (spdk_get_ticks() > tsc_end) {
-//             break;
-//         }
-//     }
-//
-//     // TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
-//     // {
-//     log_debug("drain io");
-//     drain_io(zctrlr);
-//     log_debug("clean up ns worker");
-//     zctrlr->cleanup_ns_worker_ctx();
-//
-//     // std::vector<uint64_t> deltas1;
-//     // for (int i = 0; i < worker->ns_ctx->stimes.size(); i++) {
-//     //     deltas1.push_back(
-//     //         std::chrono::duration_cast<std::chrono::microseconds>(
-//     //             worker->ns_ctx->etimes[i] - worker->ns_ctx->stimes[i])
-//     //             .count());
-//     // }
-//     // auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-//     // auto mean1 = sum1 / deltas1.size();
-//     // auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
-//     //                                   deltas1.begin(), 0.0);
-//     // auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 * mean1);
-//     // log_info("qd: {}, mean {}, std {}", worker->ns_ctx->io_completed,
-//     mean1,
-//     //          stdev1);
-//     //
-//     // // clearnup
-//     // deltas1.clear();
-//     // worker->ns_ctx->etimes.clear();
-//     // worker->ns_ctx->stimes.clear();
-//     // }
-//
-//     log_debug("end work fn");
-//     print_stats(zctrlr);
-//     return 0;
-// }
-
-static void usage(char *program_name)
-{
-    log_info("{} options", program_name);
-    log_info("\t[-d DPDK huge memory size in MB]\n");
-    log_info("\t[-q io depth]\n");
-    printf("\t[-o io size in bytes]\n");
-    printf("\t[-w io pattern type, must be one of\n");
-    printf("\t\t(read, write, randread, randwrite, rw, randrw)]\n");
-    printf("\t[-M rwmixread (100 for reads, 0 for writes)]\n");
-#ifdef DEBUG
-    printf("\t[-L enable debug logging]\n");
-#else
-    printf("\t[-L enable debug logging (flag disabled, must reconfigure with "
-           "--enable-debug)]\n");
-#endif
-    spdk_log_usage(stdout, "\t\t-L");
-    printf("\t[-l enable latency tracking, default: disabled]\n");
-    printf("\t\t(0 - disabled; 1 - enabled)\n");
-    printf("\t[-t time in seconds]\n");
-    printf("\t[-c core mask for I/O submission/completion.]\n");
-    printf("\t\t(default: 0xf - 4 cores)]\n");
-    printf("\t[-m max completions per poll]\n");
-    printf("\t\t(default: 0 - unlimited)\n");
-    printf("\t[-a arbitration mechanism, must be one of below]\n");
-    printf("\t\t(0, 1, 2)]\n");
-    printf("\t\t(0: default round robin mechanism)]\n");
-    printf("\t\t(1: weighted round robin mechanism)]\n");
-    printf("\t\t(2: vendor specific mechanism)]\n");
-    printf("\t[-b enable arbitration user configuration, default: "
-           "disabled]\n");
-    printf("\t\t(0 - disabled; 1 - enabled)\n");
-    printf("\t[-n subjected IOs for performance comparison]\n");
-    printf("\t[-i shared memory group ID]\n");
-    printf("\t[-r remote NVMe over Fabrics target address]\n");
-    printf("\t[-g use single file descriptor for DPDK memory segments]\n");
 }
 
 static void print_configuration(char *program_name)
@@ -324,13 +120,13 @@ static int parse_args(int argc, char **argv)
             break;
         case 'h':
         case '?':
-            usage(argv[0]);
+            // usage(argv[0]);
             return 1;
         case 'L':
             rc = spdk_log_set_flag(optarg);
             if (rc < 0) {
                 log_error("unknown flag");
-                usage(argv[0]);
+                // usage(argv[0]);
                 exit(EXIT_FAILURE);
             }
 #ifdef DEBUG
@@ -376,7 +172,7 @@ static int parse_args(int argc, char **argv)
                 g_arbitration.io_count = val;
                 break;
             default:
-                usage(argv[0]);
+                // usage(argv[0]);
                 return -EINVAL;
             }
         }

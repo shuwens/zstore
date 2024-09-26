@@ -52,6 +52,11 @@ class Device
     void issueIo2(spdk_event_fn event_fn, RequestContext *slot);
     void issueIo(spdk_msg_fn msg_fn, RequestContext *slot);
 
+    // debug
+    // std::map<uint32_t, uint64_t> mReadCounts;
+    // uint64_t mTotalReadCounts = 0;
+    uint64_t mTotalCounts = 0;
+
   private:
     uint64_t bytes2Block(uint64_t bytes);
     uint64_t bytes2ZoneNum(uint64_t bytes);

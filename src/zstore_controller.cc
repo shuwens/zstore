@@ -9,7 +9,7 @@
 #include "src/include/global.h"
 
 // static const int request_context_pool_size = 128000;
-static const int request_context_pool_size = 32;
+static const int request_context_pool_size = 1;
 static std::vector<Device *> g_devices;
 
 void ZstoreController::initHttpThread()
@@ -135,33 +135,11 @@ int ZstoreController::Init(bool object)
     {
         Device *device = new Device();
 
-        // if (register_workers() != 0) {
-        //     rc = 1;
-        //     zstore_cleanup();
-        //     return rc;
-        // }
-
-        // struct arb_context ctx = {};
         if (register_controllers(device) != 0) {
             rc = 1;
             zstore_cleanup();
             return rc;
         }
-
-        // if (associate_workers_with_ns(device) != 0) {
-        //     rc = 1;
-        //     zstore_cleanup();
-        //     return rc;
-        // }
-
-        // if (init_ns_worker_ctx(device) != 0) {
-        //     log_error("init_ns_worker_ctx() failed");
-        //     return 1;
-        //     // }
-        // }
-        // TODO
-        // device->Init(ctrlr, nsid);
-        // device->SetDeviceTransportAddress(addr : trid->traddr);
 
         g_devices.emplace_back(device);
     }
@@ -171,30 +149,7 @@ int ZstoreController::Init(bool object)
     // Sufficient to support multiple I/O queues of NVMe-oF target
     // mRequestContextPool = new RequestContextPool(2048);
     mRequestContextPool = new RequestContextPool(request_context_pool_size);
-    // mRequestContextPoolForSegments = new RequestContextPool(4096);
-    // mRequestContextPoolForIndex = new RequestContextPool(128);
 
-    // snprintf(task_pool_name, sizeof(task_pool_name), "task_pool_%d",
-    // getpid());
-
-    /*
-     * The task_count will be dynamically calculated based on the
-     * number of attached active namespaces, queue depth and number
-     * of cores (workers) involved in the IO perations.
-     */
-    // task_count = g_arbitration.num_namespaces > g_arbitration.num_workers
-    //                  ? g_arbitration.num_namespaces
-    //                  : g_arbitration.num_workers;
-    // // task_count *= g_arbitration.queue_depth;
-    // task_count *= mQueueDepth;
-    // SetTaskCount(task_count);
-
-    // log_info("Creating task pool: name {}, count {}", task_pool_name,
-    //          task_count);
-    // mTaskPool =
-    //     spdk_mempool_create(task_pool_name, task_count, sizeof(struct
-    //     arb_task),
-    // 0, SPDK_ENV_SOCKET_ID_ANY);
     if (mRequestContextPool == NULL) {
         log_error("could not initialize task pool");
         rc = 1;
@@ -225,43 +180,33 @@ void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
 }
 
 // TODO: assume we only have one device, we should check all device in the end
-void ZstoreController::CheckIoQpair(std::string msg)
+bool ZstoreController::CheckIoQpair(std::string msg)
 {
     assert(mDevices[0] != nullptr);
     assert(mDevices[0]->GetIoQueue() != nullptr);
     // assert(spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     log_debug("{}, qpair connected: {}", msg,
               spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
+
+    if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()))
+        exit(0);
+
+    return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue());
 }
 
 struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 {
     assert(mDevices[0] != nullptr);
     assert(mDevices[0]->GetIoQueue() != nullptr);
-    // assert(spdk_nvme_qpair_is_connected(mWorker->ns_ctx->qpair));
 
     return mDevices[0]->GetIoQueue();
 }
-
-// void ZstoreController::CheckTaskPool(std::string msg)
-// {
-//     std::lock_guard<std::mutex> lock(mTaskPoolMutex); // Lock the mutex
-//     assert(mTaskPool != nullptr);
-//     auto task = (struct arb_task *)spdk_mempool_get(mTaskPool);
-//     if (!task) {
-//         log_error("Failed to get task from mTaskPool: {}", msg);
-//         exit(1);
-//     }
-//     spdk_mempool_put(mTaskPool, task);
-//
-//     log_info("{}: TaskPool ok: {}", msg, spdk_mempool_count(mTaskPool));
-// }
 
 ZstoreController::~ZstoreController()
 {
     thread_send_msg(mIoThread.thread, quit, nullptr);
     thread_send_msg(mDispatchThread, quit, nullptr);
-    // thread_send_msg(mHttpThread, quit, nullptr);
+    thread_send_msg(mHttpThread, quit, nullptr);
     // thread_send_msg(mIndexThread, quit, nullptr);
     // thread_send_msg(mCompletionThread, quit, nullptr);
     log_debug("drain io: {}", spdk_get_ticks());
@@ -403,35 +348,6 @@ void ZstoreController::register_ctrlr(Device *device,
              max_zone_append_size, metadata_size);
 }
 
-// int ZstoreController::register_workers(Device *device)
-// {
-//     uint32_t i = 1;
-//     // struct worker_thread *worker;
-//     // enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
-//
-//     mWorker = (struct worker_thread *)calloc(1, sizeof(*mWorker));
-//     if (mWorker == NULL) {
-//         log_error("Unable to allocate worker");
-//         return -1;
-//     }
-//
-//     // TAILQ_INIT(&worker->ns_ctx);
-//     mWorker->lcore = i;
-//     // TAILQ_INSERT_TAIL(&mWorkers, worker, link);
-//     g_arbitration.num_workers++;
-//
-//     if (g_arbitration.arbitration_mechanism == SPDK_NVME_CAP_AMS_WRR) {
-//         qprio = static_cast<enum spdk_nvme_qprio>(static_cast<int>(qprio) +
-//         1);
-//     }
-//
-//     mWorker->qprio = static_cast<enum spdk_nvme_qprio>(
-//         qprio & SPDK_NVME_CREATE_IO_SQ_QPRIO_MASK);
-//     // }
-//
-//     return 0;
-// }
-
 void ZstoreController::zns_dev_init(Device *device, std::string ip1,
                                     std::string port1)
 {
@@ -505,56 +421,6 @@ void ZstoreController::unregister_controllers(Device *device)
     // }
 }
 
-// int ZstoreController::associate_workers_with_ns()
-// {
-//     // struct ns_entry *entry = mNamespace;
-//     // struct worker_thread *worker = mWorker;
-//     // struct ns_worker_ctx *ns_ctx;
-//     int count;
-//
-//     count = g_arbitration.num_namespaces > g_arbitration.num_workers
-//                 ? g_arbitration.num_namespaces
-//                 : g_arbitration.num_workers;
-//     count = 1;
-//     log_debug("DEBUG ns {}, workers {}, count {}",
-//     g_arbitration.num_namespaces,
-//               g_arbitration.num_workers, count);
-//     // for (i = 0; i < count; i++) {
-//     if (mNamespace == NULL) {
-//         return -1;
-//     }
-//
-//     assert(mWorker != nullptr);
-//     mWorker->ns_ctx =
-//         (struct ns_worker_ctx *)malloc(sizeof(struct ns_worker_ctx));
-//     if (!mWorker->ns_ctx) {
-//         log_error("Alloc ns worker failed ");
-//         return 1;
-//     }
-//     memset(mWorker->ns_ctx, 0, sizeof(*mWorker->ns_ctx));
-//
-//     log_info("Associating {} with lcore {}", mNamespace->name,
-//     mWorker->lcore);
-//     // FIXME redundent?
-//     mWorker->ns_ctx->entry = mNamespace;
-//     //
-//     // TAILQ_INSERT_TAIL(&worker->ns_ctx, ns_ctx, link);
-//
-//     // worker = TAILQ_NEXT(worker, link);
-//     // if (worker == NULL) {
-//     //     worker = TAILQ_FIRST(&mWorkers);
-//     // }
-//
-//     // entry = TAILQ_NEXT(entry, link);
-//     // if (entry == NULL) {
-//     //     entry = TAILQ_FIRST(&mNamespaces);
-//     // }
-//     // }
-//
-//     // zctrlr->mWorker->ns_ctx = ns_ctx;
-//     return 0;
-// }
-
 void ZstoreController::zstore_cleanup()
 {
     log_info("unreg controllers");
@@ -606,205 +472,9 @@ static const char *print_qprio(enum spdk_nvme_qprio qprio)
     }
 }
 
-// int ZstoreController::init_ns_worker_ctx(Device *device)
-// {
-//     // log_info("Starting thread with {}", print_qprio(qprio));
-//
-//     // TODO dont need ns_ctx anymore
-//     assert(device.mWorker != nullptr);
-//     assert(device.mWorker->ns_ctx != nullptr);
-//     assert(device.mWorker->ns_ctx->entry != nullptr);
-//     assert(device.mWorker->ns_ctx->entry->nvme.ctrlr != nullptr);
-//     struct spdk_nvme_ctrlr *ctrlr = mWorker->ns_ctx->entry->nvme.ctrlr;
-//
-//     struct spdk_nvme_io_qpair_opts opts;
-//     spdk_nvme_ctrlr_get_default_io_qpair_opts(ctrlr, &opts, sizeof(opts));
-//     opts.qprio = qprio;
-//
-//     mWorker->ns_ctx->qpair =
-//         spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
-//     if (!ns_ctx->qpair) {
-//         log_error("ERROR: spdk_nvme_ctrlr_alloc_io_qpair failed");
-//         return 1;
-//     }
-//
-//     // allocate space for times
-//     // mWorker->ns_ctx->stimes.reserve(1000000);
-//     // mWorker->ns_ctx->etimes.reserve(1000000);
-//
-//     // zctrlr->mWorker->ns_ctx->zctrlr = zctrlr;
-//
-//     return 0;
-// }
-
-// int LightningStore::release_object(uint64_t object_id)
-// {
-//     uint8_t *base = (uint8_t *)store_header_;
-//
-//     int64_t object_index = find_object(object_id);
-//     assert(object_index >= 0);
-//
-//     ObjectEntry *object_entry = &store_header_->object_entries[object_index];
-//     object_entry->ref_count--;
-//     if (object_entry->ref_count == 0) {
-//         allocator_->FreeSharedNoLog(object_entry->offset);
-//         int64_t prev_object_index = object_entry->prev;
-//         int64_t next_object_index = object_entry->next;
-//
-//         if (prev_object_index < 0) {
-//             if (next_object_index >= 0) {
-//                 ObjectEntry *next =
-//                     &store_header_->object_entries[next_object_index];
-//                 next->prev = -1;
-//             }
-//             store_header_->hashmap.hash_entries[object_id %
-//             65536].object_list =
-//                 next_object_index;
-//         } else {
-//             ObjectEntry *prev =
-//                 &store_header_->object_entries[prev_object_index];
-//             prev->next = next_object_index;
-//             if (next_object_index >= 0) {
-//                 ObjectEntry *next =
-//                     &store_header_->object_entries[next_object_index];
-//                 next->prev = prev_object_index;
-//             }
-//         }
-//
-//         int64_t j = store_header_->object_entry_free_list;
-//         store_header_->object_entries[object_index].free_list_next = j;
-//         store_header_->object_entry_free_list = object_index;
-//     }
-//     return 0;
-// }
-//
-// int64_t LightningStore::alloc_object_entry()
-// {
-//     int64_t i = store_header_->object_entry_free_list;
-//     store_header_->object_entry_free_list =
-//         store_header_->object_entries[i].free_list_next;
-//     store_header_->object_entries[i].free_list_next = -1;
-//     return i;
-// }
-//
-// void LightningStore::dealloc_object_entry(int64_t i)
-// {
-//     int64_t j = store_header_->object_entry_free_list;
-//     store_header_->object_entries[i].free_list_next = j;
-//     store_header_->object_entry_free_list = i;
-// }
-//
-// int LightningStore::create_object(uint64_t object_id, sm_offset *offset_ptr,
-//                                   size_t size)
-// {
-//     int64_t object_index = find_object(object_id);
-//
-//     if (object_index >= 0) {
-//         ObjectEntry *object = &store_header_->object_entries[object_index];
-//         if (object->offset > 0) {
-//             // object is already created
-//             return -1;
-//         }
-//         sm_offset object_buffer_offset = allocator_->MallocShared(size);
-//
-//         object->offset = object_buffer_offset;
-//         object->size = size;
-//         object->ref_count = 1;
-//         *offset_ptr = object_buffer_offset;
-//
-//         return 0;
-//     }
-//
-//     int64_t new_object_index = alloc_object_entry();
-//     sm_offset object_buffer_offset = allocator_->MallocShared(size);
-//     ObjectEntry *new_object =
-//     &store_header_->object_entries[new_object_index];
-//     // uint8_t *object_buffer = &base_[object_buffer_offset];
-//
-//     new_object->object_id = object_id;
-//     new_object->num_waiters = 0;
-//     new_object->offset = object_buffer_offset;
-//     new_object->size = size;
-//     new_object->ref_count = 1;
-//     new_object->sealed = false;
-//
-//     int64_t head_index =
-//         store_header_->hashmap.hash_entries[object_id % 65536].object_list;
-//     ObjectEntry *head = &store_header_->object_entries[head_index];
-//
-//     new_object->next = head_index;
-//     new_object->prev = -1;
-//
-//     if (head_index >= 0) {
-//         head->prev = new_object_index;
-//     }
-//     store_header_->hashmap.hash_entries[object_id % 65536].object_list =
-//         new_object_index;
-//
-//     *offset_ptr = object_buffer_offset;
-//     return 0;
-// }
-//
-// int LightningStore::get_object(uint64_t object_id, sm_offset *ptr, size_t
-// *size)
-// {
-//     int64_t object_index = find_object(object_id);
-//     if (object_index < 0) {
-//         // object not found
-//         return -1;
-//     }
-//     ObjectEntry *object_entry = &store_header_->object_entries[object_index];
-//
-//     if (!object_entry->sealed) {
-//         // object is not sealed yet
-//         return -1;
-//     }
-//     *ptr = object_entry->offset;
-//     *size = object_entry->size;
-//     object_entry->ref_count++;
-//
-//     return 0;
-// }
-//
-// int LightningStore::delete_object(uint64_t object_id)
-// {
-//     int64_t object_index = find_object(object_id);
-//     assert(object_index >= 0);
-//
-//     ObjectEntry *object_entry = &store_header_->object_entries[object_index];
-//     assert(object_entry->sealed);
-//     allocator_->FreeShared(object_entry->offset);
-//     int64_t prev_object_index = object_entry->prev;
-//     int64_t next_object_index = object_entry->next;
-//
-//     if (prev_object_index < 0) {
-//         if (next_object_index > 0) {
-//             ObjectEntry *next =
-//                 &store_header_->object_entries[next_object_index];
-//             next->prev = -1;
-//         }
-//         store_header_->hashmap.hash_entries[object_id % 65536].object_list =
-//             next_object_index;
-//     } else {
-//         ObjectEntry *prev =
-//         &store_header_->object_entries[prev_object_index]; prev->next =
-//         next_object_index;
-//
-//         if (next_object_index >= 0) {
-//             ObjectEntry *next =
-//                 &store_header_->object_entries[next_object_index];
-//             next->prev = prev_object_index;
-//         }
-//     }
-//     dealloc_object_entry(object_index);
-//
-//     return 0;
-// }
-
 void ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
-    // GetWorker()->ns_ctx->current_queue_depth++;
     if (verbose)
         log_debug("After READ: read q {}", GetReadQueueSize());
 }
@@ -812,7 +482,6 @@ void ZstoreController::EnqueueRead(RequestContext *ctx)
 void ZstoreController::EnqueueWrite(RequestContext *ctx)
 {
     mWriteQueue.push(ctx);
-    // GetWorker()->ns_ctx->current_queue_depth++;
     log_debug("after push: read q {}", GetWriteQueueSize());
 }
 

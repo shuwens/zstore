@@ -21,8 +21,10 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
 
     struct spdk_nvme_io_qpair_opts opts;
     spdk_nvme_ctrlr_get_default_io_qpair_opts(mController, &opts, sizeof(opts));
-    opts.delay_cmd_submit = true;
-    opts.create_only = true;
+
+    // opts.delay_cmd_submit = true;
+    // opts.create_only = true;
+
     // mIoQueues = new struct spdk_nvme_qpair
     // *[Configuration::GetNumIoThreads()]; for (int i = 0; i <
     // Configuration::GetNumIoThreads(); ++i) {
