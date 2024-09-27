@@ -156,8 +156,7 @@ class Configuration
     // uint32_t gTotalIO = 500'000;
     int gQueueDepth = 256;
 
-    // bool gUseDummyWorkload = false;
-    bool gUseDummyWorkload = true;
+    bool gUseDummyWorkload = false;
 
     const int current_zone = 49;
 
