@@ -20,14 +20,14 @@ class ZstoreController
     int pivot;
 
     // threads
-    IoThread mIoThread;
     void initIoThread();
     // void initEcThread();
     void initDispatchThread(bool use_object);
     // void initIndexThread();
     void initCompletionThread();
     void initHttpThread();
-    struct spdk_thread *GetIoThread() { return mIoThread.thread; }
+
+    struct spdk_thread *GetIoThread(int id) { return mIoThread[id].thread; };
     struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
     struct spdk_thread *GetHttpThread() { return mHttpThread; }
     struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
@@ -176,6 +176,8 @@ class ZstoreController
     bool isDraining;
 
   private:
+    // number of devices
+    int mN;
     ZstoreHandler *mHandler;
 
     // simple way to terminate the server
@@ -196,7 +198,7 @@ class ZstoreController
 
     int mQueueDepth = 1;
 
-    // IoThread mIoThread[16];
+    IoThread mIoThread[16];
     // struct spdk_thread *mIoThread;
     struct spdk_thread *mDispatchThread;
     struct spdk_thread *mHttpThread;

@@ -129,7 +129,7 @@ class Configuration
     // StripeConfig *gStripeConfig = new StripeConfig[1];
     int gBlockSize = 4096;
     // int gMetadataSize = 64;
-    int gNumIoThreads = 1;
+    int gNumIoThreads = 4;
     // bool gDeviceSupportMetadata = true;
     // int gZoneCapacity = 0;
 
@@ -138,6 +138,8 @@ class Configuration
     // SystemMode gSystemMode = ZAPRAID;
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gHttpThreadCoreId = 2;
+
+    // this should just go last
     uint32_t gIoThreadCoreIdBase = 3;
 
     // Not used for now; functions collocated with dispatch thread.

@@ -1,5 +1,6 @@
 #pragma once
 #include "common.h"
+#include "configuration.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
 #include <set>
@@ -36,8 +37,8 @@ class Device
 
     struct spdk_nvme_ctrlr *GetController() { return mController; }
     struct spdk_nvme_ns *GetNamespace() { return mNamespace; }
-    struct spdk_nvme_qpair *GetIoQueue() { return mQpair; }
-    // struct spdk_nvme_qpair *GetIoQueue(uint32_t id) { return mIoQueues[id]; }
+    struct spdk_nvme_qpair *GetIoQueue(uint32_t id) { return mIoQueues[id]; }
+    struct spdk_nvme_qpair **GetIoQueues() { return mIoQueues; }
 
     uint64_t GetZoneCapacity();
     uint64_t GetZoneSize();
@@ -64,8 +65,7 @@ class Device
     struct spdk_nvme_ctrlr *mController;
     struct spdk_nvme_ns *mNamespace;
 
-    // struct spdk_nvme_qpair **mIoQueues;
-    struct spdk_nvme_qpair *mQpair;
+    struct spdk_nvme_qpair **mIoQueues;
 
     uint64_t mZoneSize;     // in blocks
     uint64_t mZoneCapacity; // in blocks

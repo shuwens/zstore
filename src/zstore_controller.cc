@@ -80,20 +80,25 @@ void ZstoreController::initDispatchThread(bool use_object)
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
-    spdk_cpuset_zero(&cpumask);
-    spdk_cpuset_set_cpu(&cpumask, Configuration::GetIoThreadCoreId(), true);
-    mIoThread.thread = spdk_thread_create("IoThread", &cpumask);
-    assert(mIoThread.thread != nullptr);
-    mIoThread.controller = this;
-    log_debug("Create {} (id {}) on Core {}",
-              spdk_thread_get_name(mIoThread.thread),
-              spdk_thread_get_id(mIoThread.thread),
-              Configuration::GetIoThreadCoreId());
-    int rc = spdk_env_thread_launch_pinned(Configuration::GetIoThreadCoreId(),
-                                           ioWorker, this);
-    if (rc < 0) {
-        log_error("Failed to launch IO thread error: {} {}", strerror(rc),
-                  spdk_strerror(rc));
+    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+         ++threadId) {
+        spdk_cpuset_zero(&cpumask);
+        spdk_cpuset_set_cpu(&cpumask,
+                            Configuration::GetIoThreadCoreId(threadId), true);
+        mIoThread[threadId].thread = spdk_thread_create("IoThread", &cpumask);
+        assert(mIoThread[threadId].thread != nullptr);
+        mIoThread[threadId].controller = this;
+        int rc = spdk_env_thread_launch_pinned(
+            Configuration::GetIoThreadCoreId(threadId), ioWorker,
+            &mIoThread[threadId]);
+        log_info("IO thread name {} id {} on core {}",
+                 spdk_thread_get_name(mIoThread[threadId].thread),
+                 spdk_thread_get_id(mIoThread[threadId].thread),
+                 Configuration::GetIoThreadCoreId(threadId));
+        if (rc < 0) {
+            log_error("Failed to launch IO thread error: {} {}", strerror(rc),
+                      spdk_strerror(rc));
+        }
     }
 }
 
@@ -164,7 +169,42 @@ int ZstoreController::Init(bool object)
     PopulateMap(true);
     pivot = 0;
 
+    mN = 1;
+
+    // Create poll groups for the io threads and perform initialization
+    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+         ++threadId) {
+        mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
+        mIoThread[threadId].controller = this;
+    }
+    for (uint32_t i = 0; i < mN; ++i) {
+        struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
+        for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+             ++threadId) {
+            spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
+            int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
+                                              ioQueues[threadId]);
+            assert(rc == 0);
+        }
+        mDevices[i]->ConnectIoPairs();
+    }
+
+    log_info("Initialization complete. Launching workers.");
+
+    gZstoreController->CheckIoQpair("Starting all the threads");
+
+    gZstoreController->initIoThread();
+
+    gZstoreController->initHttpThread();
+
+    // while (1) {
+    // }
+
+    bool use_object = false;
+    gZstoreController->initDispatchThread(use_object);
+
     log_info("ZstoreController Init finish");
+
     return rc;
 }
 
@@ -172,41 +212,43 @@ void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
 {
     // log_info("ZstoreController Read in Dispatch Thread");
     // thread_send_msg(mIoThread.thread, zoneRead, ctx);
-    thread_send_msg(GetIoThread(), zoneRead, ctx);
+    thread_send_msg(GetIoThread(0), zoneRead, ctx);
 }
 
 void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
 {
     // log_info("ZstoreController Write in Dispatch Thread");
-    thread_send_msg(mIoThread.thread, zoneRead, ctx);
+    thread_send_msg(GetIoThread(0), zoneRead, ctx);
 }
 
 // TODO: assume we only have one device, we should check all device in the end
 bool ZstoreController::CheckIoQpair(std::string msg)
 {
     assert(mDevices[0] != nullptr);
-    assert(mDevices[0]->GetIoQueue() != nullptr);
+    assert(mDevices[0]->GetIoQueue(0) != nullptr);
     // assert(spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
     // log_debug("{}, qpair connected: {}", msg,
     //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
 
-    if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()))
+    if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0)))
         exit(0);
 
-    return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue());
+    return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0));
 }
 
 struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 {
     assert(mDevices[0] != nullptr);
-    assert(mDevices[0]->GetIoQueue() != nullptr);
+    assert(mDevices[0]->GetIoQueue(0) != nullptr);
 
-    return mDevices[0]->GetIoQueue();
+    return mDevices[0]->GetIoQueue(0);
 }
 
 ZstoreController::~ZstoreController()
 {
-    thread_send_msg(mIoThread.thread, quit, nullptr);
+    for (uint32_t i = 0; i < Configuration::GetNumIoThreads(); ++i) {
+        thread_send_msg(mIoThread[i].thread, quit, nullptr);
+    }
     thread_send_msg(mDispatchThread, quit, nullptr);
     thread_send_msg(mHttpThread, quit, nullptr);
     // thread_send_msg(mIndexThread, quit, nullptr);
@@ -400,8 +442,9 @@ void ZstoreController::zstore_cleanup()
 void ZstoreController::cleanup_ns_worker_ctx()
 {
     log_info("here");
-    thread_send_msg(mIoThread.thread, quit, nullptr);
-    spdk_nvme_ctrlr_free_io_qpair(mDevices[0]->GetIoQueue());
+    // FIXME
+    // thread_send_msg(mIoThread.thread, quit, nullptr);
+    // spdk_nvme_ctrlr_free_io_qpair(mDevices[0]->GetIoQueue());
 }
 
 void ZstoreController::cleanup(uint32_t task_count)

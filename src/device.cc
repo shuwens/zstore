@@ -24,28 +24,35 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
     enum spdk_nvme_qprio qprio = SPDK_NVME_QPRIO_URGENT;
     opts.qprio = qprio;
 
-    // opts.delay_cmd_submit = true;
-    // opts.create_only = true;
+    opts.delay_cmd_submit = true;
+    opts.create_only = true;
 
-    // mIoQueues = new struct spdk_nvme_qpair
-    // *[Configuration::GetNumIoThreads()]; for (int i = 0; i <
-    // Configuration::GetNumIoThreads(); ++i) {
-    //     mIoQueues[i] =
-    //         spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
-    //     assert(mIoQueues[i]);
-    // }
-    mQpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
-    assert(mQpair);
+    mIoQueues = new struct spdk_nvme_qpair *[Configuration::GetNumIoThreads()];
+    for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
+        mIoQueues[i] =
+            spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
+        assert(mIoQueues[i]);
+    }
+
+    // mQpair = spdk_nvme_ctrlr_alloc_io_qpair(ctrlr, &opts, sizeof(opts));
+    // assert(mQpair);
 
     mReadCounts.clear();
     mTotalReadCounts = 0;
 }
 
+void Device::ConnectIoPairs()
+{
+    for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
+        if (spdk_nvme_ctrlr_connect_io_qpair(mController, mIoQueues[i]) < 0) {
+            printf("Connect ctrl failed!\n");
+        }
+    }
+}
+
 void Device::InitZones(uint32_t numNeededZones, uint32_t numReservedZones) {}
 
 void Device::EraseWholeDevice() {}
-
-void Device::ConnectIoPairs() {}
 
 void Device::SetDeviceTransportAddress(const char *addr)
 {

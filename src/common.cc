@@ -168,36 +168,77 @@ int httpWorker(void *args)
     }
 }
 
+// int handleIoCompletions(void *args)
+// {
+//     int rc;
+//     ZstoreController *zctrlr = (ZstoreController *)args;
+//     // log_debug("XXX");
+//     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
+//
+//     rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
+//     if (rc < 0) {
+//         // NXIO is expected when the connection is down.
+//         if (rc != -ENXIO) {
+//             SPDK_ERRLOG("NVMf request failed for conn %d\n", rc);
+//         }
+//     } else if (rc > 0) {
+//         poller_rc = SPDK_POLLER_BUSY;
+//     }
+//     return poller_rc;
+// }
+
+static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
+                                     void *poll_group_ctx)
+{
+}
+
 int handleIoCompletions(void *args)
 {
-    int rc;
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    // log_debug("XXX");
-    enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
-
-    rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
-    if (rc < 0) {
-        // NXIO is expected when the connection is down.
-        if (rc != -ENXIO) {
-            SPDK_ERRLOG("NVMf request failed for conn %d\n", rc);
-        }
-    } else if (rc > 0) {
-        poller_rc = SPDK_POLLER_BUSY;
+    static double mTime = 0;
+    static int timeCnt = 0;
+    {
+        // double timeNow = GetTimestampInUs();
+        // if (mTime == 0) {
+        //     printf("[DEBUG] %s %d\n", __func__, timeCnt);
+        //     mTime = timeNow;
+        // } else {
+        //     if (timeNow - mTime > 10.0) {
+        //         mTime += 10.0;
+        //         timeCnt += 10;
+        //         printf("[DEBUG] %s %d\n", __func__, timeCnt);
+        //     }
+        // }
     }
-    return poller_rc;
+
+    struct spdk_nvme_poll_group *pollGroup =
+        (struct spdk_nvme_poll_group *)args;
+    int r = 0;
+    r = spdk_nvme_poll_group_process_completions(pollGroup, 0,
+                                                 dummy_disconnect_handler);
+    return r > 0 ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
 int ioWorker(void *args)
 {
-    ZstoreController *zctrlr = (ZstoreController *)args;
-    struct spdk_thread *thread = zctrlr->mIoThread.thread;
+    IoThread *ioThread = (IoThread *)args;
+    struct spdk_thread *thread = ioThread->thread;
+    ZstoreController *ctrl = ioThread->controller;
     spdk_set_thread(thread);
-    spdk_poller *p;
-    p = spdk_poller_register(handleIoCompletions, zctrlr, 0);
-    zctrlr->SetCompletionPoller(p);
+    spdk_poller_register(handleIoCompletions, ioThread->group, 0);
+    // spdk_poller_register(handleIoPendingZoneWrites, ctrl, 0);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
+
+    // ZstoreController *zctrlr = (ZstoreController *)args;
+    // struct spdk_thread *thread = zctrlr->mIoThread.thread;
+    // spdk_set_thread(thread);
+    // spdk_poller *p;
+    // p = spdk_poller_register(handleIoCompletions, zctrlr, 0);
+    // zctrlr->SetCompletionPoller(p);
+    // while (true) {
+    //     spdk_thread_poll(thread, 0, 0);
+    // }
 }
 
 void zoneRead(void *arg1)
@@ -271,7 +312,7 @@ static void issueIo(void *args)
     // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
     // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
 
-    thread_send_msg(zc->GetIoThread(), zoneRead, slot);
+    thread_send_msg(zc->GetIoThread(0), zoneRead, slot);
 }
 
 int handleSubmit(void *args)
