@@ -281,7 +281,7 @@ void ZstoreController::register_ctrlr(Device *device,
             log_info("ns {} is not zns ns", nsid);
             // continue;
         } else {
-            log_info("ns {} is zns ns", nsid);
+            // log_info("ns {} is zns ns", nsid);
         }
 
         // register_ns(ctrlr, ns);

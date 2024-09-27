@@ -69,7 +69,6 @@ int main(int argc, char **argv)
     // ==================================
 
     // worker->ns_ctx->current_queue_depth = 0;
-    gZstoreController->stime = std::chrono::high_resolution_clock::now();
     // while (!worker->ns_ctx->is_draining &&
     //        gZstoreController->mRequestContextPool->availableContexts.size() >
     //            0) {
@@ -140,7 +139,6 @@ int main(int argc, char **argv)
     // assert(main_worker != NULL);
     // rc = work_fn(gZstoreController);
     sleep(10);
-    log_debug("XXXX");
     gZstoreController->Drain();
 
     spdk_env_thread_wait_all();

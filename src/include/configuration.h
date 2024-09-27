@@ -136,13 +136,13 @@ class Configuration
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     // SystemMode gSystemMode = ZAPRAID;
-
+    uint32_t gDispatchThreadCoreId = 1;
+    uint32_t gHttpThreadCoreId = 2;
     uint32_t gIoThreadCoreIdBase = 3;
-    uint32_t gDispatchThreadCoreId = 4;
+
     // Not used for now; functions collocated with dispatch thread.
     uint32_t gCompletionThreadCoreId = 5;
     uint32_t gIndexThreadCoreId = 6;
-    uint32_t gHttpThreadCoreId = 7;
     uint32_t gReceiverThreadCoreId = 8;
     // int gLargeRequestThreshold = 16 * 1024;
 

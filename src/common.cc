@@ -88,6 +88,11 @@ int handleHttpRequest(void *args)
     // ctrl->CheckIoQpair("handle http");
     if (!ctrl->isDraining &&
         ctrl->mRequestContextPool->availableContexts.size() > 0) {
+        if (!ctrl->start) {
+            ctrl->start = true;
+            ctrl->stime = std::chrono::high_resolution_clock::now();
+        }
+
         // log_debug("queue depth {}, req in flight {}, read q size {},  "
         //           "avalable ctx {} ",
         //           ctrl->GetQueueDepth(),
@@ -100,7 +105,7 @@ int handleHttpRequest(void *args)
         // ctrl->context_pool_mutex_.lock();
         RequestContext *slot =
             ctrl->mRequestContextPool->GetRequestContext(true);
-        ctrl->context_pool_mutex_.unlock();
+        // ctrl->context_pool_mutex_.unlock();
         slot->ctrl = ctrl;
         assert(slot->ctrl == ctrl);
 
@@ -156,7 +161,7 @@ int httpWorker(void *args)
     struct spdk_thread *thread = ctrl->GetHttpThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleHttpRequest, ctrl, 1);
+    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
     ctrl->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -188,7 +193,7 @@ int ioWorker(void *args)
     struct spdk_thread *thread = zctrlr->mIoThread.thread;
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleIoCompletions, zctrlr, 1);
+    p = spdk_poller_register(handleIoCompletions, zctrlr, 0);
     zctrlr->SetCompletionPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -236,7 +241,7 @@ static void issueIo(void *args)
     // std::unique_lock lock(zc->g_mutex_);
     // zc->context_pool_mutex_.lock();
     RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
-    zc->context_pool_mutex_.unlock();
+    // zc->context_pool_mutex_.unlock();
     auto ioCtx = slot->ioContext;
 
     ioCtx.ns = zc->GetDevice()->GetNamespace();
@@ -357,7 +362,7 @@ int dispatchWorker(void *args)
     struct spdk_thread *thread = zctrl->GetDispatchThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleSubmit, zctrl, 1);
+    p = spdk_poller_register(handleSubmit, zctrl, 0);
     zctrl->SetDispatchPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -464,7 +469,7 @@ int dispatchObjectWorker(void *args)
     spdk_set_thread(thread);
     spdk_poller *p;
     // p = spdk_poller_register(handleEventsDispatch, zctrl, 1);
-    p = spdk_poller_register(handleObjectSubmit, zctrl, 1);
+    p = spdk_poller_register(handleObjectSubmit, zctrl, 0);
     zctrl->SetDispatchPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -607,8 +612,8 @@ RequestContextPool::RequestContextPool(uint32_t cap)
 
 RequestContext *RequestContextPool::GetRequestContext(bool force)
 {
-    std::unique_lock lock(g_mutex_);
-    // context_pool_mutex_.lock();
+    std::unique_lock lock(g_shared_mutex_);
+    // g_mutex_.lock();
 
     RequestContext *ctx = nullptr;
     if (availableContexts.empty() && force == false) {
@@ -639,12 +644,15 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             exit(1);
         }
     }
+    // g_mutex_.unlock();
     return ctx;
 }
 
 void RequestContextPool::ReturnRequestContext(RequestContext *slot)
 {
-    std::unique_lock lock(g_mutex_);
+    std::unique_lock lock(g_shared_mutex_);
+    // g_mutex_.lock();
+
     assert(slot->available);
     if (slot < contexts || slot >= contexts + capacity) {
         // test whether the returned slot is pre-allocated
@@ -654,4 +662,5 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
         assert(availableContexts.size() <= capacity);
         availableContexts.emplace_back(slot);
     }
+    // g_mutex_.unlock();
 }

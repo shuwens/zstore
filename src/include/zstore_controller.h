@@ -140,6 +140,8 @@ class ZstoreController
     void AddZone(Zone *zone);
     const std::vector<Zone *> &GetZones();
     void PrintStats();
+
+    bool start = false;
     chrono_tp stime;
 
     // ZStore Map: this maps key to tuple of ZNS target and lba

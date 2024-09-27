@@ -16,8 +16,8 @@ void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
     } else {
         mZoneCapacity = mZoneSize;
     }
-    printf("Zone size: %lu, zone cap: %lu, num of zones: %u\n", mZoneSize,
-           mZoneCapacity, mNumZones);
+    log_info("Getting ns: {}, Zone size: {}, zone cap: {}, num of zones: {}",
+             nsid, mZoneSize, mZoneCapacity, mNumZones);
 
     struct spdk_nvme_io_qpair_opts opts;
     spdk_nvme_ctrlr_get_default_io_qpair_opts(mController, &opts, sizeof(opts));
