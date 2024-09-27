@@ -67,13 +67,40 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
-    sleep(10);
+    if (!Configuration::UseDummyWorkload()) {
+        // Create and configure Zstore instance
+        std::string zstore_name;
+        zstore_name = "test";
+        Zstore zstore(zstore_name);
+
+        zstore.SetVerbosity(1);
+
+        // create a bucket: this process is now manual, not via create/get
+        // bucket zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, "db"));
+
+        create_dummy_objects();
+        // Start the web server controllers.
+        ZstoreHandler h;
+        CivetServer web_server = startWebServer(h);
+        // struct mg_context* web_server = startWebServer();
+
+        while (1) {
+            sleep(1);
+        }
+    } else {
+        sleep(10);
+    }
+
     gZstoreController->Drain();
 
     spdk_env_thread_wait_all();
 
     // log_debug("XXXX");
     gZstoreController->zstore_cleanup();
+
+    // Stop the web server.
+    // mg_stop(web_server);
+    mg_exit_library();
 
     log_debug("XXXX");
     return rc;
