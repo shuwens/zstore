@@ -125,9 +125,10 @@ int ZstoreController::Init(bool object)
 
     SetQueuDepth(Configuration::GetQueueDepth());
 
-    tsc_end =
-        spdk_get_ticks() - g_arbitration.time_in_sec * g_arbitration.tsc_rate;
-    g_arbitration.tsc_rate = spdk_get_ticks_hz();
+    // tsc_end =
+    //     spdk_get_ticks() - g_arbitration.time_in_sec *
+    //     g_arbitration.tsc_rate;
+    // g_arbitration.tsc_rate = spdk_get_ticks_hz();
 
     // we add one device for now
 
@@ -343,7 +344,7 @@ void ZstoreController::zns_dev_init(Device *device, std::string ip1,
 
     device->SetDeviceTransportAddress(trid1.traddr);
 
-    log_info("Found {} namspaces", g_arbitration.num_namespaces);
+    // log_info("Found {} namspaces", g_arbitration.num_namespaces);
 }
 
 int ZstoreController::register_controllers(Device *device)

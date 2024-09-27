@@ -26,17 +26,34 @@ int main(int argc, char **argv)
 
     struct spdk_env_opts opts;
 
-    rc = parse_args(argc, argv);
-    if (rc != 0) {
-        return rc;
+    // rc = parse_args(argc, argv);
+    // if (rc != 0) {
+    //     return rc;
+    // }
+
+    // spdk_nvme_trid_populate_transport(&g_trid, SPDK_NVME_TRANSPORT_PCIE);
+    spdk_nvme_trid_populate_transport(&g_trid, SPDK_NVME_TRANSPORT_TCP);
+    snprintf(g_trid.subnqn, sizeof(g_trid.subnqn), "%s",
+             SPDK_NVMF_DISCOVERY_NQN);
+
+    // g_dpdk_mem = spdk_strtol(optarg, 10);
+    if (g_dpdk_mem < 0) {
+        log_error("Invalid DPDK memory size");
+        return g_dpdk_mem;
     }
+    // if (spdk_nvme_transport_id_parse(&g_trid, optarg) != 0) {
+    //     log_error("Error parsing transport address");
+    //     return 1;
+    // }
+    g_dpdk_mem_single_seg = true;
 
     spdk_env_opts_init(&opts);
     opts.name = "arb";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = g_arbitration.core_mask;
-    opts.shm_id = g_arbitration.shm_id;
+    // opts.core_mask = g_arbitration.core_mask;
+    opts.core_mask = "0xf";
+    opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
         return 1;
     }
@@ -50,7 +67,7 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController();
     gZstoreController->Init(false);
 
-    print_configuration(argv[0]);
+    // print_configuration(argv[0]);
 
     log_info("Initialization complete. Launching workers.");
 

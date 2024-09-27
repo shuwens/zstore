@@ -153,26 +153,26 @@ struct arb_context {
 
 static struct spdk_nvme_transport_id g_trid = {};
 
-static struct arb_context g_arbitration = {
-    .shm_id = -1,
-    .outstanding_commands = 0,
-    .num_workers = 0,
-    .num_namespaces = 0,
-    .rw_percentage = 50,
-    .queue_depth = 64,
-    .time_in_sec = 9,
-    .io_count = 1000000,
-    .latency_tracking_enable = 0,
-    .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
-    .arbitration_config = 0,
-    .io_size_bytes = 4096,
-    // .io_size_bytes = 131072,
-    .max_completions = 0,
-    /* Default 4 cores for urgent/high/medium/low */
-    // .core_mask = "0xf",
-    .core_mask = "0x1ff",
-    .workload_type = "randrw",
-};
+// static struct arb_context g_arbitration = {
+//     .shm_id = -1,
+//     .outstanding_commands = 0,
+//     .num_workers = 0,
+//     .num_namespaces = 0,
+//     .rw_percentage = 50,
+//     .queue_depth = 64,
+//     .time_in_sec = 9,
+//     .io_count = 1000000,
+//     .latency_tracking_enable = 0,
+//     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
+//     .arbitration_config = 0,
+//     .io_size_bytes = 4096,
+//     // .io_size_bytes = 131072,
+//     .max_completions = 0,
+//     /* Default 4 cores for urgent/high/medium/low */
+//     // .core_mask = "0xf",
+//     .core_mask = "0x1ff",
+//     .workload_type = "randrw",
+// };
 
 static int g_dpdk_mem = 0;
 static bool g_dpdk_mem_single_seg = false;
