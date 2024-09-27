@@ -80,12 +80,11 @@ void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
     }
 }
 
-int handleHttpRequest(void *args)
+int handleDummyRequest(void *args)
 {
     bool busy = false;
     ZstoreController *ctrl = (ZstoreController *)args;
 
-    // ctrl->CheckIoQpair("handle http");
     if (!ctrl->isDraining &&
         ctrl->mRequestContextPool->availableContexts.size() > 0) {
         if (!ctrl->start) {
@@ -93,19 +92,8 @@ int handleHttpRequest(void *args)
             ctrl->stime = std::chrono::high_resolution_clock::now();
         }
 
-        // log_debug("queue depth {}, req in flight {}, read q size {},  "
-        //           "avalable ctx {} ",
-        //           ctrl->GetQueueDepth(),
-        //           (ctrl->mRequestContextPool->capacity -
-        //            ctrl->mRequestContextPool->availableContexts.size()),
-        //           ctrl->GetReadQueueSize(),
-        //           ctrl->mRequestContextPool->availableContexts.size());
-
-        // std::unique_lock lock(ctrl->g_mutex_);
-        // ctrl->context_pool_mutex_.lock();
         RequestContext *slot =
             ctrl->mRequestContextPool->GetRequestContext(true);
-        // ctrl->context_pool_mutex_.unlock();
         slot->ctrl = ctrl;
         assert(slot->ctrl == ctrl);
 
@@ -132,24 +120,48 @@ int handleHttpRequest(void *args)
         busy = true;
     }
 
-    // if (worker->ns_ctx->io_completed > Configuration::GetTotalIo()) {
-    //     auto etime = std::chrono::high_resolution_clock::now();
-    //     auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
-    //                      etime - ctrl->stime)
-    //                      .count();
-    //     auto tput = worker->ns_ctx->io_completed * g_micro_to_second / delta;
-    //
-    //     // if (g->verbose)
-    //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-    //              worker->ns_ctx->io_completed, delta, tput);
-    //
-    //     // log_debug("drain io: {}", spdk_get_ticks());
-    //     drain_io(ctrl);
-    //     log_debug("clean up ns worker");
-    //     ctrl->cleanup_ns_worker_ctx();
-    //     print_stats(ctrl);
-    //     exit(0);
-    // }
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
+int handleHttpRequest(void *args)
+{
+    bool busy = false;
+    ZstoreController *ctrl = (ZstoreController *)args;
+
+    if (!ctrl->isDraining &&
+        ctrl->mRequestContextPool->availableContexts.size() > 0) {
+        if (!ctrl->start) {
+            ctrl->start = true;
+            ctrl->stime = std::chrono::high_resolution_clock::now();
+        }
+
+        RequestContext *slot =
+            ctrl->mRequestContextPool->GetRequestContext(true);
+        slot->ctrl = ctrl;
+        assert(slot->ctrl == ctrl);
+
+        auto ioCtx = slot->ioContext;
+        // FIXME hardcode
+        int size_in_ios = 212860928;
+        int io_size_blocks = 1;
+        // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+        auto offset_in_ios = 1;
+
+        ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+        ioCtx.qpair = ctrl->GetIoQpair();
+        ioCtx.data = slot->dataBuffer;
+        ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+        ioCtx.size = io_size_blocks;
+        ioCtx.cb = complete;
+        ioCtx.ctx = slot;
+        ioCtx.flags = 0;
+        slot->ioContext = ioCtx;
+
+        assert(slot->ioContext.cb != nullptr);
+        assert(slot->ctrl != nullptr);
+        ctrl->EnqueueRead(slot);
+        busy = true;
+    }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
@@ -162,6 +174,20 @@ int httpWorker(void *args)
     spdk_set_thread(thread);
     spdk_poller *p;
     p = spdk_poller_register(handleHttpRequest, ctrl, 0);
+    ctrl->SetHttpPoller(p);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
+}
+
+int dummyWorker(void *args)
+{
+
+    ZstoreController *ctrl = (ZstoreController *)args;
+    struct spdk_thread *thread = ctrl->GetHttpThread();
+    spdk_set_thread(thread);
+    spdk_poller *p;
+    p = spdk_poller_register(handleDummyRequest, ctrl, 0);
     ctrl->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);

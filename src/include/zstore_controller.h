@@ -25,7 +25,7 @@ class ZstoreController
     void initDispatchThread(bool use_object);
     // void initIndexThread();
     void initCompletionThread();
-    void initHttpThread();
+    void initHttpThread(bool dummy);
 
     struct spdk_thread *GetIoThread(int id) { return mIoThread[id].thread; };
     struct spdk_thread *GetDispatchThread() { return mDispatchThread; }

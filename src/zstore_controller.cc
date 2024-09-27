@@ -13,7 +13,7 @@ static std::vector<Device *> g_devices;
 static const int request_context_pool_size = 512;
 // static const int request_context_pool_size = 128000;
 
-void ZstoreController::initHttpThread()
+void ZstoreController::initHttpThread(bool dummy)
 {
     struct spdk_cpuset cpumask;
     spdk_cpuset_zero(&cpumask);
@@ -22,8 +22,14 @@ void ZstoreController::initHttpThread()
     log_info("Create {} (id {}) on Core {}", spdk_thread_get_name(mHttpThread),
              spdk_thread_get_id(mHttpThread),
              Configuration::GetHttpThreadCoreId());
-    int rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
+    int rc;
+    if (dummy)
+        rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
+                                           dummyWorker, this);
+    else
+        rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
                                            httpWorker, this);
+
     if (rc < 0) {
         log_error("Failed to launch ec thread error: {}", spdk_strerror(rc));
     }
@@ -195,7 +201,7 @@ int ZstoreController::Init(bool object)
 
     gZstoreController->initIoThread();
 
-    gZstoreController->initHttpThread();
+    gZstoreController->initHttpThread(Configuration::UseDummyWorkload());
 
     // while (1) {
     // }

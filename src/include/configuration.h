@@ -50,6 +50,8 @@ class Configuration
 
     static int GetNumIoThreads() { return GetInstance().gNumIoThreads; }
 
+    static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload; }
+
     // static bool GetDeviceSupportMetadata()
     // {
     //     return GetInstance().gDeviceSupportMetadata;
@@ -153,6 +155,9 @@ class Configuration
     uint32_t gTotalIO = 2'000'000;
     // uint32_t gTotalIO = 500'000;
     int gQueueDepth = 256;
+
+    // bool gUseDummyWorkload = false;
+    bool gUseDummyWorkload = true;
 
     const int current_zone = 49;
 
