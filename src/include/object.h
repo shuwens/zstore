@@ -55,5 +55,6 @@ ZstoreObject *read_from_buffer(const char *buffer, size_t buffer_size);
 
 ZstoreObject *ReadObject(uint64_t offset, void *ctx);
 
-Result<struct ZstoreObject *> AppendObject(uint64_t offset,
-                                           struct obj_object *doc, void *ctx);
+// Result<struct ZstoreObject *> AppendObject(uint64_t offset,
+//                                            struct obj_object *doc, void
+//                                            *ctx);

@@ -1,11 +1,10 @@
-#include "include/zns_utils.h"
+#include "include/http_server.h"
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
 #include "src/include/global.h"
 #include "zstore_controller.cc"
 #include <bits/stdc++.h>
 #include <cassert>
-#include <chrono>
 #include <cstdlib>
 #include <fmt/core.h>
 #include <sys/time.h>
@@ -47,33 +46,33 @@ int main(int argc, char **argv)
 
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
-        mg_init_library(0);
 
-        const char *options[] = {// "listening_ports", port_str,
-                                 "listening_ports", "2000", "tcp_nodelay", "1",
-                                 "num_threads", "1000", "enable_keep_alive",
-                                 "yes",
-                                 //"max_request_size", "65536",
-                                 0};
+        try {
+            // Check command line arguments.
+            if (argc != 3) {
+                std::cerr << "Usage: " << argv[0] << " <address> <port>\n";
+                std::cerr << "  For IPv4, try:\n";
+                std::cerr << "    receiver 0.0.0.0 80\n";
+                std::cerr << "  For IPv6, try:\n";
+                std::cerr << "    receiver 0::0 80\n";
+                return EXIT_FAILURE;
+            }
 
-        std::vector<std::string> cpp_options;
-        for (int i = 0; i < (sizeof(options) / sizeof(options[0]) - 1); i++) {
-            cpp_options.push_back(options[i]);
+            auto const address = net::ip::make_address(argv[1]);
+            unsigned short port =
+                static_cast<unsigned short>(std::atoi(argv[2]));
+
+            net::io_context ioc{1};
+
+            tcp::acceptor acceptor{ioc, {address, port}};
+            tcp::socket socket{ioc};
+            http_server(acceptor, socket);
+
+            ioc.run();
+        } catch (std::exception const &e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return EXIT_FAILURE;
         }
-
-        CivetServer server(cpp_options); // <-- C++ style start
-        // ZstoreHandler h;
-        server.addHandler("", gZstoreController);
-
-        while (!exitNow) {
-            sleep(1);
-        }
-
-        while (1) {
-            sleep(1);
-        }
-
-        mg_exit_library();
 
     } else {
         sleep(10);
