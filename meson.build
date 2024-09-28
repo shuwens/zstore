@@ -283,11 +283,11 @@ executable(
 # 	install: true,
 # )
 
-executable(
-	'object_test',
-	files('src/tests/object_test.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	include_directories: incdir,
-	install: true,
-)
+# executable(
+# 	'object_test',
+# 	files('src/tests/object_test.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	include_directories: incdir,
+# 	install: true,
+# )

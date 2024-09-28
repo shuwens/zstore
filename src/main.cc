@@ -11,6 +11,33 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+CivetServer startWebServer()
+{
+    log_info("Starting HTTP server with port 2000!\n");
+    mg_init_library(0);
+
+    const char *options[] = {// "listening_ports", port_str,
+                             "listening_ports", "2000", "tcp_nodelay", "1",
+                             "num_threads", "1000", "enable_keep_alive", "yes",
+                             //"max_request_size", "65536",
+                             0};
+
+    std::vector<std::string> cpp_options;
+    for (int i = 0; i < (sizeof(options) / sizeof(options[0]) - 1); i++) {
+        cpp_options.push_back(options[i]);
+    }
+
+    CivetServer server(cpp_options); // <-- C++ style start
+    ZstoreHandler h;
+    server.addHandler("", h);
+
+    while (!exitNow) {
+        sleep(1);
+    }
+
+    return server;
+}
+
 int main(int argc, char **argv)
 {
     int rc;

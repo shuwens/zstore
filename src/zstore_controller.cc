@@ -4,7 +4,7 @@
 #include "include/common.h"
 #include "include/configuration.h"
 #include "include/device.h"
-#include "include/request_handler.h"
+// #include "include/request_handler.h"
 #include "include/utils.hpp"
 #include "src/include/global.h"
 

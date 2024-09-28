@@ -3,6 +3,7 @@
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
 #include "utils.hpp"
+#include "zstore_controller.h"
 #include <bits/stdc++.h>
 #include <cassert>
 #include <chrono>
@@ -22,14 +23,8 @@ std::mutex g_mutex_;
 typedef std::pair<std::string, int32_t> MapEntry;
 typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
 
-class ZstoreController;
-struct RequestContext;
-
-struct DrainArgs {
-    ZstoreController *ctrl;
-    bool success;
-    bool ready;
-};
+// class ZstoreController;
+// struct RequestContext;
 
 inline uint64_t round_up(uint64_t value, uint64_t align)
 {
@@ -47,83 +42,6 @@ void completeOneEvent(void *arg, const struct spdk_nvme_cpl *completion);
 void complete(void *arg, const struct spdk_nvme_cpl *completion);
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args);
 void event_call(uint32_t core_id, spdk_event_fn fn, void *arg1, void *arg2);
-
-struct Request {
-    ZstoreController *controller;
-    uint64_t offset;
-    uint32_t size;
-    void *data;
-    char type;
-    zns_raid_request_complete cb_fn;
-    void *cb_args;
-};
-
-struct RequestContext {
-    // The buffers are pre-allocated
-    uint8_t *dataBuffer;
-
-    // A user request use the following field:
-    // Info: lba, size, req_type, data
-    // pbaArray, successBytes, and targetBytes
-    uint64_t lba;
-    uint32_t size;
-    uint8_t req_type;
-    uint8_t *data;
-    uint32_t successBytes;
-    uint32_t targetBytes;
-    uint32_t curOffset;
-    void *cb_args;
-    uint32_t ioOffset;
-
-    bool available;
-
-    // Used inside a Segment write/read
-    ZstoreController *ctrl;
-    uint32_t zoneId;
-    uint32_t offset;
-
-    double stime;
-    double ctime;
-    uint64_t timestamp;
-
-    struct timeval timeA;
-
-    struct {
-        struct spdk_nvme_ns *ns;
-        struct spdk_nvme_qpair *qpair;
-        void *data;
-        uint64_t offset;
-        uint32_t size;
-        spdk_nvme_cmd_cb cb;
-        void *ctx;
-        uint32_t flags;
-    } ioContext;
-
-    uint32_t bufferSize; // for recording partial writes
-
-    void Clear();
-    void Queue();
-    double GetElapsedTime();
-    void PrintStats();
-    void CopyFrom(const RequestContext &o);
-};
-
-struct IoThread {
-    struct spdk_nvme_poll_group *group;
-    struct spdk_thread *thread;
-    uint32_t threadId;
-    ZstoreController *controller;
-};
-
-struct RequestContextPool {
-    RequestContext *contexts;
-    std::vector<RequestContext *> availableContexts;
-    uint32_t capacity;
-
-    RequestContextPool(uint32_t cap);
-    RequestContext *GetRequestContext(bool force);
-    void ReturnRequestContext(RequestContext *slot);
-};
 
 double GetTimestampInUs();
 double timestamp();

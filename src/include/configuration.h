@@ -131,7 +131,6 @@ class Configuration
     // StripeConfig *gStripeConfig = new StripeConfig[1];
     int gBlockSize = 4096;
     // int gMetadataSize = 64;
-    int gNumIoThreads = 4;
     // bool gDeviceSupportMetadata = true;
     // int gZoneCapacity = 0;
 
@@ -159,6 +158,7 @@ class Configuration
     bool gUseDummyWorkload = false;
 
     const int current_zone = 49;
+    int gNumIoThreads = 1;
 
     // uint32_t gTotalIO = 4'000'000;
     // int gQueueDepth = 256;

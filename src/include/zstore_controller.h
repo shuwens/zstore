@@ -1,15 +1,34 @@
 #pragma once
+#include "CivetServer.h"
 #include "common.h"
 #include "configuration.h"
 #include "device.h"
-#include "request_handler.h"
+#include "global.h"
 #include "utils.hpp"
 #include "zstore.h"
+#include "zstore_controller.h"
+#include <cstring>
 #include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
 #include <thread>
+#include <unistd.h>
+
+#define PORT "8081"
+#define EXAMPLE_URI "/example"
+#define EXIT_URI "/exit"
+
+// volatile bool exitNow = false;
+
+const uint64_t zone_dist = 0x80000; // zone size
+const int current_zone = 0;
+// const int current_zone = 30;
+
+auto zslba = zone_dist * current_zone;
+
+class ZstoreHandler;
+struct RequestContext;
 
 class ZstoreController
 {
@@ -217,4 +236,237 @@ class ZstoreController
     // ZstoreControllerMetadata mMeta;
     std::vector<Zone *> mZones;
     // std::vector<RequestContext> mResetContext;
+};
+
+class ZstoreHandler : public CivetHandler
+{
+  public:
+    bool handleGet(CivetServer *server, struct mg_connection *conn)
+    {
+        const struct mg_request_info *req = mg_get_request_info(conn);
+
+        char bucket[128], key[128];
+        const char *query = req->query_string;
+        parse_uri(req->local_uri, bucket, key);
+
+        // log_info("Recv GET: bucket {}, key {}", bucket, key);
+
+        // log_info("Recv GET with no key: bucket {}, key {}", bucket, key);
+
+        auto ctrl = gZstoreController;
+
+        // FIXME we assume the object is located, and turn into a read
+
+        if (!ctrl->isDraining &&
+            ctrl->mRequestContextPool->availableContexts.size() > 0) {
+            if (!ctrl->start) {
+                ctrl->start = true;
+                ctrl->stime = std::chrono::high_resolution_clock::now();
+            }
+
+            RequestContext *slot =
+                ctrl->mRequestContextPool->GetRequestContext(true);
+            slot->ctrl = ctrl;
+            assert(slot->ctrl == ctrl);
+
+            auto ioCtx = slot->ioContext;
+            // FIXME hardcode
+            int size_in_ios = 212860928;
+            int io_size_blocks = 1;
+            // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+            auto offset_in_ios = 1;
+
+            ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+            ioCtx.qpair = ctrl->GetIoQpair();
+            ioCtx.data = slot->dataBuffer;
+            ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+            ioCtx.size = io_size_blocks;
+            ioCtx.cb = complete;
+            ioCtx.ctx = slot;
+            ioCtx.flags = 0;
+            slot->ioContext = ioCtx;
+
+            assert(slot->ioContext.cb != nullptr);
+            assert(slot->ctrl != nullptr);
+            ctrl->EnqueueRead(slot);
+            // busy = true;
+        }
+
+        const char *msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                          "<LocationConstraint "
+                          "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
+                          "here</LocationConstraint>";
+        size_t len = strlen(msg);
+        mg_send_http_ok(conn, "application/xml", len);
+        mg_write(conn, msg, len);
+        return 200;
+
+        // return true;
+    }
+
+    bool handlePut(CivetServer *server, struct mg_connection *conn)
+    {
+        const struct mg_request_info *req = mg_get_request_info(conn);
+
+        char bucket[128], key[128];
+        const char *query = req->query_string;
+        parse_uri(req->local_uri, bucket, key);
+
+        // log_info("Recv PUT : bucket {}, key {}", bucket, key);
+
+        // log_info("Recv GET with no key: bucket {}, key {}", bucket, key);
+
+        auto ctrl = gZstoreController;
+
+        // FIXME we assume the object is located, and turn into a read
+
+        if (!ctrl->isDraining &&
+            ctrl->mRequestContextPool->availableContexts.size() > 0) {
+            if (!ctrl->start) {
+                ctrl->start = true;
+                ctrl->stime = std::chrono::high_resolution_clock::now();
+            }
+
+            RequestContext *slot =
+                ctrl->mRequestContextPool->GetRequestContext(true);
+            slot->ctrl = ctrl;
+            assert(slot->ctrl == ctrl);
+
+            auto ioCtx = slot->ioContext;
+            // FIXME hardcode
+            int size_in_ios = 212860928;
+            int io_size_blocks = 1;
+            // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+            auto offset_in_ios = 1;
+
+            ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+            ioCtx.qpair = ctrl->GetIoQpair();
+            ioCtx.data = slot->dataBuffer;
+            ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+            ioCtx.size = io_size_blocks;
+            ioCtx.cb = complete;
+            ioCtx.ctx = slot;
+            ioCtx.flags = 0;
+            slot->ioContext = ioCtx;
+
+            assert(slot->ioContext.cb != nullptr);
+            assert(slot->ctrl != nullptr);
+            ctrl->EnqueueRead(slot);
+            // busy = true;
+        }
+
+        const char *msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                          "<LocationConstraint "
+                          "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
+                          "here</LocationConstraint>";
+        size_t len = strlen(msg);
+        mg_send_http_ok(conn, "application/xml", len);
+        mg_write(conn, msg, len);
+        return 200;
+
+        return true;
+    }
+
+    bool handleDelete(CivetServer *server, struct mg_connection *conn)
+    {
+        const struct mg_request_info *req = mg_get_request_info(conn);
+
+        char bucket[128], key[128];
+        const char *query = req->query_string;
+        parse_uri(req->local_uri, bucket, key);
+
+        log_info("Recv DELETE : bucket {}, key {}", bucket, key);
+
+        // log_info("Recv GET with no key: bucket {}, key {}", bucket, key);
+
+        auto ctrl = gZstoreController;
+
+        // FIXME we assume the object is located, and turn into a read
+
+        if (!ctrl->isDraining &&
+            ctrl->mRequestContextPool->availableContexts.size() > 0) {
+            if (!ctrl->start) {
+                ctrl->start = true;
+                ctrl->stime = std::chrono::high_resolution_clock::now();
+            }
+
+            RequestContext *slot =
+                ctrl->mRequestContextPool->GetRequestContext(true);
+            slot->ctrl = ctrl;
+            assert(slot->ctrl == ctrl);
+
+            auto ioCtx = slot->ioContext;
+            // FIXME hardcode
+            int size_in_ios = 212860928;
+            int io_size_blocks = 1;
+            // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+            auto offset_in_ios = 1;
+
+            ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+            ioCtx.qpair = ctrl->GetIoQpair();
+            ioCtx.data = slot->dataBuffer;
+            ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+            ioCtx.size = io_size_blocks;
+            ioCtx.cb = complete;
+            ioCtx.ctx = slot;
+            ioCtx.flags = 0;
+            slot->ioContext = ioCtx;
+
+            assert(slot->ioContext.cb != nullptr);
+            assert(slot->ctrl != nullptr);
+            ctrl->EnqueueRead(slot);
+            // busy = true;
+        }
+
+        const char *msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                          "<LocationConstraint "
+                          "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
+                          "here</LocationConstraint>";
+        size_t len = strlen(msg);
+        mg_send_http_ok(conn, "application/xml", len);
+        mg_write(conn, msg, len);
+        return 200;
+    }
+
+    bool handlePost(CivetServer *server, struct mg_connection *conn)
+    {
+        /* Handler may access the request info using mg_get_request_info */
+        const struct mg_request_info *req_info = mg_get_request_info(conn);
+        long long rlen, wlen;
+        long long nlen = 0;
+        long long tlen = req_info->content_length;
+        char buf[1024];
+
+        mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: "
+                        "text/html\r\nConnection: close\r\n\r\n");
+
+        mg_printf(conn, "<html><body>\n");
+        mg_printf(conn, "<h2>This is the Foo POST handler!!!</h2>\n");
+        mg_printf(conn, "<p>The request was:<br><pre>%s %s HTTP/%s</pre></p>\n",
+                  req_info->request_method, req_info->request_uri,
+                  req_info->http_version);
+        mg_printf(conn, "<p>Content Length: %li</p>\n", (long)tlen);
+        mg_printf(conn, "<pre>\n");
+
+        while (nlen < tlen) {
+            rlen = tlen - nlen;
+            if (rlen > sizeof(buf)) {
+                rlen = sizeof(buf);
+            }
+            rlen = mg_read(conn, buf, (size_t)rlen);
+            if (rlen <= 0) {
+                break;
+            }
+            wlen = mg_write(conn, buf, (size_t)rlen);
+            if (wlen != rlen) {
+                break;
+            }
+            nlen += wlen;
+        }
+
+        mg_printf(conn, "\n</pre>\n");
+        mg_printf(conn, "</body></html>\n");
+
+        return true;
+    }
 };

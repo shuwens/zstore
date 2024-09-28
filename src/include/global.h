@@ -1,16 +1,97 @@
 #pragma once
-
 #include "device.h"
 #include "utils.hpp"
+#include "zstore_controller.h"
 #include <CivetServer.h>
-#include <fstream>
-#include <iostream>
-#include <list>
 #include <map>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <vector>
+
+class ZstoreController;
+
+struct DrainArgs {
+    ZstoreController *ctrl;
+    bool success;
+    bool ready;
+};
+
+struct Request {
+    ZstoreController *controller;
+    uint64_t offset;
+    uint32_t size;
+    void *data;
+    char type;
+    zns_raid_request_complete cb_fn;
+    void *cb_args;
+};
+
+struct RequestContext {
+    // The buffers are pre-allocated
+    uint8_t *dataBuffer;
+
+    // A user request use the following field:
+    // Info: lba, size, req_type, data
+    // pbaArray, successBytes, and targetBytes
+    uint64_t lba;
+    uint32_t size;
+    uint8_t req_type;
+    uint8_t *data;
+    uint32_t successBytes;
+    uint32_t targetBytes;
+    uint32_t curOffset;
+    void *cb_args;
+    uint32_t ioOffset;
+
+    bool available;
+
+    // Used inside a Segment write/read
+    ZstoreController *ctrl;
+    uint32_t zoneId;
+    uint32_t offset;
+
+    double stime;
+    double ctime;
+    uint64_t timestamp;
+
+    struct timeval timeA;
+
+    struct {
+        struct spdk_nvme_ns *ns;
+        struct spdk_nvme_qpair *qpair;
+        void *data;
+        uint64_t offset;
+        uint32_t size;
+        spdk_nvme_cmd_cb cb;
+        void *ctx;
+        uint32_t flags;
+    } ioContext;
+
+    uint32_t bufferSize; // for recording partial writes
+
+    void Clear();
+    void Queue();
+    double GetElapsedTime();
+    void PrintStats();
+    void CopyFrom(const RequestContext &o);
+};
+
+struct IoThread {
+    struct spdk_nvme_poll_group *group;
+    struct spdk_thread *thread;
+    uint32_t threadId;
+    ZstoreController *controller;
+};
+
+struct RequestContextPool {
+    RequestContext *contexts;
+    std::vector<RequestContext *> availableContexts;
+    uint32_t capacity;
+
+    RequestContextPool(uint32_t cap);
+    RequestContext *GetRequestContext(bool force);
+    void ReturnRequestContext(RequestContext *slot);
+};
 
 // int obj_cmp(const void *arg1, const void *arg2)
 // {
@@ -64,7 +145,6 @@ uint64_t gL2PTableSize = 0;
 std::map<uint32_t, uint32_t> latCnt;
 
 std::string dummy_device = "dummy_device";
-ZstoreController *gZstoreController;
 
 // static struct spdk_mempool *task_pool = NULL;
 
@@ -141,3 +221,5 @@ void start() { stime = std::chrono::high_resolution_clock::now(); }
                 return dur.count();
             }
 */
+
+ZstoreController *gZstoreController;

@@ -14,11 +14,11 @@
 #include <spdk/event.h>
 #include <sys/time.h>
 
-const uint64_t zone_dist = 0x80000; // zone size
-const int current_zone = 0;
-// const int current_zone = 30;
-
-auto zslba = zone_dist * current_zone;
+// const uint64_t zone_dist = 0x80000; // zone size
+// const int current_zone = 0;
+// // const int current_zone = 30;
+//
+// auto zslba = zone_dist * current_zone;
 
 static void busyWait(bool *ready)
 {

@@ -2,6 +2,7 @@
 #include "CivetServer.h"
 #include "global.h"
 #include "utils.hpp"
+#include "zstore_controller.h"
 #include <cstring>
 #include <unistd.h>
 
@@ -10,6 +11,15 @@
 #define EXIT_URI "/exit"
 
 volatile bool exitNow = false;
+
+const uint64_t zone_dist = 0x80000; // zone size
+const int current_zone = 0;
+// const int current_zone = 30;
+
+auto zslba = zone_dist * current_zone;
+
+class ZstoreController;
+struct RequestContext;
 
 class ZstoreHandler : public CivetHandler
 {
@@ -23,140 +33,57 @@ class ZstoreHandler : public CivetHandler
         parse_uri(req->local_uri, bucket, key);
         log_info("Recv GET: bucket {}, key {}", bucket, key);
 
-        if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0 &&
-            query != NULL && strcmp(query, "location") == 0) {
-            log_info("Recv GET with no key: bucket {}, key {}", bucket, key);
+        log_info("Recv GET with no key: bucket {}, key {}", bucket, key);
 
-            const char *msg =
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                "<LocationConstraint "
-                "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
-                "here</LocationConstraint>";
-            size_t len = strlen(msg);
-            mg_send_http_ok(conn, "application/xml", len);
-            mg_write(conn, msg, len);
-            return 200;
-        }
+        auto ctrl = gZstoreController;
 
-        if (strcmp(req->request_method, "GET") == 0 && strlen(key) == 0) {
-            log_info("Recv GET-2-: bucket {}, key {}", bucket, key);
+        // FIXME we assume the object is located, and turn into a read
 
-            const char *fmt =
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n"
-                "<ListBucketResult "
-                "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
-                "<Name>%s</Name><Prefix></Prefix><Marker></"
-                "Marker><MaxKeys>1000</"
-                "MaxKeys>"
-                "<Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>";
-
-            char *msg = (char *)malloc(300 * 1024), *ptr = msg;
-            ptr += sprintf(msg, fmt, bucket);
-
-            char date[64];
-            timestamp(date, sizeof(date));
-            char *objfmt =
-                "<Contents><Key>%s</Key>"         /* key */
-                "<LastModified>%s</LastModified>" /* timestamp */
-                "<ETag>&quot;%p&quot;</ETag>"     /* etag (%p) */
-                "<Size>%d</Size><StorageClass>STANDARD</StorageClass>" /* size
-                                                                        */
-                "<Owner><ID>user</ID><DisplayName>user</DisplayName></Owner>"
-                "<Type>Normal</Type></Contents>";
-
-            // TODO: This is list objects
-            std::lock_guard<std::mutex> lock(obj_table_mutex);
-            int count = 0;
-            for (const auto &pair : obj_table) {
-                if (count++ >= 1000)
-                    break;
-                struct object o = pair.second;
-                ptr +=
-                    sprintf(ptr, objfmt, o.name.c_str(), date, o.data, o.len);
-            }
-            ptr += sprintf(ptr, "%s", "<Marker></Marker></ListBucketResult>");
-
-            size_t len = strlen(msg);
-            mg_send_http_ok(conn, "application/xml", len);
-            mg_write(conn, msg, len);
-            free(msg);
-            return 200;
-        }
-
-        if (strcmp(req->request_method, "GET") == 0 && strlen(key) > 0) {
-            log_info("Recv GET-3-: bucket {}, key {}", bucket, key);
-
-            std::lock_guard<std::mutex> lock(obj_table_mutex);
-            auto it = obj_table.find(key);
-
-            if (it == obj_table.end()) {
-                char *fmt = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                            "<Error><Code>NoSuchKey</Code>"
-                            "<BucketName>%s</BucketName>"
-                            "<RequestId>tx00-00-00-default</RequestId>"
-                            "<HostId>00-default-default</HostId></Error>";
-                char msg[strlen(fmt) + strlen(bucket) + 10];
-                sprintf(msg, fmt, bucket);
-
-                int len = strlen(msg);
-                mg_printf(conn,
-                          "HTTP/1.1 404 Not Found\r\n"
-                          "Content-Type: application/xml\r\n"
-                          "Connection: keep-alive\r\n"
-                          "Content-Length: %d\r\n\r\n",
-                          len);
-                mg_write(conn, msg, len);
-
-                printf("GET %s = 404\n", key);
-
-                return 404;
+        if (!ctrl->isDraining &&
+            ctrl->mRequestContextPool->availableContexts.size() > 0) {
+            if (!ctrl->start) {
+                ctrl->start = true;
+                ctrl->stime = std::chrono::high_resolution_clock::now();
             }
 
-            struct object *obj = &(it->second);
+            RequestContext *slot =
+                ctrl->mRequestContextPool->GetRequestContext(true);
+            slot->ctrl = ctrl;
+            assert(slot->ctrl == ctrl);
 
-            const char *range = NULL;
-            for (int i = 0; i < req->num_headers; i++)
-                if (!strcmp(req->http_headers[i].name, "Range")) {
-                    range = req->http_headers[i].value;
-                    break;
-                }
+            auto ioCtx = slot->ioContext;
+            // FIXME hardcode
+            int size_in_ios = 212860928;
+            int io_size_blocks = 1;
+            // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+            auto offset_in_ios = 1;
 
-            if (range != NULL) {
-                off_t start, end, len;
-                sscanf(range, "bytes=%ld-%ld", &start, &end);
-                len = end + 1 - start;
+            ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+            ioCtx.qpair = ctrl->GetIoQpair();
+            ioCtx.data = slot->dataBuffer;
+            ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+            ioCtx.size = io_size_blocks;
+            ioCtx.cb = complete;
+            ioCtx.ctx = slot;
+            ioCtx.flags = 0;
+            slot->ioContext = ioCtx;
 
-                if (end >= obj->len) {
-                    mg_send_http_error(conn, 416,
-                                       "Requested Range Not Satisfiable");
-                    return 416;
-                }
-
-                char range_str[128], len_str[32];
-                sprintf(range_str, "bytes %ld-%ld/%ld", start, end,
-                        (long)obj->len);
-                sprintf(len_str, "%ld", len);
-
-                mg_printf(conn,
-                          "HTTP/1.1 206 Partial Content\r\n"
-                          "Content-Type: application/octet-stream\r\n"
-                          "Cache-Control: no-cache\r\n"
-                          "Connection: keep-alive\r\n"
-                          "Content-Range: %s\r\n"
-                          "Content-Length: %s\r\n"
-                          "Accept-Ranges: bytes\r\n\r\n",
-                          range_str, len_str);
-                mg_write(conn, (char *)obj->data + start, len);
-
-                return 206;
-            } else {
-                mg_send_http_ok(conn, "application/octet-stream", obj->len);
-                mg_write(conn, obj->data, obj->len);
-                return 200;
-            }
+            assert(slot->ioContext.cb != nullptr);
+            assert(slot->ctrl != nullptr);
+            ctrl->EnqueueRead(slot);
+            // busy = true;
         }
 
-        return true;
+        const char *msg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                          "<LocationConstraint "
+                          "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">"
+                          "here</LocationConstraint>";
+        size_t len = strlen(msg);
+        mg_send_http_ok(conn, "application/xml", len);
+        mg_write(conn, msg, len);
+        return 200;
+
+        // return true;
     }
 
     bool handlePut(CivetServer *server, struct mg_connection *conn)

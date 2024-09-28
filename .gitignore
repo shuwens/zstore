@@ -24,3 +24,5 @@ zstore1.log
 zstore4.log
 
 run.sh
+cpuprofile.file
+
