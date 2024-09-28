@@ -1,12 +1,8 @@
 #pragma once
 #include "CivetServer.h"
 #include "global.h"
-// #include "helper.h"
-// #include "request_handler.h"
 #include <CivetServer.h>
-#include <iostream>
 #include <unistd.h>
-#include <unordered_map>
 
 #define EVP_MAX_MD_SIZE 64 /* SHA512 */
 
@@ -17,19 +13,19 @@ typedef mg_connection Zstore_Connection;
 
 volatile bool exitNow = false;
 
-class Zstore : public CivetHandler
-{
-  private:
-    std::string name;
-    int verbose;
-
-  public:
-    Zstore(const std::string &name) : name(name){};
-    ~Zstore(){};
-
-    void SetVerbosity(int v) { verbose = v; }
-    // std::list<AWS_S3_Bucket> buckets;
-};
+// class Zstore : public CivetHandler
+// {
+//   private:
+//     std::string name;
+//     int verbose;
+//
+//   public:
+//     Zstore(const std::string &name) : name(name){};
+//     ~Zstore(){};
+//
+//     void SetVerbosity(int v) { verbose = v; }
+//     // std::list<AWS_S3_Bucket> buckets;
+// };
 
 // https://github.com/civetweb/civetweb/blob/master/examples/embedded_cpp/embedded_cpp.cpp
 

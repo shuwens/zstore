@@ -11,33 +11,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-CivetServer startWebServer()
-{
-    log_info("Starting HTTP server with port 2000!\n");
-    mg_init_library(0);
-
-    const char *options[] = {// "listening_ports", port_str,
-                             "listening_ports", "2000", "tcp_nodelay", "1",
-                             "num_threads", "1000", "enable_keep_alive", "yes",
-                             //"max_request_size", "65536",
-                             0};
-
-    std::vector<std::string> cpp_options;
-    for (int i = 0; i < (sizeof(options) / sizeof(options[0]) - 1); i++) {
-        cpp_options.push_back(options[i]);
-    }
-
-    CivetServer server(cpp_options); // <-- C++ style start
-    ZstoreHandler h;
-    server.addHandler("", h);
-
-    while (!exitNow) {
-        sleep(1);
-    }
-
-    return server;
-}
-
 int main(int argc, char **argv)
 {
     int rc;
@@ -73,27 +46,33 @@ int main(int argc, char **argv)
     gZstoreController->Init(false);
 
     if (!Configuration::UseDummyWorkload()) {
-        std::string zstore_name, bucket_name;
-        zstore_name = "test";
-        Zstore zstore(zstore_name);
+        log_info("Starting HTTP server with port 2000!\n");
+        mg_init_library(0);
 
-        zstore.SetVerbosity(1);
+        const char *options[] = {// "listening_ports", port_str,
+                                 "listening_ports", "2000", "tcp_nodelay", "1",
+                                 "num_threads", "1000", "enable_keep_alive",
+                                 "yes",
+                                 //"max_request_size", "65536",
+                                 0};
 
-        // create a bucket: this process is now manual, not via create/get
-        // bucket
-        // zstore.buckets.push_back(AWS_S3_Bucket(bucket_name, "db"));
+        std::vector<std::string> cpp_options;
+        for (int i = 0; i < (sizeof(options) / sizeof(options[0]) - 1); i++) {
+            cpp_options.push_back(options[i]);
+        }
 
-        // create_dummy_objects();
-        // Start the web server controllers.
-        CivetServer web_server = startWebServer();
-        // struct mg_context* web_server = startWebServer();
+        CivetServer server(cpp_options); // <-- C++ style start
+        // ZstoreHandler h;
+        server.addHandler("", gZstoreController);
+
+        while (!exitNow) {
+            sleep(1);
+        }
 
         while (1) {
             sleep(1);
         }
 
-        // Stop the web server.
-        // mg_stop(web_server);
         mg_exit_library();
 
     } else {

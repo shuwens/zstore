@@ -128,40 +128,40 @@ int handleHttpRequest(void *args)
     bool busy = false;
     ZstoreController *ctrl = (ZstoreController *)args;
 
-    if (!ctrl->isDraining &&
-        ctrl->mRequestContextPool->availableContexts.size() > 0) {
-        if (!ctrl->start) {
-            ctrl->start = true;
-            ctrl->stime = std::chrono::high_resolution_clock::now();
-        }
-
-        RequestContext *slot =
-            ctrl->mRequestContextPool->GetRequestContext(true);
-        slot->ctrl = ctrl;
-        assert(slot->ctrl == ctrl);
-
-        auto ioCtx = slot->ioContext;
-        // FIXME hardcode
-        int size_in_ios = 212860928;
-        int io_size_blocks = 1;
-        // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-        auto offset_in_ios = 1;
-
-        ioCtx.ns = ctrl->GetDevice()->GetNamespace();
-        ioCtx.qpair = ctrl->GetIoQpair();
-        ioCtx.data = slot->dataBuffer;
-        ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
-        ioCtx.size = io_size_blocks;
-        ioCtx.cb = complete;
-        ioCtx.ctx = slot;
-        ioCtx.flags = 0;
-        slot->ioContext = ioCtx;
-
-        assert(slot->ioContext.cb != nullptr);
-        assert(slot->ctrl != nullptr);
-        ctrl->EnqueueRead(slot);
-        busy = true;
-    }
+    // if (!ctrl->isDraining &&
+    //     ctrl->mRequestContextPool->availableContexts.size() > 0) {
+    //     if (!ctrl->start) {
+    //         ctrl->start = true;
+    //         ctrl->stime = std::chrono::high_resolution_clock::now();
+    //     }
+    //
+    //     RequestContext *slot =
+    //         ctrl->mRequestContextPool->GetRequestContext(true);
+    //     slot->ctrl = ctrl;
+    //     assert(slot->ctrl == ctrl);
+    //
+    //     auto ioCtx = slot->ioContext;
+    //     // FIXME hardcode
+    //     int size_in_ios = 212860928;
+    //     int io_size_blocks = 1;
+    //     // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    //     auto offset_in_ios = 1;
+    //
+    //     ioCtx.ns = ctrl->GetDevice()->GetNamespace();
+    //     ioCtx.qpair = ctrl->GetIoQpair();
+    //     ioCtx.data = slot->dataBuffer;
+    //     ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+    //     ioCtx.size = io_size_blocks;
+    //     ioCtx.cb = complete;
+    //     ioCtx.ctx = slot;
+    //     ioCtx.flags = 0;
+    //     slot->ioContext = ioCtx;
+    //
+    //     assert(slot->ioContext.cb != nullptr);
+    //     assert(slot->ctrl != nullptr);
+    //     ctrl->EnqueueRead(slot);
+    //     busy = true;
+    // }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }

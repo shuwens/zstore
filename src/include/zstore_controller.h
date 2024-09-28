@@ -5,21 +5,15 @@
 #include "device.h"
 #include "global.h"
 #include "utils.hpp"
-#include "zstore.h"
-#include "zstore_controller.h"
+// #include "zstore.h"
+// #include "zstore_controller.h"
 #include <cstring>
-#include <iostream>
+// #include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
-#include <thread>
+// #include <thread>
 #include <unistd.h>
-
-#define PORT "8081"
-#define EXAMPLE_URI "/example"
-#define EXIT_URI "/exit"
-
-// volatile bool exitNow = false;
 
 const uint64_t zone_dist = 0x80000; // zone size
 const int current_zone = 0;
@@ -27,12 +21,27 @@ const int current_zone = 0;
 
 auto zslba = zone_dist * current_zone;
 
-class ZstoreHandler;
-struct RequestContext;
+#define PORT "8081"
+#define EXAMPLE_URI "/example"
+#define EXIT_URI "/exit"
 
-class ZstoreController
+volatile bool exitNow = false;
+
+// class ZstoreController;
+// struct RequestContext;
+
+// class ZstoreHandler;
+// struct RequestContext;
+
+class ZstoreController : public CivetHandler
 {
   public:
+    // civet web stuff
+    bool handleGet(CivetServer *server, struct mg_connection *conn);
+    bool handlePut(CivetServer *server, struct mg_connection *conn);
+    bool handleDelete(CivetServer *server, struct mg_connection *conn);
+    bool handlePost(CivetServer *server, struct mg_connection *conn);
+
     ~ZstoreController();
     int Init(bool need_env);
     int PopulateMap(bool bogus);
@@ -197,7 +206,7 @@ class ZstoreController
   private:
     // number of devices
     int mN;
-    ZstoreHandler *mHandler;
+    // ZstoreHandler *mHandler;
 
     // simple way to terminate the server
     uint64_t tsc_end;
