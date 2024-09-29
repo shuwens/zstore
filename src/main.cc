@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     opts.name = "Zstore";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = "0xff";
+    opts.core_mask = "0xf";
     opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
         return 1;
@@ -49,18 +49,20 @@ int main(int argc, char **argv)
 
         try {
             // Check command line arguments.
-            if (argc != 3) {
-                std::cerr << "Usage: " << argv[0] << " <address> <port>\n";
-                std::cerr << "  For IPv4, try:\n";
-                std::cerr << "    receiver 0.0.0.0 80\n";
-                std::cerr << "  For IPv6, try:\n";
-                std::cerr << "    receiver 0::0 80\n";
-                return EXIT_FAILURE;
-            }
+            // if (argc != 3) {
+            //     std::cerr << "Usage: " << argv[0] << " <address> <port>\n";
+            //     std::cerr << "  For IPv4, try:\n";
+            //     std::cerr << "    receiver 0.0.0.0 80\n";
+            //     std::cerr << "  For IPv6, try:\n";
+            //     std::cerr << "    receiver 0::0 80\n";
+            //     return EXIT_FAILURE;
+            // }
+            // auto const address = net::ip::make_address(argv[1]);
+            // unsigned short port =
+            //     static_cast<unsigned short>(std::atoi(argv[2]));
 
-            auto const address = net::ip::make_address(argv[1]);
-            unsigned short port =
-                static_cast<unsigned short>(std::atoi(argv[2]));
+            auto const address = net::ip::make_address("127.0.0.1");
+            unsigned short port = 2000;
 
             net::io_context ioc{1};
 

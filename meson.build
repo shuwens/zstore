@@ -265,13 +265,23 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-# executable(
-# 	'multipath',
-# 	files('src/multipath.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+
+# HTTP server
+executable(
+	'http_async',
+	files('examples/http_server_async.cpp'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+
+executable(
+	'http_small',
+	files('examples/http_server_small.cpp'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 
 # Tests
 # -----------

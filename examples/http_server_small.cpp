@@ -1,4 +1,17 @@
-// https://www.boost.org/doc/libs/1_85_0/libs/beast/example/http/server/small/http_server_small.cpp
+//
+// Copyright (c) 2017 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+//
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+//
+// Official repository: https://github.com/boostorg/beast
+//
+
+//------------------------------------------------------------------------------
+//
+// Example: HTTP server, small
+//
+//------------------------------------------------------------------------------
 
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
@@ -123,6 +136,9 @@ class http_connection : public std::enable_shared_from_this<http_connection>
                 << "</body>\n"
                 << "</html>\n";
         } else {
+            // response_.result(http::status::not_found);
+            // response_.set(http::field::content_type, "text/plain");
+            // beast::ostream(response_.body()) << "File not found\r\n";
             response_.set(http::field::content_type, "text/html");
             beast::ostream(response_.body())
                 << "<html>\n"
@@ -132,10 +148,6 @@ class http_connection : public std::enable_shared_from_this<http_connection>
                 << "<p>There have been 42 requests so far.</p>\n"
                 << "</body>\n"
                 << "</html>\n";
-
-            // response_.result(http::status::not_found);
-            // response_.set(http::field::content_type, "text/plain");
-            // beast::ostream(response_.body()) << "File not found\r\n";
         }
     }
 
@@ -175,4 +187,35 @@ void http_server(tcp::acceptor &acceptor, tcp::socket &socket)
             std::make_shared<http_connection>(std::move(socket))->start();
         http_server(acceptor, socket);
     });
+}
+
+int main(int argc, char *argv[])
+{
+    try {
+        // Check command line arguments.
+        // if (argc != 3) {
+        //     std::cerr << "Usage: " << argv[0] << " <address> <port>\n";
+        //     std::cerr << "  For IPv4, try:\n";
+        //     std::cerr << "    receiver 0.0.0.0 80\n";
+        //     std::cerr << "  For IPv6, try:\n";
+        //     std::cerr << "    receiver 0::0 80\n";
+        //     return EXIT_FAILURE;
+        // }
+        // auto const address = net::ip::make_address(argv[1]);
+        // unsigned short port = static_cast<unsigned
+        // short>(std::atoi(argv[2]));
+        auto const address = net::ip::make_address("127.0.0.1");
+        unsigned short port = 2000;
+
+        net::io_context ioc{1};
+
+        tcp::acceptor acceptor{ioc, {address, port}};
+        tcp::socket socket{ioc};
+        http_server(acceptor, socket);
+
+        ioc.run();
+    } catch (std::exception const &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
 }
