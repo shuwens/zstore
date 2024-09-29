@@ -199,12 +199,12 @@ int ZstoreController::Init(bool object)
 
     CheckIoQpair("Starting all the threads");
 
-    initIoThread();
+    // initIoThread();
 
     // initHttpThread(Configuration::UseDummyWorkload());
 
-    bool use_object = false;
-    initDispatchThread(use_object);
+    // bool use_object = false;
+    // initDispatchThread(use_object);
 
     log_info("ZstoreController Init finish");
 

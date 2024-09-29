@@ -29,7 +29,8 @@ int main(int argc, char **argv)
     opts.name = "Zstore";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = "0xf";
+    // opts.core_mask = "0xf";
+    opts.core_mask = "0x1";
     opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
         return 1;
@@ -47,34 +48,26 @@ int main(int argc, char **argv)
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
 
-        try {
-            // Check command line arguments.
-            // if (argc != 3) {
-            //     std::cerr << "Usage: " << argv[0] << " <address> <port>\n";
-            //     std::cerr << "  For IPv4, try:\n";
-            //     std::cerr << "    receiver 0.0.0.0 80\n";
-            //     std::cerr << "  For IPv6, try:\n";
-            //     std::cerr << "    receiver 0::0 80\n";
-            //     return EXIT_FAILURE;
-            // }
-            // auto const address = net::ip::make_address(argv[1]);
-            // unsigned short port =
-            //     static_cast<unsigned short>(std::atoi(argv[2]));
+        auto const address = net::ip::make_address("127.0.0.1");
+        auto const port = 2000;
+        auto const doc_root = std::make_shared<std::string>(".");
+        auto const threads = std::max<int>(1, 8);
 
-            auto const address = net::ip::make_address("127.0.0.1");
-            unsigned short port = 2000;
+        // The io_context is required for all I/O
+        net::io_context ioc{threads};
 
-            net::io_context ioc{1};
+        // Create and launch a listening port
+        std::make_shared<listener>(ioc, tcp::endpoint{address, port}, doc_root)
+            ->run();
 
-            tcp::acceptor acceptor{ioc, {address, port}};
-            tcp::socket socket{ioc};
-            http_server(acceptor, socket);
+        // Run the I/O service on the requested number of threads
+        std::vector<std::thread> v;
+        v.reserve(threads - 1);
+        for (auto i = threads - 1; i > 0; --i)
+            v.emplace_back([&ioc] { ioc.run(); });
+        ioc.run();
 
-            ioc.run();
-        } catch (std::exception const &e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-            return EXIT_FAILURE;
-        }
+        return EXIT_SUCCESS;
 
     } else {
         sleep(10);
