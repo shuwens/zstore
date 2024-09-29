@@ -126,49 +126,47 @@ int handleDummyRequest(void *args)
 int handleHttpRequest(void *args)
 {
     bool busy = false;
+    log_debug("XXX");
     ZstoreController *ctrl = (ZstoreController *)args;
-
     // if (!ctrl->isDraining &&
     //     ctrl->mRequestContextPool->availableContexts.size() > 0) {
-    //     if (!ctrl->start) {
-    //         ctrl->start = true;
-    //         ctrl->stime = std::chrono::high_resolution_clock::now();
-    //     }
-    //
-    //     RequestContext *slot =
-    //         ctrl->mRequestContextPool->GetRequestContext(true);
-    //     slot->ctrl = ctrl;
-    //     assert(slot->ctrl == ctrl);
-    //
-    //     auto ioCtx = slot->ioContext;
-    //     // FIXME hardcode
-    //     int size_in_ios = 212860928;
-    //     int io_size_blocks = 1;
-    //     // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-    //     auto offset_in_ios = 1;
-    //
-    //     ioCtx.ns = ctrl->GetDevice()->GetNamespace();
-    //     ioCtx.qpair = ctrl->GetIoQpair();
-    //     ioCtx.data = slot->dataBuffer;
-    //     ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
-    //     ioCtx.size = io_size_blocks;
-    //     ioCtx.cb = complete;
-    //     ioCtx.ctx = slot;
-    //     ioCtx.flags = 0;
-    //     slot->ioContext = ioCtx;
-    //
-    //     assert(slot->ioContext.cb != nullptr);
-    //     assert(slot->ctrl != nullptr);
-    //     ctrl->EnqueueRead(slot);
-    //     busy = true;
+
+    ctrl->ioc.run();
+    busy = true;
+
     // }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
+int httpWorker3(void *args)
+{
+    ZstoreController *ctrl = (ZstoreController *)args;
+    struct spdk_thread *thread = ctrl->GetHttpThread3();
+    spdk_set_thread(thread);
+    spdk_poller *p;
+    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
+    ctrl->SetHttpPoller(p);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
+}
+
+int httpWorker4(void *args)
+{
+    ZstoreController *ctrl = (ZstoreController *)args;
+    struct spdk_thread *thread = ctrl->GetHttpThread4();
+    spdk_set_thread(thread);
+    spdk_poller *p;
+    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
+    ctrl->SetHttpPoller(p);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
+}
+
 int httpWorker(void *args)
 {
-
     ZstoreController *ctrl = (ZstoreController *)args;
     struct spdk_thread *thread = ctrl->GetHttpThread();
     spdk_set_thread(thread);

@@ -1,46 +1,32 @@
 #pragma once
-#include "CivetServer.h"
 #include "common.h"
 #include "configuration.h"
 #include "device.h"
 #include "global.h"
+#include "http_server.h"
 #include "utils.hpp"
-// #include "zstore.h"
-// #include "zstore_controller.h"
 #include <cstring>
-// #include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
-// #include <thread>
 #include <unistd.h>
 
 const uint64_t zone_dist = 0x80000; // zone size
 const int current_zone = 0;
+const int threads = 8;
 // const int current_zone = 30;
 
 auto zslba = zone_dist * current_zone;
 
-#define PORT "8081"
-#define EXAMPLE_URI "/example"
-#define EXIT_URI "/exit"
-
-volatile bool exitNow = false;
-
-// class ZstoreController;
-// struct RequestContext;
-
-// class ZstoreHandler;
-// struct RequestContext;
-
 class ZstoreController : public CivetHandler
 {
   public:
-    // civet web stuff
-    bool handleGet(CivetServer *server, struct mg_connection *conn);
-    bool handlePut(CivetServer *server, struct mg_connection *conn);
-    bool handleDelete(CivetServer *server, struct mg_connection *conn);
-    bool handlePost(CivetServer *server, struct mg_connection *conn);
+    // The io_context is required for all I/O
+    net::io_context ioc{threads};
+    std::vector<std::thread> v;
+    void initHttpThread3();
+    void initHttpThread4();
+    void initHttpThread5();
 
     ~ZstoreController();
     int Init(bool need_env);
@@ -58,6 +44,8 @@ class ZstoreController : public CivetHandler
     struct spdk_thread *GetIoThread(int id) { return mIoThread[id].thread; };
     struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
     struct spdk_thread *GetHttpThread() { return mHttpThread; }
+    struct spdk_thread *GetHttpThread3() { return mHttpThread3; }
+    struct spdk_thread *GetHttpThread4() { return mHttpThread4; }
     struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
 
     struct spdk_nvme_qpair *GetIoQpair();
@@ -231,6 +219,8 @@ class ZstoreController : public CivetHandler
     struct spdk_thread *mDispatchThread;
     struct spdk_thread *mHttpThread;
     struct spdk_thread *mCompletionThread;
+    struct spdk_thread *mHttpThread3;
+    struct spdk_thread *mHttpThread4;
 
     // int64_t mNumInvalidBlocks = 0;
     // int64_t mNumBlocks = 0;
