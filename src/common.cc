@@ -14,12 +14,6 @@
 #include <spdk/event.h>
 #include <sys/time.h>
 
-// const uint64_t zone_dist = 0x80000; // zone size
-// const int current_zone = 0;
-// // const int current_zone = 30;
-//
-// auto zslba = zone_dist * current_zone;
-
 static void busyWait(bool *ready)
 {
     while (!*ready) {
@@ -126,43 +120,19 @@ int handleDummyRequest(void *args)
 int handleHttpRequest(void *args)
 {
     bool busy = false;
-    log_debug("XXX");
     ZstoreController *ctrl = (ZstoreController *)args;
     // if (!ctrl->isDraining &&
     //     ctrl->mRequestContextPool->availableContexts.size() > 0) {
-
-    ctrl->ioc.run();
-    busy = true;
-
+    //
+    //     auto p = ctrl->ioc.poll();
+    //
+    //     if (p == boost::asio::error::eof) {
+    //         log_debug("error eof");
+    //     }
+    //     busy = true;
     // }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-}
-
-int httpWorker3(void *args)
-{
-    ZstoreController *ctrl = (ZstoreController *)args;
-    struct spdk_thread *thread = ctrl->GetHttpThread3();
-    spdk_set_thread(thread);
-    spdk_poller *p;
-    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
-    ctrl->SetHttpPoller(p);
-    while (true) {
-        spdk_thread_poll(thread, 0, 0);
-    }
-}
-
-int httpWorker4(void *args)
-{
-    ZstoreController *ctrl = (ZstoreController *)args;
-    struct spdk_thread *thread = ctrl->GetHttpThread4();
-    spdk_set_thread(thread);
-    spdk_poller *p;
-    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
-    ctrl->SetHttpPoller(p);
-    while (true) {
-        spdk_thread_poll(thread, 0, 0);
-    }
 }
 
 int httpWorker(void *args)

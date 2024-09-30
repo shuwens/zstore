@@ -9,55 +9,7 @@
 
 static std::vector<Device *> g_devices;
 
-static const int request_context_pool_size = 4096;
-// static const int request_context_pool_size = 128000;
-
-void ZstoreController::initHttpThread3()
-{
-    struct spdk_cpuset cpumask;
-    spdk_cpuset_zero(&cpumask);
-    spdk_cpuset_set_cpu(&cpumask, 3, true);
-    mHttpThread = spdk_thread_create("HttpThread3", &cpumask);
-    log_info("Create {} (id {}) on Core {}", spdk_thread_get_name(mHttpThread),
-             spdk_thread_get_id(mHttpThread), 3);
-    int rc = spdk_env_thread_launch_pinned(3, httpWorker3, this);
-    if (rc < 0) {
-        log_error("Failed to launch ec thread error: {}", spdk_strerror(rc));
-    }
-}
-
-void ZstoreController::initHttpThread4()
-{
-    struct spdk_cpuset cpumask;
-    spdk_cpuset_zero(&cpumask);
-    spdk_cpuset_set_cpu(&cpumask, 4, true);
-    mHttpThread = spdk_thread_create("HttpThread4", &cpumask);
-    log_info("Create {} (id {}) on Core {}", spdk_thread_get_name(mHttpThread),
-             spdk_thread_get_id(mHttpThread), 4);
-    int rc = spdk_env_thread_launch_pinned(4, httpWorker4, this);
-    if (rc < 0) {
-        log_error("Failed to launch ec thread error: {}", spdk_strerror(rc));
-    }
-}
-
-// void ZstoreController::initHttpThread5()
-// {
-//     struct spdk_cpuset cpumask;
-//     spdk_cpuset_zero(&cpumask);
-//     spdk_cpuset_set_cpu(&cpumask, 5, true);
-//     mHttpThread = spdk_thread_create("HttpThread", &cpumask);
-//     log_info("Create {} (id {}) on Core {}",
-//     spdk_thread_get_name(mHttpThread),
-//              spdk_thread_get_id(mHttpThread), 5);
-//     int rc = spdk_env_thread_launch_pinned(5, httpWorker5, this);
-//     if (rc < 0) {
-//         log_error("Failed to launch ec thread error: {}", spdk_strerror(rc));
-//     }
-// }
-
-// ----------------------------------------------------------------------
-
-void ZstoreController::initHttpThread(bool dummy)
+void ZstoreController::initHttpThread()
 {
     struct spdk_cpuset cpumask;
     spdk_cpuset_zero(&cpumask);
@@ -67,7 +19,7 @@ void ZstoreController::initHttpThread(bool dummy)
              spdk_thread_get_id(mHttpThread),
              Configuration::GetHttpThreadCoreId());
     int rc;
-    if (dummy)
+    if (Configuration::UseDummyWorkload())
         rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
                                            dummyWorker, this);
     else
@@ -75,7 +27,7 @@ void ZstoreController::initHttpThread(bool dummy)
                                            httpWorker, this);
 
     if (rc < 0) {
-        log_error("Failed to launch ec thread error: {}", spdk_strerror(rc));
+        log_error("Failed to launch HTTP thread error: {}", spdk_strerror(rc));
     }
 }
 
@@ -98,7 +50,7 @@ void ZstoreController::initCompletionThread()
     }
 }
 
-void ZstoreController::initDispatchThread(bool use_object)
+void ZstoreController::initDispatchThread()
 {
     struct spdk_cpuset cpumask;
     spdk_cpuset_zero(&cpumask);
@@ -111,7 +63,7 @@ void ZstoreController::initDispatchThread(bool use_object)
              Configuration::GetDispatchThreadCoreId());
 
     int rc;
-    if (use_object) {
+    if (Configuration::UseObject()) {
         log_info("Dispatch object worker");
         rc = spdk_env_thread_launch_pinned(
             Configuration::GetDispatchThreadCoreId(), dispatchObjectWorker,
@@ -177,7 +129,6 @@ int ZstoreController::Init(bool object)
     log_debug("mZone sizes {}", mZones.size());
 
     log_debug("Configure Zstore with configuration");
-
     setQueuDepth(Configuration::GetQueueDepth());
     setContextPoolSize(Configuration::GetContextPoolSize());
     setNumOfDevices(Configuration::GetNumOfDevices());
@@ -199,10 +150,7 @@ int ZstoreController::Init(bool object)
 
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
-    // mRequestContextPool = new RequestContextPool(2048);
-
-    mRequestContextPool = new RequestContextPool(request_context_pool_size);
-    // mRequestContext = new RequestContext;
+    mRequestContextPool = new RequestContextPool(mContextPoolSize);
 
     if (mRequestContextPool == NULL) {
         log_error("could not initialize task pool");
@@ -238,38 +186,19 @@ int ZstoreController::Init(bool object)
 
     CheckIoQpair("Starting all the threads");
 
+    log_debug("ZstoreController launching threads");
+
+    initIoThread();
+    initDispatchThread();
+    initHttpThread();
+
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
     auto const doc_root = std::make_shared<std::string>(".");
-    net::io_context ioc; // Declare the ioc variable
-
-    // Create and launch a listening port
-    std::make_shared<listener>(ioc, tcp::endpoint{address, port}, doc_root)
+    std::make_shared<listener>(mIoc, tcp::endpoint{address, port}, doc_root)
         ->run();
 
-    // FIXME threads is broken
-    const int threads = 16;
-
-    // Run the I/O service on the requested number of threads
-    v.reserve(threads - 1);
-    for (auto i = threads - 1; i > 0; --i)
-        v.emplace_back([&ioc] { ioc.run(); });
-
-    log_debug("ZstoreController launching threads");
-    // initIoThread();
-
-    log_info("222");
-    // initHttpThread(Configuration::UseDummyWorkload());
-    log_info("333");
-    initHttpThread3();
-    log_info("444");
-    initHttpThread4();
-    log_info("555");
-    // initHttpThread5();
-
-    // bool use_object = false;
-    // initDispatchThread(use_object);
-
+    mHttpThreads.reserve(threads - 1);
     log_info("ZstoreController Init finish");
 
     return rc;
@@ -571,7 +500,7 @@ void tryDrainController(void *args)
     // drainArgs->ctrl->ProceedGc();
     drainArgs->success =
         drainArgs->ctrl->mRequestContextPool->availableContexts.size() ==
-        request_context_pool_size;
+        drainArgs->ctrl->GetContextPoolSize();
 
     drainArgs->ready = true;
 }

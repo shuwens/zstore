@@ -22,11 +22,8 @@ class ZstoreController : public CivetHandler
 {
   public:
     // The io_context is required for all I/O
-    net::io_context ioc{threads};
-    std::vector<std::thread> v;
-    void initHttpThread3();
-    void initHttpThread4();
-    void initHttpThread5();
+    net::io_context mIoc{threads};
+    std::vector<std::thread> mHttpThreads;
 
     ~ZstoreController();
     int Init(bool need_env);
@@ -36,10 +33,10 @@ class ZstoreController : public CivetHandler
     // threads
     void initIoThread();
     // void initEcThread();
-    void initDispatchThread(bool use_object);
+    void initDispatchThread();
     // void initIndexThread();
     void initCompletionThread();
-    void initHttpThread(bool dummy);
+    void initHttpThread();
 
     struct spdk_thread *GetIoThread(int id) { return mIoThread[id].thread; };
     struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
@@ -57,6 +54,9 @@ class ZstoreController : public CivetHandler
     void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
 
     int GetQueueDepth() { return mQueueDepth; };
+
+    int GetContextPoolSize() { return mContextPoolSize; };
+
     void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     void setContextPoolSize(int context_pool_size)
     {

@@ -292,6 +292,14 @@ executable(
 	install: true,
 )
 
+# executable(
+# 	'http_poll',
+# 	files('examples/boost_poll.cc'),
+# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+
 # Tests
 # -----------
 # executable(
