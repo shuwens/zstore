@@ -46,6 +46,10 @@ class Configuration
 
     static int GetQueueDepth() { return GetInstance().gQueueDepth; }
 
+    static int GetContextPoolSize() { return GetInstance().gContextPoolSize; }
+
+    static int GetNumOfDevices() { return GetInstance().gNumOfDevices; }
+
     // static int GetMetadataSize() { return GetInstance().gMetadataSize; }
 
     static int GetNumIoThreads() { return GetInstance().gNumIoThreads; }
@@ -153,7 +157,6 @@ class Configuration
     // FIXME queue size larger than 64 causes issue
     uint32_t gTotalIO = 2'000'000;
     // uint32_t gTotalIO = 500'000;
-    int gQueueDepth = 256;
 
     bool gUseDummyWorkload = false;
 
@@ -162,4 +165,8 @@ class Configuration
 
     // uint32_t gTotalIO = 4'000'000;
     // int gQueueDepth = 256;
+
+    int gQueueDepth = 256;
+    int gContextPoolSize = 4096;
+    int gNumOfDevices = 1;
 };

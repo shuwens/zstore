@@ -173,17 +173,14 @@ int ZstoreController::Init(bool object)
     int rc = 0;
     verbose = true;
 
+    // TODO: set all parameters too
     log_debug("mZone sizes {}", mZones.size());
-    log_debug("ZstoreController launching threads");
 
-    assert(rc == 0);
+    log_debug("Configure Zstore with configuration");
 
-    SetQueuDepth(Configuration::GetQueueDepth());
-
-    // tsc_end =
-    //     spdk_get_ticks() - g_arbitration.time_in_sec *
-    //     g_arbitration.tsc_rate;
-    // g_arbitration.tsc_rate = spdk_get_ticks_hz();
+    setQueuDepth(Configuration::GetQueueDepth());
+    setContextPoolSize(Configuration::GetContextPoolSize());
+    setNumOfDevices(Configuration::GetNumOfDevices());
 
     // we add one device for now
 
@@ -218,8 +215,6 @@ int ZstoreController::Init(bool object)
 
     PopulateMap(true);
     pivot = 0;
-
-    mN = 1;
 
     // Create poll groups for the io threads and perform initialization
     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
@@ -260,6 +255,7 @@ int ZstoreController::Init(bool object)
     for (auto i = threads - 1; i > 0; --i)
         v.emplace_back([&ioc] { ioc.run(); });
 
+    log_debug("ZstoreController launching threads");
     // initIoThread();
 
     log_info("222");

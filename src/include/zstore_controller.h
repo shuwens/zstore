@@ -56,8 +56,13 @@ class ZstoreController : public CivetHandler
     void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
     void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
 
-    void SetQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     int GetQueueDepth() { return mQueueDepth; };
+    void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
+    void setContextPoolSize(int context_pool_size)
+    {
+        mContextPoolSize = context_pool_size;
+    };
+    void setNumOfDevices(int num_of_device) { mN = num_of_device; };
 
     Device *GetDevice() { return mDevices[0]; };
 
@@ -194,7 +199,8 @@ class ZstoreController : public CivetHandler
   private:
     // number of devices
     int mN;
-    // ZstoreHandler *mHandler;
+    // context pool size
+    int mContextPoolSize;
 
     // simple way to terminate the server
     uint64_t tsc_end;
