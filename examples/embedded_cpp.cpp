@@ -7,12 +7,7 @@
 
 #include "CivetServer.h"
 #include <cstring>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
 #include <unistd.h>
-#endif
 
 #define DOCUMENT_ROOT "."
 // #define PORT "8081"
@@ -66,6 +61,37 @@ class ExitHandler : public CivetHandler
         mg_printf(conn, "Bye!\n");
         exitNow = true;
         return true;
+    }
+};
+
+class Handler : public CivetHandler
+{
+  private:
+    bool handleAll(const char *method, CivetServer *server,
+                   struct mg_connection *conn)
+    {
+        std::string s = "";
+        mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: "
+                        "text/html\r\nConnection: close\r\n\r\n");
+        mg_printf(conn, "<html><body>");
+        mg_printf(conn, "<h2>This is the A handler for \"%s\" !</h2>", method);
+        if (CivetServer::getParam(conn, "param", s)) {
+            mg_printf(conn, "<p>param set to %s</p>", s.c_str());
+        } else {
+            mg_printf(conn, "<p>param not set</p>");
+        }
+        mg_printf(conn, "</body></html>\n");
+        return true;
+    }
+
+  public:
+    bool handleGet(CivetServer *server, struct mg_connection *conn)
+    {
+        return handleAll("GET", server, conn);
+    }
+    bool handlePost(CivetServer *server, struct mg_connection *conn)
+    {
+        return handleAll("POST", server, conn);
     }
 };
 
@@ -353,7 +379,13 @@ int main(int argc, char *argv[])
     mg_init_library(0);
 
     const char *options[] = {"document_root", DOCUMENT_ROOT, "listening_ports",
-                             PORT, 0};
+                             PORT,
+                             // "tcp_nodelay",
+                             // "1",
+                             "num_threads", "1000",
+                             // "enable_keep_alive",
+                             // "yes",
+                             0};
 
     std::vector<std::string> cpp_options;
     for (int i = 0; i < (sizeof(options) / sizeof(options[0]) - 1); i++) {
@@ -369,45 +401,23 @@ int main(int argc, char *argv[])
     ExitHandler h_exit;
     server.addHandler(EXIT_URI, h_exit);
 
-    AHandler h_a;
-    server.addHandler("/a", h_a);
+    Handler h;
+    server.addHandler("", h);
 
-    ABHandler h_ab;
-    server.addHandler("/a/b", h_ab);
+    // AHandler h_a;
+    // server.addHandler("/a", h_a);
 
-    WsStartHandler h_ws;
-    server.addHandler("/ws", h_ws);
+    // ABHandler h_ab;
+    // server.addHandler("/a/b", h_ab);
 
-#ifdef NO_FILES
-    /* This handler will handle "everything else", including
-     * requests to files. If this handler is installed,
-     * NO_FILES should be set. */
-    FooHandler h_foo;
-    server.addHandler("", h_foo);
-
-    printf("See a page from the \"all\" handler at http://localhost:%s/\n",
-           PORT);
-#else
-    FooHandler h_foo;
-    server.addHandler("**.foo", h_foo);
-    printf("Browse files at http://localhost:%s/\n", PORT);
-#endif
-
-#ifdef USE_WEBSOCKET
-    WebSocketHandler h_websocket;
-    server.addWebSocketHandler("/websocket", h_websocket);
-    printf("Run websocket example at http://localhost:%s/ws\n", PORT);
-#endif
+    // WsStartHandler h_ws;
+    // server.addHandler("/ws", h_ws);
 
     printf("Run example at http://localhost:%s%s\n", PORT, EXAMPLE_URI);
     printf("Exit at http://localhost:%s%s\n", PORT, EXIT_URI);
 
     while (!exitNow) {
-#ifdef _WIN32
-        Sleep(1000);
-#else
         sleep(1);
-#endif
     }
 
     printf("Bye!\n");
