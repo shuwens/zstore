@@ -283,6 +283,15 @@ executable(
 	install: true,
 )
 
+executable(
+	'civetweb',
+	files('examples/embedded_cpp.cpp'),
+	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	include_directories: incdir,
+	install: true,
+)
+
 # Tests
 # -----------
 # executable(
