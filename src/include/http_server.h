@@ -1,5 +1,6 @@
 #pragma once
 #include "http_utils.h"
+#include "zstore_controller.h"
 
 // Handles an HTTP server connection
 class session : public std::enable_shared_from_this<session>
@@ -8,12 +9,14 @@ class session : public std::enable_shared_from_this<session>
     beast::flat_buffer buffer_;
     std::shared_ptr<std::string const> doc_root_;
     http::request<http::string_body> req_;
+    ZstoreController &zctrl_;
 
   public:
     // Take ownership of the stream
     session(tcp::socket &&socket,
-            std::shared_ptr<std::string const> const &doc_root)
-        : stream_(std::move(socket)), doc_root_(doc_root)
+            std::shared_ptr<std::string const> const &doc_root,
+            ZstoreController &zctrl)
+        : stream_(std::move(socket)), doc_root_(doc_root), zctrl_(zctrl)
     {
     }
 
@@ -106,11 +109,14 @@ class listener : public std::enable_shared_from_this<listener>
     net::io_context &ioc_;
     tcp::acceptor acceptor_;
     std::shared_ptr<std::string const> doc_root_;
+    ZstoreController &zctrl_;
 
   public:
     listener(net::io_context &ioc, tcp::endpoint endpoint,
-             std::shared_ptr<std::string const> const &doc_root)
-        : ioc_(ioc), acceptor_(net::make_strand(ioc)), doc_root_(doc_root)
+             std::shared_ptr<std::string const> const &doc_root,
+             ZstoreController &zctrl)
+        : ioc_(ioc), acceptor_(net::make_strand(ioc)), doc_root_(doc_root),
+          zctrl_(zctrl)
     {
         beast::error_code ec;
 
@@ -162,7 +168,8 @@ class listener : public std::enable_shared_from_this<listener>
             return; // To avoid infinite loop
         } else {
             // Create the session and run it
-            std::make_shared<session>(std::move(socket), doc_root_)->run();
+            std::make_shared<session>(std::move(socket), doc_root_, zctrl_)
+                ->run();
         }
 
         // Accept another connection

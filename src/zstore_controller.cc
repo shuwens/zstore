@@ -202,7 +202,8 @@ int ZstoreController::Init(bool object)
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
     auto const doc_root = std::make_shared<std::string>(".");
-    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, doc_root)
+    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, doc_root,
+                               *this)
         ->run();
 
     for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
