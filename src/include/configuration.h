@@ -57,8 +57,9 @@ class Configuration
     static int GetNumHttpThreads() { return GetInstance().gNumHttpThreads; }
 
     static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload; }
-
     static bool UseObject() { return GetInstance().gUseObject; }
+    static bool UseHttp() { return GetInstance().gUseHttp; }
+    static bool UseWorkStealing() { return GetInstance().gUseWorkStealing; }
 
     // static bool GetDeviceSupportMetadata()
     // {
@@ -179,12 +180,12 @@ class Configuration
 
     bool gUseObject = false;
     bool gUseDummyWorkload = false;
-    bool gUseHttp = false;
+    bool gUseHttp = true;
 
     int gNumIoThreads = 2;
     int gNumHttpThreads = 8;
 
     // TODO: use other spdk thread to work stealing
     //
-    bool gWorkStealing = false;
+    bool gUseWorkStealing = false;
 };

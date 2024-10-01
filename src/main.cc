@@ -90,6 +90,7 @@ int main(int argc, char **argv)
 
         // return EXIT_SUCCESS;
         while (1) {
+            // while (ctrl->mIoc_.poll()) {
             auto etime = std::chrono::high_resolution_clock::now();
             auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
                              etime - gZstoreController->stime)

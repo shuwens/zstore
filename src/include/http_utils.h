@@ -180,6 +180,7 @@ handle_request(beast::string_view doc_root,
     if (ec == beast::errc::no_such_file_or_directory) {
         // return not_found(req.target());
         // FIXME
+        // if (Configuration::UseHttp() && !zctrl.isDraining &&
         if (!zctrl.isDraining &&
             zctrl.mRequestContextPool->availableContexts.size() > 0) {
             if (!zctrl.start) {
