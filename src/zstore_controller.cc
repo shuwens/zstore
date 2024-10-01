@@ -39,28 +39,6 @@ void ZstoreController::initHttpThread()
                       spdk_strerror(rc));
         }
     }
-
-    // spdk_cpuset_zero(&cpumask);
-    // spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(),
-    // true); mHttpThread = spdk_thread_create("HttpThread", &cpumask);
-    // log_info("Create {} (id {}) on Core {}",
-    // spdk_thread_get_name(mHttpThread),
-    //          spdk_thread_get_id(mHttpThread),
-    //          Configuration::GetHttpThreadCoreId());
-    // int rc;
-    // if (Configuration::UseDummyWorkload())
-    //     rc =
-    //     spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
-    //                                        dummyWorker, this);
-    // else
-    //     rc =
-    //     spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
-    //                                        httpWorker, this);
-    //
-    // if (rc < 0) {
-    //     log_error("Failed to launch HTTP thread error: {}",
-    //     spdk_strerror(rc));
-    // }
 }
 
 void ZstoreController::initCompletionThread()
@@ -69,7 +47,6 @@ void ZstoreController::initCompletionThread()
     spdk_cpuset_zero(&cpumask);
     spdk_cpuset_set_cpu(&cpumask, Configuration::GetCompletionThreadCoreId(),
                         true);
-    // mCompletionThread = spdk_thread_create("CompletionThread", &cpumask);
     log_info("Create {} (id {}) on Core {}",
              spdk_thread_get_name(mCompletionThread),
              spdk_thread_get_id(mCompletionThread),
@@ -235,7 +212,6 @@ int ZstoreController::Init(bool object)
         mHttpThread[threadId].controller = this;
     }
     initHttpThread();
-    // mHttpThreads.reserve(threads - 1);
     log_info("ZstoreController Init finish");
 
     return rc;
@@ -243,14 +219,11 @@ int ZstoreController::Init(bool object)
 
 void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
 {
-    // log_info("ZstoreController Read in Dispatch Thread");
-    // thread_send_msg(mIoThread.thread, zoneRead, ctx);
     thread_send_msg(GetIoThread(0), zoneRead, ctx);
 }
 
 void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
 {
-    // log_info("ZstoreController Write in Dispatch Thread");
     thread_send_msg(GetIoThread(0), zoneRead, ctx);
 }
 
@@ -259,13 +232,8 @@ bool ZstoreController::CheckIoQpair(std::string msg)
 {
     assert(mDevices[0] != nullptr);
     assert(mDevices[0]->GetIoQueue(0) != nullptr);
-    // assert(spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
-    // log_debug("{}, qpair connected: {}", msg,
-    //           spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue()));
-
     if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0)))
         exit(0);
-
     return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0));
 }
 
@@ -286,10 +254,7 @@ ZstoreController::~ZstoreController()
     for (uint32_t i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
         thread_send_msg(mHttpThread[i].thread, quit, nullptr);
     }
-    // thread_send_msg(mIndexThread, quit, nullptr);
-    // thread_send_msg(mCompletionThread, quit, nullptr);
     log_debug("drain io: {}", spdk_get_ticks());
-    // drain_io(this);
     log_debug("clean up ns worker");
     cleanup_ns_worker_ctx();
     //
@@ -317,7 +282,7 @@ ZstoreController::~ZstoreController()
     //     // }
     //
     log_debug("end work fn");
-    print_stats(this);
+    // print_stats(this);
 }
 
 void ZstoreController::register_ctrlr(Device *device,
@@ -325,28 +290,8 @@ void ZstoreController::register_ctrlr(Device *device,
 {
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
-    // struct ctrlr_entry *entry =
-    // mController = (struct ctrlr_entry *)calloc(1, sizeof(struct
-    // ctrlr_entry));
     union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
     const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-
-    // if (device->mController == NULL) {
-    //     perror("ctrlr_entry malloc");
-    //     exit(1);
-    // }
-
-    // snprintf(device.mController->name, sizeof(device.mController->name),
-    //          "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
-
-    // entry->ctrlr = ctrlr;
-    // mController = entry;
-
-    // if ((g_arbitration.latency_tracking_enable != 0) &&
-    //     spdk_nvme_ctrlr_is_feature_supported(
-    //         ctrlr, SPDK_NVME_INTEL_FEAT_LATENCY_TRACKING)) {
-    //     set_latency_tracking_feature(ctrlr, true);
-    // }
 
     for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
@@ -401,27 +346,13 @@ void ZstoreController::zns_dev_init(Device *device, std::string ip1,
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
     trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
 
-    // struct spdk_nvme_transport_id trid2 = {};
-    // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
-    // snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
-    // snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
-    // trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    // trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
-
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
     snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
-    // disable keep alive timeout
+    // NOTE: disable keep alive timeout
     opts.keep_alive_timeout_ms = 0;
-    // memcpy(opts.hostnqn, g_hostnqn, sizeof(opts.hostnqn));
-
     register_ctrlr(device, spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
-
-    // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
-
     device->SetDeviceTransportAddress(trid1.traddr);
-
-    // log_info("Found {} namspaces", g_arbitration.num_namespaces);
 }
 
 int ZstoreController::register_controllers(Device *device)
@@ -433,31 +364,12 @@ int ZstoreController::register_controllers(Device *device)
     // TCP
     zns_dev_init(device, "12.12.12.2", "5520");
 
-    // if (g_arbitration.num_namespaces == 0) {
-    //     log_error("No valid namespaces to continue IO testing");
-    //     return 1;
-    // }
-
     return 0;
 }
 
 void ZstoreController::unregister_controllers(Device *device)
 {
-    // struct ctrlr_entry *entry, *tmp;
     struct spdk_nvme_detach_ctx *detach_ctx = NULL;
-
-    // TAILQ_FOREACH_SAFE(entry, &mControllers, link, tmp)
-    // {
-    //     TAILQ_REMOVE(&mControllers, entry, link);
-
-    // spdk_nvme_detach_async(device->mController->ctrlr, &detach_ctx);
-    // free(device.mController);
-    // // }
-    //
-    // while (detach_ctx && spdk_nvme_detach_poll_async(detach_ctx) == -EAGAIN)
-    // {
-    //     ;
-    // }
 }
 
 void ZstoreController::zstore_cleanup()
@@ -468,10 +380,6 @@ void ZstoreController::zstore_cleanup()
     cleanup(0);
 
     spdk_env_fini();
-
-    // if (rc != 0) {
-    //     fprintf(stderr, "%s: errors occurred\n", argv[0]);
-    // }
 }
 
 void ZstoreController::cleanup_ns_worker_ctx()
@@ -499,14 +407,12 @@ void ZstoreController::cleanup(uint32_t task_count)
 void ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
-    // if (verbose)
-    //     log_debug("After READ: read q {}", GetReadQueueSize());
 }
 
 void ZstoreController::EnqueueWrite(RequestContext *ctx)
 {
     mWriteQueue.push(ctx);
-    log_debug("after push: read q {}", GetWriteQueueSize());
+    // log_debug("after push: read q {}", GetWriteQueueSize());
 }
 
 Result<MapEntry> ZstoreController::find_object(std::string key)

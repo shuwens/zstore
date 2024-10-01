@@ -174,10 +174,10 @@ handle_request(beast::string_view doc_root,
     body.open(path.c_str(), beast::file_mode::scan, ec);
 
     // Handle the case where the file doesn't exist
-    if (ec == beast::errc::no_such_file_or_directory)
+    if (ec == beast::errc::no_such_file_or_directory) {
         // return not_found(req.target());
         return dummy(req.target());
-
+    }
     // Handle an unknown error
     if (ec)
         return server_error(ec.message());

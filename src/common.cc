@@ -1,18 +1,17 @@
 #include "include/common.h"
-#include "include/configuration.h"
 #include "include/object.h"
 #include "include/utils.hpp"
-#include "include/zns_utils.h"
 #include "include/zstore_controller.h"
 #include "object.cc"
 #include "spdk/thread.h"
 #include <cassert>
 #include <cstdlib>
 #include <isa-l.h>
-#include <queue>
 #include <sched.h>
 #include <spdk/event.h>
 #include <sys/time.h>
+
+static auto quit(void *args) { exit(0); }
 
 static void busyWait(bool *ready)
 {
@@ -27,8 +26,6 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
     RequestContext *slot = (RequestContext *)arg;
 
-    // log_debug("in Completion");
-
     if (spdk_nvme_cpl_is_error(completion)) {
         fprintf(stderr, "I/O error status: %s\n",
                 spdk_nvme_cpl_get_status_string(&completion->status));
@@ -42,32 +39,16 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     // FIXME
     assert(ctrl != nullptr);
-    // if (ctrl == nullptr)
-    //     ctrl = gZstoreController;
 
     // this should move to reclaim context and in controller
-    // std::unique_lock lock(gZstoreController->context_pool_mutex_);
     slot->available = true;
     slot->Clear();
-    // if (ctrl->verbose)
-    //     log_error("Before return: pool capacity {}, pool available {}",
-    //               ctrl->mRequestContextPool->capacity,
-    //               ctrl->mRequestContextPool->availableContexts.size());
     ctrl->mRequestContextPool->ReturnRequestContext(slot);
-
-    // if (ctrl->verbose)
-    //     log_error("After return: pool capacity {}, pool available {}\n",
-    //               ctrl->mRequestContextPool->capacity,
-    //               ctrl->mRequestContextPool->availableContexts.size());
-    // log_debug("end: ctx after return {}, total IO {}",
-    //           ctrl->mRequestContextPool->availableContexts.size(),
-    //           ctrl->GetDevice()->mTotalCounts);
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
     if (spdk_thread_send_msg(thread, fn, args) < 0) {
-        // std::unique_lock lock(gZstoreController->g_mutex_);
         log_error("Thread send message failed: thread_name {}.",
                   spdk_thread_get_name(thread));
         exit(-1);
@@ -156,25 +137,6 @@ int dummyWorker(void *args)
     }
 }
 
-// int handleIoCompletions(void *args)
-// {
-//     int rc;
-//     ZstoreController *zctrlr = (ZstoreController *)args;
-//     // log_debug("XXX");
-//     enum spdk_thread_poller_rc poller_rc = SPDK_POLLER_IDLE;
-//
-//     rc = spdk_nvme_qpair_process_completions(zctrlr->GetIoQpair(), 0);
-//     if (rc < 0) {
-//         // NXIO is expected when the connection is down.
-//         if (rc != -ENXIO) {
-//             SPDK_ERRLOG("NVMf request failed for conn %d\n", rc);
-//         }
-//     } else if (rc > 0) {
-//         poller_rc = SPDK_POLLER_BUSY;
-//     }
-//     return poller_rc;
-// }
-
 static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
                                      void *poll_group_ctx)
 {
@@ -217,16 +179,6 @@ int ioWorker(void *args)
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
-
-    // ZstoreController *zctrlr = (ZstoreController *)args;
-    // struct spdk_thread *thread = zctrlr->mIoThread.thread;
-    // spdk_set_thread(thread);
-    // spdk_poller *p;
-    // p = spdk_poller_register(handleIoCompletions, zctrlr, 0);
-    // zctrlr->SetCompletionPoller(p);
-    // while (true) {
-    //     spdk_thread_poll(thread, 0, 0);
-    // }
 }
 
 void zoneRead(void *arg1)
@@ -235,14 +187,7 @@ void zoneRead(void *arg1)
     auto ioCtx = ctx->ioContext;
     int rc = 0;
 
-    // FIXME
     assert(ctx->ctrl != nullptr);
-    // if (ctx->ctrl == nullptr)
-    //     return;
-
-    // log_debug("ding ding: we are running spdk read: offset {}, size {}, "
-    //           "flags {}",
-    //           ioCtx.offset, ioCtx.size, ioCtx.flags);
 
     ctx->ctrl->CheckIoQpair("Zone read");
     rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
@@ -267,10 +212,7 @@ static void issueIo(void *args)
     if (zc->verbose)
         log_debug("Issue IO");
 
-    // std::unique_lock lock(zc->g_mutex_);
-    // zc->context_pool_mutex_.lock();
     RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
-    // zc->context_pool_mutex_.unlock();
     auto ioCtx = slot->ioContext;
 
     ioCtx.ns = zc->GetDevice()->GetNamespace();
@@ -287,18 +229,6 @@ static void issueIo(void *args)
     slot->ctrl = zc;
     assert(slot->ctrl == zc);
     assert(slot->ctrl != nullptr);
-
-    // if (g_arbitration.is_random) {
-    //     offset_in_ios = rand_r(&seed) % entry->size_in_ios;
-    // } else {
-    //     offset_in_ios = worker->ns_ctx->offset_in_ios++;
-    //     if (worker->ns_ctx->offset_in_ios == entry->size_in_ios) {
-    //         worker->ns_ctx->offset_in_ios = 0;
-    //     }
-    // }
-
-    // log_debug("Before READ {}", zctrlr->GetTaskPoolSize());
-    // log_debug("Before READ {}", offset_in_ios * entry->io_size_blocks);
 
     thread_send_msg(zc->GetIoThread(0), zoneRead, slot);
 }
@@ -402,14 +332,12 @@ int handleObjectSubmit(void *args)
 {
     bool busy = false;
     ZstoreController *zctrlr = (ZstoreController *)args;
-    // zctrlr->CheckTaskPool("submit IO");
     int queue_depth = zctrlr->GetQueueDepth();
     // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
 
     // auto task_count = zctrlr->GetTaskCount();
 
     // Multiple threads/readers can read the counter's value at the same time.
-    // std::shared_lock lock(zctrlr->context_pool_mutex_);
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth) {
@@ -680,7 +608,6 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
 void RequestContextPool::ReturnRequestContext(RequestContext *slot)
 {
     std::unique_lock lock(g_shared_mutex_);
-    // g_mutex_.lock();
 
     assert(slot->available);
     if (slot < contexts || slot >= contexts + capacity) {
@@ -691,5 +618,4 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
         assert(availableContexts.size() <= capacity);
         availableContexts.emplace_back(slot);
     }
-    // g_mutex_.unlock();
 }

@@ -179,6 +179,7 @@ class Configuration
 
     bool gUseObject = false;
     bool gUseDummyWorkload = false;
+    bool gUseHttp = false;
 
     int gNumIoThreads = 2;
     int gNumHttpThreads = 8;
