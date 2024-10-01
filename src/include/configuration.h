@@ -181,5 +181,5 @@ class Configuration
     bool gUseDummyWorkload = false;
 
     int gNumIoThreads = 2;
-    int gNumHttpThreads = 3;
+    int gNumHttpThreads = 8;
 };
