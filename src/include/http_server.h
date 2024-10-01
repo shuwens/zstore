@@ -1,6 +1,5 @@
 #pragma once
 #include "http_utils.h"
-#include "zstore_controller.h"
 
 // Handles an HTTP server connection
 class session : public std::enable_shared_from_this<session>
@@ -59,7 +58,7 @@ class session : public std::enable_shared_from_this<session>
             return fail(ec, "read");
 
         // Send the response
-        send_response(handle_request(*doc_root_, std::move(req_)));
+        send_response(handle_request(*doc_root_, std::move(req_), zctrl_));
     }
 
     void send_response(http::message_generator &&msg)

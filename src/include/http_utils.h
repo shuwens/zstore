@@ -1,4 +1,6 @@
 #pragma once
+
+#include "zstore_controller.h"
 #include <algorithm>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
@@ -105,7 +107,8 @@ std::string path_cat(beast::string_view base, beast::string_view path)
 template <class Body, class Allocator>
 http::message_generator
 handle_request(beast::string_view doc_root,
-               http::request<Body, http::basic_fields<Allocator>> &&req)
+               http::request<Body, http::basic_fields<Allocator>> &&req,
+               ZstoreController &zctrl)
 {
     auto const dummy = [&req](beast::string_view target) {
         http::response<http::string_body> res{http::status::ok, req.version()};
@@ -176,6 +179,43 @@ handle_request(beast::string_view doc_root,
     // Handle the case where the file doesn't exist
     if (ec == beast::errc::no_such_file_or_directory) {
         // return not_found(req.target());
+        // FIXME
+        if (!zctrl.isDraining &&
+            zctrl.mRequestContextPool->availableContexts.size() > 0) {
+            if (!zctrl.start) {
+                zctrl.start = true;
+                zctrl.stime = std::chrono::high_resolution_clock::now();
+            }
+
+            RequestContext *slot =
+                zctrl.mRequestContextPool->GetRequestContext(true);
+            slot->ctrl = &zctrl;
+            assert(slot->ctrl == &zctrl);
+
+            auto ioCtx = slot->ioContext;
+            // FIXME hardcode
+            int size_in_ios = 212860928;
+            int io_size_blocks = 1;
+            // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+            auto offset_in_ios = 1;
+
+            ioCtx.ns = zctrl.GetDevice()->GetNamespace();
+            ioCtx.qpair = zctrl.GetIoQpair();
+            ioCtx.data = slot->dataBuffer;
+            ioCtx.offset = zslba + zctrl.GetDevice()->mTotalCounts;
+            ioCtx.size = io_size_blocks;
+            ioCtx.cb = complete;
+            ioCtx.ctx = slot;
+            ioCtx.flags = 0;
+            slot->ioContext = ioCtx;
+
+            assert(slot->ioContext.cb != nullptr);
+            assert(slot->ctrl != nullptr);
+            {
+                std::unique_lock lock(zctrl.GetRequestQueueMutex());
+                zctrl.EnqueueRead(slot);
+            }
+        }
         return dummy(req.target());
     }
     // Handle an unknown error

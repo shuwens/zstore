@@ -3,14 +3,20 @@
 #include "configuration.h"
 #include "device.h"
 #include "global.h"
-#include "http_server.h"
 #include "utils.hpp"
+#include <boost/asio/dispatch.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/version.hpp>
+#include <boost/config.hpp>
 #include <cstring>
 #include <mutex>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
 #include <unistd.h>
 
+namespace net = boost::asio;        // from <boost/asio.hpp>
 const uint64_t zone_dist = 0x80000; // zone size
 const int current_zone = 0;
 const int threads = 8;
@@ -111,6 +117,8 @@ class ZstoreController
     void Execute(uint64_t offset, uint32_t size, void *data, bool is_write,
                  zns_raid_request_complete cb_fn, void *cb_args);
 
+    void Drain();
+
     void EnqueueWrite(RequestContext *ctx);
     void EnqueueRead(RequestContext *ctx);
     // void EnqueueReadReaping(RequestContext *ctx);
@@ -124,10 +132,9 @@ class ZstoreController
 
     // int GetEventsToDispatchSize();
 
-    void Drain();
-
     std::queue<RequestContext *> &GetRequestQueue();
-    std::mutex &GetRequestQueueMutex();
+    std::shared_mutex &GetRequestQueueMutex();
+    // std::mutex &GetRequestQueueMutex();
     int GetRequestQueueSize();
 
     // void UpdateIndexNeedLock(uint64_t lba, PhysicalAddr phyAddr);
@@ -183,9 +190,9 @@ class ZstoreController
     RequestContextPool *mRequestContextPool;
     std::unordered_set<RequestContext *> mInflightRequestContext;
 
-    mutable std::shared_mutex g_mutex_;
+    // mutable std::shared_mutex g_mutex_;
     // mutable std::shared_mutex context_pool_mutex_;
-    std::mutex context_pool_mutex_;
+    // std::mutex context_pool_mutex_;
 
     // std::mutex mTaskPoolMutex;
     bool verbose;
@@ -207,7 +214,8 @@ class ZstoreController
 
     std::vector<Device *> mDevices;
     std::queue<RequestContext *> mRequestQueue;
-    std::mutex mRequestQueueMutex;
+    // std::mutex mRequestQueueMutex;
+    std::shared_mutex mRequestQueueMutex;
 
     spdk_poller *mEventsPoller = nullptr;
     spdk_poller *mDispatchPoller = nullptr;

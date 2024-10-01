@@ -416,6 +416,16 @@ void ZstoreController::EnqueueWrite(RequestContext *ctx)
     // log_debug("after push: read q {}", GetWriteQueueSize());
 }
 
+std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
+{
+    return mRequestQueue;
+}
+
+std::shared_mutex &ZstoreController::GetRequestQueueMutex()
+{
+    return mRequestQueueMutex;
+}
+
 Result<MapEntry> ZstoreController::find_object(std::string key)
 {
     // thanks to std::less<> this no longer creates a std::string

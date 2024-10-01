@@ -18,7 +18,7 @@
 #include <vector>
 
 std::shared_mutex g_shared_mutex_;
-std::mutex g_mutex_;
+// std::mutex g_mutex_;
 
 typedef std::pair<std::string, int32_t> MapEntry;
 typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;

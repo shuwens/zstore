@@ -89,8 +89,20 @@ int main(int argc, char **argv)
         // context().run();
 
         // return EXIT_SUCCESS;
-        // while (1)
-        //     sleep(1);
+        while (1) {
+            auto etime = std::chrono::high_resolution_clock::now();
+            auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
+                             etime - gZstoreController->stime)
+                             .count();
+            auto tput = gZstoreController->GetDevice()->mTotalCounts *
+                        g_micro_to_second / delta;
+
+            // if (g->verbose)
+            log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+                     gZstoreController->GetDevice()->mTotalCounts, delta, tput);
+
+            sleep(1);
+        }
     } else {
         sleep(10);
     }
