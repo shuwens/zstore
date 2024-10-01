@@ -121,24 +121,18 @@ int handleHttpRequest(void *args)
 {
     bool busy = false;
     ZstoreController *ctrl = (ZstoreController *)args;
-    // if (!ctrl->isDraining &&
-    //     ctrl->mRequestContextPool->availableContexts.size() > 0) {
-    //
-    //     auto p = ctrl->ioc.poll();
-    //
-    //     if (p == boost::asio::error::eof) {
-    //         log_debug("error eof");
-    //     }
-    //     busy = true;
-    // }
+    while (ctrl->mIoc.poll()) {
+        busy = true;
+    }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
 int httpWorker(void *args)
 {
-    ZstoreController *ctrl = (ZstoreController *)args;
-    struct spdk_thread *thread = ctrl->GetHttpThread();
+    IoThread *httpThread = (IoThread *)args;
+    struct spdk_thread *thread = httpThread->thread;
+    ZstoreController *ctrl = httpThread->controller;
     spdk_set_thread(thread);
     spdk_poller *p;
     p = spdk_poller_register(handleHttpRequest, ctrl, 0);
@@ -150,9 +144,9 @@ int httpWorker(void *args)
 
 int dummyWorker(void *args)
 {
-
-    ZstoreController *ctrl = (ZstoreController *)args;
-    struct spdk_thread *thread = ctrl->GetHttpThread();
+    IoThread *httpThread = (IoThread *)args;
+    struct spdk_thread *thread = httpThread->thread;
+    ZstoreController *ctrl = httpThread->controller;
     spdk_set_thread(thread);
     spdk_poller *p;
     p = spdk_poller_register(handleDummyRequest, ctrl, 0);

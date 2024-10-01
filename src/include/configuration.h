@@ -54,6 +54,8 @@ class Configuration
 
     static int GetNumIoThreads() { return GetInstance().gNumIoThreads; }
 
+    static int GetNumHttpThreads() { return GetInstance().gNumHttpThreads; }
+
     static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload; }
 
     static bool UseObject() { return GetInstance().gUseObject; }
@@ -71,11 +73,6 @@ class Configuration
     static uint32_t GetReceiverThreadCoreId()
     {
         return GetInstance().gReceiverThreadCoreId;
-    }
-
-    static uint32_t GetHttpThreadCoreId()
-    {
-        return GetInstance().gHttpThreadCoreId;
     }
 
     static uint32_t GetIndexThreadCoreId()
@@ -101,6 +98,16 @@ class Configuration
     static uint32_t GetIoThreadCoreId(uint32_t thread_id)
     {
         return GetInstance().gIoThreadCoreIdBase + thread_id;
+    }
+
+    static uint32_t GetHttpThreadCoreId()
+    {
+        return GetInstance().gHttpThreadCoreIdBase;
+    }
+
+    static uint32_t GetHttpThreadCoreId(uint32_t thread_id)
+    {
+        return GetInstance().gHttpThreadCoreIdBase + thread_id;
     }
 
     static void SetStorageSpaceInBytes(uint64_t storageSpaceInBytes)
@@ -144,10 +151,12 @@ class Configuration
 
     // SystemMode gSystemMode = ZAPRAID;
     uint32_t gDispatchThreadCoreId = 1;
-    uint32_t gHttpThreadCoreId = 2;
+    // uint32_t gHttpThreadCoreId = 2;
 
     // this should just go last
-    uint32_t gIoThreadCoreIdBase = 3;
+    uint32_t gIoThreadCoreIdBase = 2;
+    uint32_t gHttpThreadCoreIdBase = 4;
+    // uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads + 1;
 
     // Not used for now; functions collocated with dispatch thread.
     uint32_t gCompletionThreadCoreId = 5;
@@ -161,8 +170,6 @@ class Configuration
     // uint32_t gTotalIO = 500'000;
 
     const int current_zone = 49;
-    int gNumIoThreads = 1;
-
     // uint32_t gTotalIO = 4'000'000;
     // int gQueueDepth = 256;
 
@@ -172,4 +179,7 @@ class Configuration
 
     bool gUseObject = false;
     bool gUseDummyWorkload = false;
+
+    int gNumIoThreads = 2;
+    int gNumHttpThreads = 3;
 };

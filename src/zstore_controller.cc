@@ -12,23 +12,55 @@ static std::vector<Device *> g_devices;
 void ZstoreController::initHttpThread()
 {
     struct spdk_cpuset cpumask;
-    spdk_cpuset_zero(&cpumask);
-    spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(), true);
-    mHttpThread = spdk_thread_create("HttpThread", &cpumask);
-    log_info("Create {} (id {}) on Core {}", spdk_thread_get_name(mHttpThread),
-             spdk_thread_get_id(mHttpThread),
-             Configuration::GetHttpThreadCoreId());
-    int rc;
-    if (Configuration::UseDummyWorkload())
-        rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
-                                           dummyWorker, this);
-    else
-        rc = spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
-                                           httpWorker, this);
-
-    if (rc < 0) {
-        log_error("Failed to launch HTTP thread error: {}", spdk_strerror(rc));
+    for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
+         ++threadId) {
+        spdk_cpuset_zero(&cpumask);
+        spdk_cpuset_set_cpu(&cpumask,
+                            Configuration::GetHttpThreadCoreId(threadId), true);
+        mHttpThread[threadId].thread =
+            spdk_thread_create("HttpThread", &cpumask);
+        assert(mHttpThread[threadId].thread != nullptr);
+        mHttpThread[threadId].controller = this;
+        int rc;
+        if (Configuration::UseDummyWorkload())
+            rc = spdk_env_thread_launch_pinned(
+                Configuration::GetHttpThreadCoreId(threadId), dummyWorker,
+                &mHttpThread[threadId]);
+        else
+            rc = spdk_env_thread_launch_pinned(
+                Configuration::GetHttpThreadCoreId(threadId), httpWorker,
+                &mHttpThread[threadId]);
+        log_info("Http thread name {} id {} on core {}",
+                 spdk_thread_get_name(mHttpThread[threadId].thread),
+                 spdk_thread_get_id(mHttpThread[threadId].thread),
+                 Configuration::GetHttpThreadCoreId(threadId));
+        if (rc < 0) {
+            log_error("Failed to launch Http thread error: {} {}", strerror(rc),
+                      spdk_strerror(rc));
+        }
     }
+
+    // spdk_cpuset_zero(&cpumask);
+    // spdk_cpuset_set_cpu(&cpumask, Configuration::GetHttpThreadCoreId(),
+    // true); mHttpThread = spdk_thread_create("HttpThread", &cpumask);
+    // log_info("Create {} (id {}) on Core {}",
+    // spdk_thread_get_name(mHttpThread),
+    //          spdk_thread_get_id(mHttpThread),
+    //          Configuration::GetHttpThreadCoreId());
+    // int rc;
+    // if (Configuration::UseDummyWorkload())
+    //     rc =
+    //     spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
+    //                                        dummyWorker, this);
+    // else
+    //     rc =
+    //     spdk_env_thread_launch_pinned(Configuration::GetHttpThreadCoreId(),
+    //                                        httpWorker, this);
+    //
+    // if (rc < 0) {
+    //     log_error("Failed to launch HTTP thread error: {}",
+    //     spdk_strerror(rc));
+    // }
 }
 
 void ZstoreController::initCompletionThread()
@@ -134,7 +166,6 @@ int ZstoreController::Init(bool object)
     setNumOfDevices(Configuration::GetNumOfDevices());
 
     // we add one device for now
-
     {
         Device *device = new Device();
 
@@ -190,7 +221,6 @@ int ZstoreController::Init(bool object)
 
     initIoThread();
     initDispatchThread();
-    initHttpThread();
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
@@ -198,7 +228,14 @@ int ZstoreController::Init(bool object)
     std::make_shared<listener>(mIoc, tcp::endpoint{address, port}, doc_root)
         ->run();
 
-    mHttpThreads.reserve(threads - 1);
+    for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
+         ++threadId) {
+        // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
+        // NULL);
+        mHttpThread[threadId].controller = this;
+    }
+    initHttpThread();
+    // mHttpThreads.reserve(threads - 1);
     log_info("ZstoreController Init finish");
 
     return rc;
@@ -246,7 +283,9 @@ ZstoreController::~ZstoreController()
         thread_send_msg(mIoThread[i].thread, quit, nullptr);
     }
     thread_send_msg(mDispatchThread, quit, nullptr);
-    thread_send_msg(mHttpThread, quit, nullptr);
+    for (uint32_t i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
+        thread_send_msg(mHttpThread[i].thread, quit, nullptr);
+    }
     // thread_send_msg(mIndexThread, quit, nullptr);
     // thread_send_msg(mCompletionThread, quit, nullptr);
     log_debug("drain io: {}", spdk_get_ticks());

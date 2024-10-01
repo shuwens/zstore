@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
     auto const doc_root = std::make_shared<std::string>(".");
-    auto const threads = std::max<int>(1, 2);
+    auto const threads = std::max<int>(1, 3);
 
     // The io_context is required for all I/O
     net::io_context ioc{threads};

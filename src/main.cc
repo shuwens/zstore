@@ -31,7 +31,7 @@ int main(int argc, char **argv)
     opts.name = "Zstore";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = "0xf";
+    opts.core_mask = "0xfff";
     opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
         return 1;
@@ -63,23 +63,23 @@ int main(int argc, char **argv)
         // for (auto i = threads - 1; i > 0; --i)
         //     gZstoreController->v.emplace_back([&ioc] { ioc.run(); });
         // ioc.run();
-        boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
-            work{gZstoreController->mIoc.get_executor()};
+        // boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
+        //     work{gZstoreController->mIoc.get_executor()};
 
         // boost::asio::executor_work_guard<
         //     boost::asio::io_context::executor_type> =
         //     boost::asio::make_work_guard(
         //         gZstoreController->mIoc.get_executor());
 
-        for (auto i = threads - 1; i > 0; --i) {
-            log_debug("i is {}", i);
-            gZstoreController->mHttpThreads.emplace_back(
-                []() { gZstoreController->mIoc.run(); });
-        }
+        // for (auto i = threads - 1; i > 0; --i) {
+        //     log_debug("i is {}", i);
+        //     gZstoreController->mHttpThreads.emplace_back(
+        //         []() { gZstoreController->mIoc.run(); });
+        // }
         // std::ranges::generate(gZstoreController->mHttpThreads, [&]() {
         //     return std::thread([&]() { gZstoreController->mIoc.run(); });
         // });
-        gZstoreController->mIoc.run();
+        // gZstoreController->mIoc.run();
 
         // ranges::generate(m_extra_threads, [&]() {
         //     return std::thread([&]() { context().run(); });
@@ -88,7 +88,8 @@ int main(int argc, char **argv)
         // context().run();
 
         // return EXIT_SUCCESS;
-
+        // while (1)
+        //     sleep(1);
     } else {
         sleep(10);
     }
