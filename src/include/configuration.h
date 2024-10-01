@@ -183,4 +183,8 @@ class Configuration
 
     int gNumIoThreads = 2;
     int gNumHttpThreads = 8;
+
+    // TODO: use other spdk thread to work stealing
+    //
+    bool gWorkStealing = false;
 };

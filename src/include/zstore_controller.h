@@ -21,8 +21,9 @@ auto zslba = zone_dist * current_zone;
 class ZstoreController
 {
   public:
+    ZstoreController(net::io_context &ioc) : mIoc_(ioc){};
     // The io_context is required for all I/O
-    net::io_context mIoc{threads};
+    net::io_context &mIoc_;
 
     ~ZstoreController();
     int Init(bool need_env);

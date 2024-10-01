@@ -43,7 +43,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    gZstoreController = new ZstoreController();
+    net::io_context ioc{threads};
+    gZstoreController = new ZstoreController(std::ref(ioc));
     gZstoreController->Init(false);
 
     if (!Configuration::UseDummyWorkload()) {
@@ -98,7 +99,6 @@ int main(int argc, char **argv)
 
     spdk_env_thread_wait_all();
 
-    // log_debug("XXXX");
     gZstoreController->zstore_cleanup();
 
     return rc;

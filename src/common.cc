@@ -102,7 +102,7 @@ int handleHttpRequest(void *args)
 {
     bool busy = false;
     ZstoreController *ctrl = (ZstoreController *)args;
-    while (ctrl->mIoc.poll()) {
+    while (ctrl->mIoc_.poll()) {
         busy = true;
     }
 
