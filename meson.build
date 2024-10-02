@@ -49,12 +49,12 @@ zstore_deps = [
 		modules: ['system', 'filesystem', 'program_options', 'thread', 'regex'],
 	),
 ]
-libs = declare_dependency(
-	link_args: [
-		meson.current_source_dir() + '/lib/libcivetweb.a',
-	],
-)
-incdir = include_directories('civetweb-1.16/include')
+# libs = declare_dependency(
+# 	link_args: [
+# 		meson.current_source_dir() + '/lib/libcivetweb.a',
+# 	],
+# )
+# incdir = include_directories('civetweb-1.16/include')
 
 # FIXME: there should be a better of doing this, but I don't know it yet.
 custom_libnames = [
@@ -185,9 +185,10 @@ spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 executable(
 	'zstore',
 	files('src/main.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	# dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
-	include_directories: incdir,
+	# include_directories: incdir,
 	install: true,
 )
 
@@ -205,21 +206,21 @@ executable(
 executable(
 	'mpsd_append',
 	files('examples/mp_one_drive_append.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'mpsd_read',
 	files('examples/mp_one_drive_read.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 # executable(
 # 	'check_read',
 # 	files('src/examples/check_read.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
@@ -228,7 +229,7 @@ executable(
 executable(
 	'test_read',
 	files('examples/arbitration_read.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -236,7 +237,7 @@ executable(
 executable(
 	'test_append',
 	files('examples/arbitration_append.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -245,7 +246,7 @@ executable(
 executable(
 	'arbitration',
 	files('examples/arbitration.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -254,14 +255,14 @@ executable(
 executable(
 	'rdma_read',
 	files('examples/arbitration_rdma_read.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'rdma_append',
 	files('examples/arbitration_rdma_append.cc'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -270,7 +271,7 @@ executable(
 executable(
 	'http_async',
 	files('examples/http_server_async.cpp'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -278,24 +279,16 @@ executable(
 executable(
 	'http_small',
 	files('examples/http_server_small.cpp'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 
-executable(
-	'civetweb',
-	files('examples/embedded_cpp.cpp'),
-	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	include_directories: incdir,
-	install: true,
-)
 
 # executable(
 # 	'http_poll',
 # 	files('examples/boost_poll.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
@@ -305,7 +298,7 @@ executable(
 # executable(
 # 	'zns_test',
 # 	files('src/tests/device_test.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
@@ -313,8 +306,7 @@ executable(
 # executable(
 # 	'object_test',
 # 	files('src/tests/object_test.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
-# 	include_directories: incdir,
 # 	install: true,
 # )

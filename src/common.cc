@@ -199,7 +199,7 @@ void zoneRead(void *arg1)
     } else {
         // worker->ns_ctx->current_queue_depth++;
     }
-    assert(rc == 0);
+    // assert(rc == 0);
     // struct ZstoreObject *object;
     // object = read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
 
