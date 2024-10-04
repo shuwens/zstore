@@ -49,12 +49,6 @@ zstore_deps = [
 		modules: ['system', 'filesystem', 'program_options', 'thread', 'regex'],
 	),
 ]
-# libs = declare_dependency(
-# 	link_args: [
-# 		meson.current_source_dir() + '/lib/libcivetweb.a',
-# 	],
-# )
-# incdir = include_directories('civetweb-1.16/include')
 
 # FIXME: there should be a better of doing this, but I don't know it yet.
 custom_libnames = [
@@ -205,14 +199,14 @@ executable(
 # nvmf multipath signle drive
 executable(
 	'mpsd_append',
-	files('examples/mp_one_drive_append.cc'),
+	files('examples/multipath/mp_one_drive_append.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'mpsd_read',
-	files('examples/mp_one_drive_read.cc'),
+	files('examples/multipath/mp_one_drive_read.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -228,40 +222,37 @@ executable(
 # nvmf arbitration
 executable(
 	'test_read',
-	files('examples/arbitration_read.cc'),
+	files('examples/arbitration/arbitration_read.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
-
 executable(
 	'test_append',
-	files('examples/arbitration_append.cc'),
+	files('examples/arbitration/arbitration_append.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 
-# local
+# localand rdma
 executable(
 	'arbitration',
-	files('examples/arbitration.cc'),
+	files('examples/arbitration/arbitration.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
-
-# rdma
 executable(
 	'rdma_read',
-	files('examples/arbitration_rdma_read.cc'),
+	files('examples/arbitration/arbitration_rdma_read.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
 	'rdma_append',
-	files('examples/arbitration_rdma_append.cc'),
+	files('examples/arbitration/arbitration_rdma_append.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -270,28 +261,18 @@ executable(
 # HTTP server
 executable(
 	'http_async',
-	files('examples/http_server_async.cpp'),
+	files('examples/boost/http_server_async.cpp'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
-
 executable(
 	'http_small',
-	files('examples/http_server_small.cpp'),
+	files('examples/boost/http_server_small.cpp'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
-
-
-# executable(
-# 	'http_poll',
-# 	files('examples/boost_poll.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
 
 # Tests
 # -----------
