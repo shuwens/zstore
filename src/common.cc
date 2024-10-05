@@ -44,6 +44,10 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     slot->available = true;
     slot->Clear();
     ctrl->mRequestContextPool->ReturnRequestContext(slot);
+
+    // TODO: here we need to invoke the magic and make sure the on_get or
+    // on_put can be invoked, it can be as simple of mark completion token is
+    // done
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)

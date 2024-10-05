@@ -1,9 +1,5 @@
 #pragma once
 #include "boost_utils.h"
-#include "src/include/utils.hpp"
-#include <boost/asio.hpp>
-
-namespace asio = boost::asio;
 
 // Handles an HTTP server connection
 class session : public std::enable_shared_from_this<session>
@@ -15,49 +11,6 @@ class session : public std::enable_shared_from_this<session>
     ZstoreController &zctrl_;
 
   public:
-    // NOTE the following functions are important ones where our HTTP server
-    // (boost beast) interact with the SPDK infrastructure. Each of these
-    // do_zstore_X function is async, and also
-    // https://www.boost.org/doc/libs/1_86_0/doc/html/boost_asio/reference/asynchronous_operations.html
-    // https://www.boost.org/doc/libs/1_86_0/libs/beast/doc/html/beast/ref/boost__beast__async_base.html
-
-    template <class CompletionToken>
-    auto async_do_get(http::request<http::string_body> req_,
-                      CompletionToken &&token)
-    {
-        log_debug("start async do get ");
-        auto init = [](auto completion_handler,
-                       http::request<http::string_body> req_) {
-            log_debug("completion of async do get ");
-            // writeMessage(std::move(msg), std::move(completion_handler));
-            // initiate the operation and cause completion_handler to be
-            // invoked with the result
-        };
-
-        return async_initiate<CompletionToken,
-                              void(http::request<http::string_body>,
-                                   ZstoreObject)>(init, token, std::move(req_));
-    }
-
-    template <class CompletionToken>
-    auto async_do_put(http::request<http::string_body> req_,
-                      CompletionToken &&token)
-    {
-        log_debug("strt async do put ");
-
-        auto init = [](auto completion_handler,
-                       http::request<http::string_body> req_) {
-            log_debug("completion async do put ");
-            // writeMessage(std::move(msg), std::move(completion_handler));
-            // initiate the operation and cause completion_handler to be
-            // invoked with the result
-        };
-
-        return async_initiate<CompletionToken,
-                              void(http::request<http::string_body>,
-                                   ZstoreObject)>(init, token, std::move(req_));
-    }
-
     // Take ownership of the stream
     session(tcp::socket &&socket,
             std::shared_ptr<std::string const> const &doc_root,
@@ -73,12 +26,12 @@ class session : public std::enable_shared_from_this<session>
         // on the I/O objects in this session. Although not strictly necessary
         // for single-threaded contexts, this example code is written to be
         // thread-safe by default.
-        net::dispatch(stream_.get_executor(),
-                      beast::bind_front_handler(&session::do_request,
-                                                shared_from_this()));
+        net::dispatch(
+            stream_.get_executor(),
+            beast::bind_front_handler(&session::do_read, shared_from_this()));
     }
 
-    void do_request()
+    void do_read()
     {
         // Make the request empty before reading,
         // otherwise the operation behavior is undefined.
@@ -88,12 +41,12 @@ class session : public std::enable_shared_from_this<session>
         stream_.expires_after(std::chrono::seconds(30));
 
         // Read a request
-        http::async_read(stream_, buffer_, req_,
-                         beast::bind_front_handler(&session::on_request,
-                                                   shared_from_this()));
+        http::async_read(
+            stream_, buffer_, req_,
+            beast::bind_front_handler(&session::on_read, shared_from_this()));
     }
 
-    void on_request(beast::error_code ec, std::size_t bytes_transferred)
+    void on_read(beast::error_code ec, std::size_t bytes_transferred)
     {
         boost::ignore_unused(bytes_transferred);
 
@@ -104,30 +57,9 @@ class session : public std::enable_shared_from_this<session>
         if (ec)
             return fail(ec, "read");
 
-        // MAGIC
-
-        if (req_.method() == http::verb::get) {
-            async_do_get(req_, asio::deferred);
-        } else if (req_.method() == http::verb::put) {
-            async_do_put(req_, asio::deferred);
-        } else {
-            log_error("Request is not a supported operation\n");
-            //           req_.method());
-        }
-
         // Send the response
         send_response(handle_request(*doc_root_, std::move(req_), zctrl_));
     }
-
-    // using Packet = std::string;
-    // void writeMessage(Packet msg,
-    //                   std::move_only_function<void(Packet)> wroteMessage)
-    // {
-    //     std::thread([=, f = std::move(wroteMessage)]() mutable {
-    //         // std::this_thread::sleep_for(1s);
-    //         std::move(f)(msg);
-    //     }).detach();
-    // }
 
     void send_response(http::message_generator &&msg)
     {
@@ -155,7 +87,7 @@ class session : public std::enable_shared_from_this<session>
         }
 
         // Read another request
-        do_request();
+        do_read();
     }
 
     void do_close()
