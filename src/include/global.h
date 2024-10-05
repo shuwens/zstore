@@ -1,13 +1,18 @@
 #pragma once
 #include "device.h"
+#include "http_server.h"
 #include "utils.hpp"
 #include "zstore_controller.h"
+#include <boost/beast/http.hpp>
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
 
+namespace http = boost::beast::http; // from <boost/beast/http.hpp>
+
 class ZstoreController;
+class session;
 
 struct DrainArgs {
     ZstoreController *ctrl;
@@ -65,6 +70,10 @@ struct RequestContext {
         void *ctx;
         uint32_t flags;
     } ioContext;
+
+    http::request<http::string_body> request;
+    std::shared_ptr<std::string const> doc_root;
+    session *session_;
 
     uint32_t bufferSize; // for recording partial writes
 

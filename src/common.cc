@@ -1,4 +1,6 @@
 #include "include/common.h"
+#include "include/boost_utils.h"
+#include "include/http_server.h"
 #include "include/object.h"
 #include "include/utils.hpp"
 #include "include/zstore_controller.h"
@@ -35,6 +37,11 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     }
 
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+
+    log_debug("Send the response.");
+    slot->session_->send_response(
+        handle_request(std::move(slot->request), *ctrl));
+
     ctrl->GetDevice()->mTotalCounts++;
 
     // FIXME
@@ -78,10 +85,10 @@ int handleDummyRequest(void *args)
 
         auto ioCtx = slot->ioContext;
         // FIXME hardcode
-        int size_in_ios = 212860928;
+        // int size_in_ios = 212860928;
         int io_size_blocks = 1;
         // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-        auto offset_in_ios = 1;
+        // auto offset_in_ios = 1;
 
         ioCtx.ns = ctrl->GetDevice()->GetNamespace();
         ioCtx.qpair = ctrl->GetIoQpair();
@@ -148,8 +155,8 @@ static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
 
 int handleIoCompletions(void *args)
 {
-    static double mTime = 0;
-    static int timeCnt = 0;
+    // static double mTime = 0;
+    // static int timeCnt = 0;
     {
         // double timeNow = GetTimestampInUs();
         // if (mTime == 0) {
@@ -176,7 +183,7 @@ int ioWorker(void *args)
 {
     IoThread *ioThread = (IoThread *)args;
     struct spdk_thread *thread = ioThread->thread;
-    ZstoreController *ctrl = ioThread->controller;
+    // ZstoreController *ctrl = ioThread->controller;
     spdk_set_thread(thread);
     spdk_poller_register(handleIoCompletions, ioThread->group, 0);
     // spdk_poller_register(handleIoPendingZoneWrites, ctrl, 0);
@@ -244,9 +251,9 @@ int handleSubmit(void *args)
 
     std::queue<RequestContext *> &readQ = ctrl->GetReadQueue();
 
-    int queue_depth = ctrl->GetQueueDepth();
-    auto req_inflight = ctrl->mRequestContextPool->capacity -
-                        ctrl->mRequestContextPool->availableContexts.size();
+    // int queue_depth = ctrl->GetQueueDepth();
+    // auto req_inflight = ctrl->mRequestContextPool->capacity -
+    //                     ctrl->mRequestContextPool->availableContexts.size();
 
     // log_debug("queue depth {}, req in flight {}, completed {}, current queue
     // "
@@ -361,7 +368,7 @@ int handleObjectSubmit(void *args)
         // log_debug("Found {}, value {}", current_key, res.value());
         // int offset = res.value().second;
 
-        int offset = 0;
+        // int offset = 0;
         // struct ZstoreObject *obj = ReadObject(zctrlr->pivot, zctrlr);
 
         // struct ZstoreObject obj = ReadObject(offset, zctrlr).value();

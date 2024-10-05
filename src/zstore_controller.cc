@@ -291,8 +291,9 @@ void ZstoreController::register_ctrlr(Device *device,
 {
     uint32_t nsid;
     struct spdk_nvme_ns *ns;
-    union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
-    const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
+    // union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
+    // const struct spdk_nvme_ctrlr_data *cdata =
+    // spdk_nvme_ctrlr_get_data(ctrlr);
 
     for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
          nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
@@ -334,7 +335,7 @@ void ZstoreController::register_ctrlr(Device *device,
 void ZstoreController::zns_dev_init(Device *device, std::string ip1,
                                     std::string port1)
 {
-    int rc = 0;
+    // int rc = 0;
 
     char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
@@ -370,7 +371,7 @@ int ZstoreController::register_controllers(Device *device)
 
 void ZstoreController::unregister_controllers(Device *device)
 {
-    struct spdk_nvme_detach_ctx *detach_ctx = NULL;
+    // struct spdk_nvme_detach_ctx *detach_ctx = NULL;
 }
 
 void ZstoreController::zstore_cleanup()

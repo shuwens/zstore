@@ -74,7 +74,7 @@ ZstoreObject *ReadObject(uint64_t offset, void *ctx)
     // // fdb_seqnum_t _seqnum;
     // // timestamp_t _timestamp;
     // // struct docio_length _length, zero_length;
-    struct ZstoreObject *object;
+    struct ZstoreObject *object = nullptr;
 
     // {
     //

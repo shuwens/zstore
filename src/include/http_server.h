@@ -108,15 +108,55 @@ class session : public std::enable_shared_from_this<session>
 
         if (req_.method() == http::verb::get) {
             async_do_get(req_, asio::deferred);
+            log_debug("do enqueue write");
+            // return not_found(req.target());
+            // FIXME
+            // if (Configuration::UseHttp() && !zctrl.isDraining &&
+            if (!zctrl_.isDraining &&
+                zctrl_.mRequestContextPool->availableContexts.size() > 0) {
+                if (!zctrl_.start) {
+                    zctrl_.start = true;
+                    zctrl_.stime = std::chrono::high_resolution_clock::now();
+                }
+
+                RequestContext *slot =
+                    zctrl_.mRequestContextPool->GetRequestContext(true);
+                slot->ctrl = &zctrl_;
+                assert(slot->ctrl == &zctrl_);
+
+                auto ioCtx = slot->ioContext;
+                // FIXME hardcode
+                int size_in_ios = 212860928;
+                int io_size_blocks = 1;
+                // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+                auto offset_in_ios = 1;
+
+                ioCtx.ns = zctrl_.GetDevice()->GetNamespace();
+                ioCtx.qpair = zctrl_.GetIoQpair();
+                ioCtx.data = slot->dataBuffer;
+                ioCtx.offset = zslba + zctrl_.GetDevice()->mTotalCounts;
+                ioCtx.size = io_size_blocks;
+                ioCtx.cb = complete;
+                ioCtx.ctx = slot;
+                ioCtx.flags = 0;
+                slot->ioContext = ioCtx;
+                slot->request = std::move(req_);
+                slot->doc_root = doc_root_;
+                slot->session_ = this;
+
+                assert(slot->ioContext.cb != nullptr);
+                assert(slot->ctrl != nullptr);
+                {
+                    std::unique_lock lock(zctrl_.GetRequestQueueMutex());
+                    zctrl_.EnqueueRead(slot);
+                }
+            }
         } else if (req_.method() == http::verb::put) {
             async_do_put(req_, asio::deferred);
         } else {
             log_error("Request is not a supported operation\n");
             //           req_.method());
         }
-
-        // Send the response
-        send_response(handle_request(*doc_root_, std::move(req_), zctrl_));
     }
 
     // using Packet = std::string;
@@ -131,6 +171,7 @@ class session : public std::enable_shared_from_this<session>
 
     void send_response(http::message_generator &&msg)
     {
+        log_debug("Send_response.");
         bool keep_alive = msg.keep_alive();
 
         // Write the response
@@ -143,6 +184,7 @@ class session : public std::enable_shared_from_this<session>
     void on_write(bool keep_alive, beast::error_code ec,
                   std::size_t bytes_transferred)
     {
+        log_debug("Enter.");
         boost::ignore_unused(bytes_transferred);
 
         if (ec)
