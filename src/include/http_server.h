@@ -3,6 +3,7 @@
 #include "common.h"
 #include "src/include/utils.hpp"
 #include <boost/asio.hpp>
+#include <boost/beast/http/message.hpp>
 
 namespace asio = boost::asio;
 
@@ -105,16 +106,10 @@ class session : public std::enable_shared_from_this<session>
         if (ec)
             return fail(ec, "read");
 
-        // MAGIC
-
         if (req_.method() == http::verb::get) {
-            // std::unique_lock<std::mutex> lock(zctrl_.GetSessionMutex());
-            std::unique_lock lock(zctrl_.GetSessionMutex());
             async_do_get(req_, asio::deferred);
             log_debug("do enqueue write");
-            // return not_found(req.target());
             // FIXME
-            // if (Configuration::UseHttp() && !zctrl.isDraining &&
             if (!zctrl_.isDraining &&
                 zctrl_.mRequestContextPool->availableContexts.size() > 0) {
                 if (!zctrl_.start) {
@@ -122,7 +117,7 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
 
-                auto closure_ = [this]() {
+                auto closure_ = [this](http::request<http::string_body> req_) {
                     log_error("enter closure \n");
                     send_response(handle_request(std::move(req_), zctrl_));
                 };
@@ -134,11 +129,10 @@ class session : public std::enable_shared_from_this<session>
 
                 auto ioCtx = slot->ioContext;
                 // FIXME hardcode
-                int size_in_ios = 212860928;
+                // int size_in_ios = 212860928;
                 int io_size_blocks = 1;
                 // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-                auto offset_in_ios = 1;
-
+                // auto offset_in_ios = 1;
                 ioCtx.ns = zctrl_.GetDevice()->GetNamespace();
                 ioCtx.qpair = zctrl_.GetIoQpair();
                 ioCtx.data = slot->dataBuffer;
@@ -148,7 +142,7 @@ class session : public std::enable_shared_from_this<session>
                 ioCtx.ctx = slot;
                 ioCtx.flags = 0;
                 slot->ioContext = ioCtx;
-                // slot->request = std::move(req_);
+                slot->request = req_;
                 // slot->doc_root = doc_root_;
                 // slot->session_ = this;
 
@@ -168,16 +162,6 @@ class session : public std::enable_shared_from_this<session>
             //           req_.method());
         }
     }
-
-    // using Packet = std::string;
-    // void writeMessage(Packet msg,
-    //                   std::move_only_function<void(Packet)> wroteMessage)
-    // {
-    //     std::thread([=, f = std::move(wroteMessage)]() mutable {
-    //         // std::this_thread::sleep_for(1s);
-    //         std::move(f)(msg);
-    //     }).detach();
-    // }
 
     void send_response(http::message_generator &&msg)
     {

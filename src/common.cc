@@ -44,7 +44,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     // slot->session_->send_response(
     //     handle_request(std::move(slot->request), *ctrl));
     log_debug("Evaluate the closure.");
-    slot->fn;
+    slot->fn(slot->request);
 
     ctrl->GetDevice()->mTotalCounts++;
 
