@@ -107,7 +107,7 @@ class session : public std::enable_shared_from_this<session>
             return fail(ec, "read");
 
         if (req_.method() == http::verb::get) {
-            async_do_get(req_, asio::deferred);
+            // async_do_get(req_, asio::deferred);
             log_debug("do enqueue write");
             // FIXME
             if (!zctrl_.isDraining &&
@@ -117,9 +117,22 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
 
-                auto closure_ = [this](http::request<http::string_body> req_) {
-                    log_error("enter closure \n");
-                    send_response(handle_request(std::move(req_), zctrl_));
+                http::message_generator msg =
+                    handle_request(std::move(req_), zctrl_);
+                log_error("made msg. {}", msg.is_done());
+                bool keep_alive = msg.keep_alive();
+
+                // FIXME change msg
+
+                // Write the response
+                // FIXME
+                auto closure_ = [this](http::message_generator msg,
+                                       bool keep_alive) {
+                    log_error("enter closure {} \n", msg.is_done());
+                    beast::async_write(stream_, std::move(msg),
+                                       beast::bind_front_handler(
+                                           &session::on_write,
+                                           shared_from_this(), keep_alive));
                 };
 
                 RequestContext *slot =
@@ -143,6 +156,8 @@ class session : public std::enable_shared_from_this<session>
                 ioCtx.flags = 0;
                 slot->ioContext = ioCtx;
                 slot->request = req_;
+                slot->msg = std::move(&msg);
+                slot->keep_alive = keep_alive;
                 // slot->doc_root = doc_root_;
                 // slot->session_ = this;
 

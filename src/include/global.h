@@ -70,15 +70,16 @@ struct RequestContext {
         void *ctx;
         uint32_t flags;
     } ioContext;
+    uint32_t bufferSize; // for recording partial writes
 
     http::request<http::string_body> request;
     std::shared_ptr<std::string const> doc_root;
     session *session_;
-
-    uint32_t bufferSize; // for recording partial writes
+    http::message_generator *msg;
+    bool keep_alive;
 
     // closure
-    std::function<void(http::request<http::string_body>)> fn;
+    std::function<void(http::message_generator msg, bool keep_alive)> fn;
     // void apply() { value = function(value); }
 
     void Clear();
