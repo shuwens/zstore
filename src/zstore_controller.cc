@@ -427,6 +427,8 @@ std::shared_mutex &ZstoreController::GetRequestQueueMutex()
     return mRequestQueueMutex;
 }
 
+std::shared_mutex &ZstoreController::GetSessionMutex() { return mSessionMutex; }
+
 Result<MapEntry> ZstoreController::find_object(std::string key)
 {
     // thanks to std::less<> this no longer creates a std::string

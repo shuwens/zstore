@@ -1,5 +1,6 @@
 #pragma once
 #include "boost_utils.h"
+#include "common.h"
 #include "src/include/utils.hpp"
 #include <boost/asio.hpp>
 
@@ -15,8 +16,6 @@ class session : public std::enable_shared_from_this<session>
     ZstoreController &zctrl_;
 
   public:
-    std::shared_mutex session_mutex_;
-
     // NOTE the following functions are important ones where our HTTP server
     // (boost beast) interact with the SPDK infrastructure. Each of these
     // do_zstore_X function is async, and also
@@ -109,6 +108,8 @@ class session : public std::enable_shared_from_this<session>
         // MAGIC
 
         if (req_.method() == http::verb::get) {
+            // std::unique_lock<std::mutex> lock(zctrl_.GetSessionMutex());
+            std::unique_lock lock(zctrl_.GetSessionMutex());
             async_do_get(req_, asio::deferred);
             log_debug("do enqueue write");
             // return not_found(req.target());
@@ -120,6 +121,10 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.start = true;
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
+
+                auto closure_ = [this]() {
+                    send_response(handle_request(std::move(req_), zctrl_));
+                };
 
                 RequestContext *slot =
                     zctrl_.mRequestContextPool->GetRequestContext(true);
@@ -142,12 +147,11 @@ class session : public std::enable_shared_from_this<session>
                 ioCtx.ctx = slot;
                 ioCtx.flags = 0;
                 slot->ioContext = ioCtx;
-                slot->request = std::move(req_);
-                slot->doc_root = doc_root_;
-                {
-                    slot->session_ = this;
-                    session_mutex_.lock();
-                }
+                // slot->request = std::move(req_);
+                // slot->doc_root = doc_root_;
+                // slot->session_ = this;
+
+                slot->fn = closure_;
 
                 assert(slot->ioContext.cb != nullptr);
                 assert(slot->ctrl != nullptr);
@@ -180,6 +184,7 @@ class session : public std::enable_shared_from_this<session>
         bool keep_alive = msg.keep_alive();
 
         // Write the response
+        // FIXME
         beast::async_write(stream_, std::move(msg),
                            beast::bind_front_handler(&session::on_write,
                                                      shared_from_this(),

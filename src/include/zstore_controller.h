@@ -134,6 +134,7 @@ class ZstoreController
 
     std::queue<RequestContext *> &GetRequestQueue();
     std::shared_mutex &GetRequestQueueMutex();
+    std::shared_mutex &GetSessionMutex();
     // std::mutex &GetRequestQueueMutex();
     int GetRequestQueueSize();
 
@@ -216,6 +217,8 @@ class ZstoreController
     std::queue<RequestContext *> mRequestQueue;
     // std::mutex mRequestQueueMutex;
     std::shared_mutex mRequestQueueMutex;
+
+    std::shared_mutex mSessionMutex;
 
     spdk_poller *mEventsPoller = nullptr;
     spdk_poller *mDispatchPoller = nullptr;

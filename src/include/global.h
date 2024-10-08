@@ -77,6 +77,8 @@ struct RequestContext {
 
     uint32_t bufferSize; // for recording partial writes
 
+    std::function<void()> fn;
+
     void Clear();
     void Queue();
     double GetElapsedTime();

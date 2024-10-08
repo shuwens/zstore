@@ -27,6 +27,9 @@ static void busyWait(bool *ready)
 void complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
     RequestContext *slot = (RequestContext *)arg;
+    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+    // std::unique_lock<std::mutex> lock(ctrl->GetSessionMutex());
+    std::unique_lock lock(ctrl->GetSessionMutex());
 
     if (spdk_nvme_cpl_is_error(completion)) {
         fprintf(stderr, "I/O error status: %s\n",
@@ -36,12 +39,12 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-
     log_debug("Send the response.");
-    slot->session_->session_mutex_.unlock();
-    slot->session_->send_response(
-        handle_request(std::move(slot->request), *ctrl));
+    // g_session_mutex_.unlock();
+
+    // slot->session_->send_response(
+    //     handle_request(std::move(slot->request), *ctrl));
+    slot->fn;
 
     ctrl->GetDevice()->mTotalCounts++;
 
