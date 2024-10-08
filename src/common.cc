@@ -43,12 +43,12 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     // slot->session_->send_response(
     //     handle_request(std::move(slot->request), *ctrl));
-    log_debug("nvme cmd complete: now we evaluate the closure.");
+    // log_debug("nvme cmd complete: now we evaluate the closure.");
     // log_debug("msg {}, keep alive {}.", slot->msg->is_done(),
     // slot->keep_alive);
-    log_debug("keep alive {}.", slot->keep_alive);
-    // slot->fn(slot->request);
-    slot->fn(std::move(*slot->msg), slot->keep_alive);
+    // log_debug("keep alive {}.", slot->keep_alive);
+    slot->fn(slot->request);
+    // slot->fn(std::move(*slot->msg), slot->keep_alive);
 
     ctrl->GetDevice()->mTotalCounts++;
 

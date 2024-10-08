@@ -108,7 +108,7 @@ class session : public std::enable_shared_from_this<session>
 
         if (req_.method() == http::verb::get) {
             // async_do_get(req_, asio::deferred);
-            log_debug("do enqueue write");
+            // log_debug("do enqueue write");
             // FIXME
             if (!zctrl_.isDraining &&
                 zctrl_.mRequestContextPool->availableContexts.size() > 0) {
@@ -117,18 +117,19 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
 
-                http::message_generator msg =
-                    handle_request(std::move(req_), zctrl_);
-                log_error("made msg. {}", msg.is_done());
-                bool keep_alive = msg.keep_alive();
-
                 // FIXME change msg
-
+                auto self(shared_from_this());
                 // Write the response
                 // FIXME
-                auto closure_ = [this](http::message_generator msg,
-                                       bool keep_alive) {
-                    log_error("enter closure {} \n", msg.is_done());
+                auto closure_ = [this,
+                                 self](http::request<http::string_body> req_) {
+                    // log_error("enter closure {} \n", 1);
+
+                    http::message_generator msg =
+                        handle_request(std::move(req_), zctrl_);
+                    // log_error("made msg. {}", msg.is_done());
+                    bool keep_alive = msg.keep_alive();
+
                     beast::async_write(stream_, std::move(msg),
                                        beast::bind_front_handler(
                                            &session::on_write,
@@ -156,11 +157,10 @@ class session : public std::enable_shared_from_this<session>
                 ioCtx.flags = 0;
                 slot->ioContext = ioCtx;
                 slot->request = req_;
-                slot->msg = std::move(&msg);
-                slot->keep_alive = keep_alive;
+                slot->request = std::move(req_);
+                // slot->keep_alive = keep_alive;
                 // slot->doc_root = doc_root_;
                 // slot->session_ = this;
-
                 slot->fn = closure_;
 
                 assert(slot->ioContext.cb != nullptr);
@@ -180,12 +180,12 @@ class session : public std::enable_shared_from_this<session>
 
     void send_response(http::message_generator &&msg)
     {
-        log_error("Send_response.");
+        // log_error("Send_response.");
         bool keep_alive = msg.keep_alive();
 
         // Write the response
         // FIXME
-        log_error("async write.");
+        // log_error("async write.");
         beast::async_write(stream_, std::move(msg),
                            beast::bind_front_handler(&session::on_write,
                                                      shared_from_this(),
@@ -195,7 +195,7 @@ class session : public std::enable_shared_from_this<session>
     void on_write(bool keep_alive, beast::error_code ec,
                   std::size_t bytes_transferred)
     {
-        log_debug("Enter.");
+        // log_debug("Enter.");
         boost::ignore_unused(bytes_transferred);
 
         if (ec)

@@ -6,4 +6,4 @@ s3bench -accessKey=KEY -accessSecret=SECRET \
 	-bucket=db -operations=read \
 	-skipCleanup -skipBucketCreate \
 	-numClients=100 -numSamples=100000 \
-	-objectSize=0 -endpoint=http://127.0.0.1:2000
+	-objectSize=23 -endpoint=http://127.0.0.1:2000

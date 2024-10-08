@@ -105,7 +105,7 @@ http::message_generator handle_request(
     http::request<Body, http::basic_fields<Allocator>> &&req,
     ZstoreController &zctrl)
 {
-    log_debug("strt handler request ");
+    // log_debug("strt handler request ");
     auto const dummy = [&req](beast::string_view target) {
         http::response<http::string_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
@@ -175,7 +175,7 @@ http::message_generator handle_request(
     // Handle the case where the file doesn't exist
     // if (ec == beast::errc::no_such_file_or_directory) {
 
-    log_debug("dummy write return");
+    // log_debug("dummy write return");
     return dummy(req.target());
     // }
     // Handle an unknown error
