@@ -39,6 +39,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
 
     log_debug("Send the response.");
+    slot->session_->session_mutex_.unlock();
     slot->session_->send_response(
         handle_request(std::move(slot->request), *ctrl));
 

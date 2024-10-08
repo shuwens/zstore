@@ -15,6 +15,8 @@ class session : public std::enable_shared_from_this<session>
     ZstoreController &zctrl_;
 
   public:
+    std::shared_mutex session_mutex_;
+
     // NOTE the following functions are important ones where our HTTP server
     // (boost beast) interact with the SPDK infrastructure. Each of these
     // do_zstore_X function is async, and also
@@ -142,7 +144,10 @@ class session : public std::enable_shared_from_this<session>
                 slot->ioContext = ioCtx;
                 slot->request = std::move(req_);
                 slot->doc_root = doc_root_;
-                slot->session_ = this;
+                {
+                    slot->session_ = this;
+                    session_mutex_.lock();
+                }
 
                 assert(slot->ioContext.cb != nullptr);
                 assert(slot->ctrl != nullptr);
