@@ -123,6 +123,7 @@ class session : public std::enable_shared_from_this<session>
                 }
 
                 auto closure_ = [this]() {
+                    log_error("enter closure \n");
                     send_response(handle_request(std::move(req_), zctrl_));
                 };
 
@@ -180,11 +181,12 @@ class session : public std::enable_shared_from_this<session>
 
     void send_response(http::message_generator &&msg)
     {
-        log_debug("Send_response.");
+        log_error("Send_response.");
         bool keep_alive = msg.keep_alive();
 
         // Write the response
         // FIXME
+        log_error("async write.");
         beast::async_write(stream_, std::move(msg),
                            beast::bind_front_handler(&session::on_write,
                                                      shared_from_this(),

@@ -39,11 +39,11 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    log_debug("Send the response.");
     // g_session_mutex_.unlock();
 
     // slot->session_->send_response(
     //     handle_request(std::move(slot->request), *ctrl));
+    log_debug("Evaluate the closure.");
     slot->fn;
 
     ctrl->GetDevice()->mTotalCounts++;

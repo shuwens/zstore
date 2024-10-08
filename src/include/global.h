@@ -77,7 +77,9 @@ struct RequestContext {
 
     uint32_t bufferSize; // for recording partial writes
 
+    // closure
     std::function<void()> fn;
+    // void apply() { value = function(value); }
 
     void Clear();
     void Queue();
