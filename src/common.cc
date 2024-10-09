@@ -2,7 +2,6 @@
 #include "include/boost_utils.h"
 #include "include/http_server.h"
 #include "include/object.h"
-#include "include/utils.hpp"
 #include "include/zstore_controller.h"
 #include "object.cc"
 #include "spdk/thread.h"
@@ -101,7 +100,8 @@ int handleDummyRequest(void *args)
         ioCtx.ns = ctrl->GetDevice()->GetNamespace();
         ioCtx.qpair = ctrl->GetIoQpair();
         ioCtx.data = slot->dataBuffer;
-        ioCtx.offset = zslba + ctrl->GetDevice()->mTotalCounts;
+        ioCtx.offset =
+            Configuration::GetZslba() + ctrl->GetDevice()->mTotalCounts;
         ioCtx.size = io_size_blocks;
         ioCtx.cb = complete;
         ioCtx.ctx = slot;

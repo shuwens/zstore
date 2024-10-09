@@ -1,7 +1,7 @@
 #pragma once
 #include "device.h"
 #include "http_server.h"
-#include "utils.hpp"
+#include "utils.h"
 #include "zstore_controller.h"
 #include <boost/beast/http.hpp>
 #include <map>

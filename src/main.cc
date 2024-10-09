@@ -43,7 +43,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    net::io_context ioc{threads};
+    net::io_context ioc{Configuration::GetNumHttpThreads()};
     gZstoreController = new ZstoreController(std::ref(ioc));
     gZstoreController->Init(false);
 

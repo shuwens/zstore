@@ -4,8 +4,6 @@
 #include "include/common.h"
 #include "include/configuration.h"
 #include "include/device.h"
-#include "include/utils.hpp"
-#include "src/include/global.h"
 
 static std::vector<Device *> g_devices;
 
@@ -41,23 +39,23 @@ void ZstoreController::initHttpThread()
     }
 }
 
-void ZstoreController::initCompletionThread()
-{
-    struct spdk_cpuset cpumask;
-    spdk_cpuset_zero(&cpumask);
-    spdk_cpuset_set_cpu(&cpumask, Configuration::GetCompletionThreadCoreId(),
-                        true);
-    log_info("Create {} (id {}) on Core {}",
-             spdk_thread_get_name(mCompletionThread),
-             spdk_thread_get_id(mCompletionThread),
-             Configuration::GetCompletionThreadCoreId());
-    int rc = spdk_env_thread_launch_pinned(
-        Configuration::GetCompletionThreadCoreId(), completionWorker, this);
-    if (rc < 0) {
-        log_error("Failed to launch completion thread, error: {}",
-                  spdk_strerror(rc));
-    }
-}
+// void ZstoreController::initCompletionThread()
+// {
+//     struct spdk_cpuset cpumask;
+//     spdk_cpuset_zero(&cpumask);
+//     spdk_cpuset_set_cpu(&cpumask, Configuration::GetCompletionThreadCoreId(),
+//                         true);
+//     log_info("Create {} (id {}) on Core {}",
+//              spdk_thread_get_name(mCompletionThread),
+//              spdk_thread_get_id(mCompletionThread),
+//              Configuration::GetCompletionThreadCoreId());
+//     int rc = spdk_env_thread_launch_pinned(
+//         Configuration::GetCompletionThreadCoreId(), completionWorker, this);
+//     if (rc < 0) {
+//         log_error("Failed to launch completion thread, error: {}",
+//                   spdk_strerror(rc));
+//     }
+// }
 
 void ZstoreController::initDispatchThread()
 {
@@ -140,18 +138,18 @@ int ZstoreController::Init(bool object)
     log_debug("Configure Zstore with configuration");
     setQueuDepth(Configuration::GetQueueDepth());
     setContextPoolSize(Configuration::GetContextPoolSize());
-    setNumOfDevices(Configuration::GetNumOfDevices());
+    setNumOfDevices(Configuration::GetNumOfDevices() *
+                    Configuration::GetNumOfTargets());
 
+    // FIXME use number of target and number of devices
     // we add one device for now
     {
         Device *device = new Device();
-
         if (register_controllers(device) != 0) {
             rc = 1;
             zstore_cleanup();
             return rc;
         }
-
         g_devices.emplace_back(device);
     }
     mDevices = g_devices;
@@ -168,9 +166,6 @@ int ZstoreController::Init(bool object)
     }
     isDraining = false;
     // bogus setup for Map and BF
-
-    PopulateMap(true);
-    pivot = 0;
 
     // Create poll groups for the io threads and perform initialization
     for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
@@ -189,8 +184,6 @@ int ZstoreController::Init(bool object)
         }
         mDevices[i]->ConnectIoPairs();
     }
-
-    log_info("Initialization complete. Launching workers.");
 
     CheckIoQpair("Starting all the threads");
 
@@ -213,6 +206,26 @@ int ZstoreController::Init(bool object)
         mHttpThread[threadId].controller = this;
     }
     initHttpThread();
+
+    // Read zone headers
+
+    // Valid (full and open) zones and their headers
+    std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
+    for (uint32_t i = 0; i < mN; ++i) {
+        // if (i == failedDriveId) {
+        //     continue;
+        // }
+
+        // TODO: right now we sort of just pick read and write zone, this should
+        // be done smartly
+        mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
+    }
+
+    log_info("Initialization complete. Launching workers.");
+
+    PopulateMap(true);
+    pivot = 0;
+
     log_info("ZstoreController Init finish");
 
     return rc;

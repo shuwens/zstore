@@ -4,6 +4,7 @@
 #include "global.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
+#include "zone.h"
 #include <set>
 #include <unordered_map>
 #include <vector>
@@ -59,6 +60,9 @@ class Device
     // uint64_t mTotalReadCounts = 0;
     uint64_t mTotalCounts = 0;
 
+    int GetCurrentWriteZone() { return mCurrentWriteZone; };
+    int GetCurrentReadZone() { return mCurrentReadZone; };
+
   private:
     uint64_t bytes2Block(uint64_t bytes);
     uint64_t bytes2ZoneNum(uint64_t bytes);
@@ -84,4 +88,7 @@ class Device
 
     // indicate the PCIe slot - used to number the drives
     char mTransportAddress[SPDK_NVMF_TRADDR_MAX_LEN + 1];
+
+    int mCurrentWriteZone = 0;
+    int mCurrentReadZone = 0;
 };

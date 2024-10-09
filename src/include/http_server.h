@@ -1,7 +1,6 @@
 #pragma once
 #include "boost_utils.h"
 #include "common.h"
-#include "src/include/utils.hpp"
 #include <boost/asio.hpp>
 #include <boost/beast/http/message.hpp>
 
@@ -150,7 +149,8 @@ class session : public std::enable_shared_from_this<session>
                 ioCtx.ns = zctrl_.GetDevice()->GetNamespace();
                 ioCtx.qpair = zctrl_.GetIoQpair();
                 ioCtx.data = slot->dataBuffer;
-                ioCtx.offset = zslba + zctrl_.GetDevice()->mTotalCounts;
+                ioCtx.offset = Configuration::GetZslba() +
+                               zctrl_.GetDevice()->mTotalCounts;
                 ioCtx.size = io_size_blocks;
                 ioCtx.cb = complete;
                 ioCtx.ctx = slot;

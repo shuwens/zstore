@@ -1,8 +1,7 @@
 #pragma once
 #include "object.h"
 #include "spdk/nvme.h"
-#include "spdk/nvme_intel.h"
-#include "utils.hpp"
+#include "utils.h"
 #include "zstore_controller.h"
 #include <bits/stdc++.h>
 #include <cassert>
@@ -15,7 +14,6 @@
 #include <spdk/nvme.h>
 #include <spdk/thread.h>
 #include <string>
-#include <vector>
 
 std::shared_mutex g_shared_mutex_;
 // std::mutex g_mutex_;

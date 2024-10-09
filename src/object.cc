@@ -2,7 +2,6 @@
 #include "include/zstore_controller.h"
 #include "spdk/string.h"
 #include "src/include/configuration.h"
-#include "src/include/utils.hpp"
 #include <boost/outcome/success_failure.hpp>
 #include <cassert>
 #include <stdlib.h>

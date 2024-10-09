@@ -3,7 +3,6 @@
 #include "configuration.h"
 #include "device.h"
 #include "global.h"
-#include "utils.hpp"
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
@@ -16,13 +15,13 @@
 #include <spdk/env.h> // Include SPDK's environment header
 #include <unistd.h>
 
-namespace net = boost::asio;        // from <boost/asio.hpp>
-const uint64_t zone_dist = 0x80000; // zone size
+namespace net = boost::asio; // from <boost/asio.hpp>
 const int current_zone = 0;
-const int threads = 8;
-// const int current_zone = 30;
 
-auto zslba = zone_dist * current_zone;
+uint64_t GetZslba(int zone_num)
+{
+    return Configuration::GetZoneDist() * zone_num;
+}
 
 class ZstoreController
 {
