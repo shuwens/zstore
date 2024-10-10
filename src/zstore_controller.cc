@@ -215,6 +215,31 @@ int ZstoreController::Init(bool object)
     initHttpThread();
     log_info("ZstoreController Init finish");
 
+    sleep(1);
+    // Valid (full and open) zones and their headers
+    std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
+    // Segment ID to (wp, SegmentMetadata)
+    // std::map<uint32_t, std::vector<std::pair<uint64_t, uint8_t *>>>
+    //     potentialSegments;
+    for (uint32_t i = 0; i < mN; ++i) {
+        log_debug("XXX {}", i);
+        // if (i == failedDriveId) {
+        //     continue;
+        // }
+
+        mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
+        for (auto zoneAndHeader : zonesAndHeaders[i]) {
+            uint64_t wp = zoneAndHeader.first;
+            // SegmentMetadata *segMeta =
+            //     reinterpret_cast<SegmentMetadata *>(zoneAndHeader.second);
+            // if (potentialSegments.find(segMeta->segmentId) ==
+            //     potentialSegments.end()) {
+            //     potentialSegments[segMeta->segmentId].resize(mN);
+            // }
+            // potentialSegments[segMeta->segmentId][i] =
+            //     std::pair(wp, zoneAndHeader.second);
+        }
+    }
     return rc;
 }
 
