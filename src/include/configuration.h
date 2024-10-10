@@ -158,8 +158,8 @@ class Configuration
     const int current_zone = 46;
     // uint32_t gTotalIO = 4'000'000;
 
-    int gNumIoThreads = 2;
-    int gNumHttpThreads = 8;
+    int gNumIoThreads = 1;
+    int gNumHttpThreads = 1;
 
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 

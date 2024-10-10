@@ -11,6 +11,14 @@
  * This list should be empty :)
  * read zone header broken, wtf
  * logs, maps, bloom filters
+ * read object workflow
+ * write object worklfow
+ * key experiment tput/latency: read
+ * key experiment tput/latency: append
+ * key experiment tput/latency: target failure
+ * key experiment tput/latency: gw failure
+ * key experiment tput/latency: GC
+ * key experiment tput/latency: checkpoint
 
 ## Short-term TODOs
  * Need to have a test for object

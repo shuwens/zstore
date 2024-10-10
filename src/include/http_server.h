@@ -175,24 +175,23 @@ class session : public std::enable_shared_from_this<session>
         }
     }
 
-    void send_response(http::message_generator &&msg)
-    {
-        // log_error("Send_response.");
-        bool keep_alive = msg.keep_alive();
-
-        // Write the response
-        // FIXME
-        // log_error("async write.");
-        beast::async_write(stream_, std::move(msg),
-                           beast::bind_front_handler(&session::on_write,
-                                                     shared_from_this(),
-                                                     keep_alive));
-    }
+    // void send_response(http::message_generator &&msg)
+    // {
+    //     // log_error("Send_response.");
+    //     bool keep_alive = msg.keep_alive();
+    //
+    //     // Write the response
+    //     // FIXME
+    //     // log_error("async write.");
+    //     beast::async_write(stream_, std::move(msg),
+    //                        beast::bind_front_handler(&session::on_write,
+    //                                                  shared_from_this(),
+    //                                                  keep_alive));
+    // }
 
     void on_write(bool keep_alive, beast::error_code ec,
                   std::size_t bytes_transferred)
     {
-        // log_debug("Enter.");
         boost::ignore_unused(bytes_transferred);
 
         if (ec)
