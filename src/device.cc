@@ -75,11 +75,11 @@ void Device::EraseWholeDevice()
         *done = true;
     };
 
-    spdk_nvme_zns_reset_zone(mNamespace, mIoQueues[0], 0, true, resetComplete,
+    spdk_nvme_zns_reset_zone(mNamespace, GetIoQueue(0), 0, true, resetComplete,
                              &done);
 
     while (!done) {
-        spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+        spdk_nvme_qpair_process_completions(GetIoQueue(0), 0);
     }
 }
 
@@ -152,13 +152,12 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
         sizeof(report->descs[0]) * nr_zones + sizeof(*report);
     log_debug("number of zones {}, report size {}", nr_zones, report_bytes);
     report = (struct spdk_nvme_zns_zone_report *)calloc(1, report_bytes);
-    log_debug("fuck");
-    spdk_nvme_zns_report_zones(mNamespace, mIoQueues[0], report, report_bytes,
+    spdk_nvme_zns_report_zones(mNamespace, GetIoQueue(0), report, report_bytes,
                                0, SPDK_NVME_ZRA_LIST_ALL, false, complete,
                                &done);
     log_debug("fuck2");
     while (!done) {
-        spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+        spdk_nvme_qpair_process_completions(GetIoQueue(0), 0);
     }
     // log_debug("fuck3");
 
@@ -191,10 +190,10 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
             (uint8_t *)spdk_zmalloc(Configuration::GetBlockSize(), 4096, NULL,
                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
         done = false;
-        spdk_nvme_ns_cmd_read(mNamespace, mIoQueues[0], buffer, zslba, 1,
+        spdk_nvme_ns_cmd_read(mNamespace, GetIoQueue(0), buffer, zslba, 1,
                               complete, &done, 0);
         while (!done) {
-            spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
+            spdk_nvme_qpair_process_completions(GetIoQueue(0), 0);
         }
 
         zones[wp] = buffer;
