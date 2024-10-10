@@ -4,6 +4,7 @@
 #include "global.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_zns.h"
+#include "zone.h"
 #include <set>
 #include <unordered_map>
 #include <vector>

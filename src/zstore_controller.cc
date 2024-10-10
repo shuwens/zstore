@@ -156,6 +156,11 @@ int ZstoreController::Init(bool object)
     }
     mDevices = g_devices;
 
+    for (uint32_t i = 0; i < mN; ++i) {
+        mDevices[i]->SetDeviceId(i);
+        mDevices[i]->InitZones(406, 406);
+    }
+
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
     mRequestContextPool = new RequestContextPool(mContextPoolSize);
@@ -222,11 +227,6 @@ int ZstoreController::Init(bool object)
     // std::map<uint32_t, std::vector<std::pair<uint64_t, uint8_t *>>>
     //     potentialSegments;
     for (uint32_t i = 0; i < mN; ++i) {
-        log_debug("XXX {}", i);
-        // if (i == failedDriveId) {
-        //     continue;
-        // }
-
         mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
         for (auto zoneAndHeader : zonesAndHeaders[i]) {
             uint64_t wp = zoneAndHeader.first;

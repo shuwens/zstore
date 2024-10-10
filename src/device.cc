@@ -1,4 +1,5 @@
 #include "include/device.h"
+#include "zone.cc"
 
 void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
 {
@@ -50,9 +51,38 @@ void Device::ConnectIoPairs()
     }
 }
 
-void Device::InitZones(uint32_t numNeededZones, uint32_t numReservedZones) {}
+void Device::InitZones(uint32_t numNeededZones, uint32_t numReservedZones)
+{
 
-void Device::EraseWholeDevice() {}
+    if (numNeededZones + numReservedZones > mNumZones) {
+        printf(
+            "Warning! The real storage space is not sufficient for the setting,"
+            "%u %u %u\n",
+            numNeededZones, numReservedZones, mNumZones);
+    }
+    mNumZones = std::min(mNumZones, numNeededZones + numReservedZones);
+    mZones = new Zone[mNumZones];
+    for (int i = 0; i < mNumZones; ++i) {
+        mZones[i].Init(this, i * mZoneSize, mZoneCapacity, mZoneSize);
+        mAvailableZones.insert(&mZones[i]);
+    }
+}
+
+void Device::EraseWholeDevice()
+{
+    bool done = false;
+    auto resetComplete = [](void *arg, const struct spdk_nvme_cpl *completion) {
+        bool *done = (bool *)arg;
+        *done = true;
+    };
+
+    spdk_nvme_zns_reset_zone(mNamespace, GetIoQueue(0), 0, true, resetComplete,
+                             &done);
+
+    while (!done) {
+        spdk_nvme_qpair_process_completions(GetIoQueue(0), 0);
+    }
+}
 
 void Device::SetDeviceTransportAddress(const char *addr)
 {
@@ -85,7 +115,7 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
                                &done);
     log_debug("222");
     while (!done) {
-        log_debug("qpair completion");
+        // log_debug("qpair completion");
         spdk_nvme_qpair_process_completions(GetIoQueue(0), 0);
     }
 
