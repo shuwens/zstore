@@ -24,11 +24,9 @@ int main(int argc, char **argv)
 
     int rc;
     struct spdk_env_opts opts;
-
     spdk_nvme_trid_populate_transport(&g_trid, SPDK_NVME_TRANSPORT_TCP);
     snprintf(g_trid.subnqn, sizeof(g_trid.subnqn), "%s",
              SPDK_NVMF_DISCOVERY_NQN);
-
     if (g_dpdk_mem < 0) {
         log_error("Invalid DPDK memory size");
         return g_dpdk_mem;
@@ -58,9 +56,7 @@ int main(int argc, char **argv)
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
 
-        // return EXIT_SUCCESS;
         while (1) {
-            // while (ctrl->mIoc_.poll()) {
             auto etime = std::chrono::high_resolution_clock::now();
             auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
                              etime - gZstoreController->stime)
@@ -68,10 +64,13 @@ int main(int argc, char **argv)
             auto tput = gZstoreController->GetDevice()->mTotalCounts *
                         g_micro_to_second / delta;
 
-            // if (g->verbose)
             log_info("Total IO {}, total time {}ms, throughput {} IOPS",
                      gZstoreController->GetDevice()->mTotalCounts, delta, tput);
-
+            {
+                gZstoreController->stime =
+                    std::chrono::high_resolution_clock::now();
+                gZstoreController->GetDevice()->mTotalCounts = 0;
+            }
             sleep(1);
         }
     } else {
@@ -79,9 +78,7 @@ int main(int argc, char **argv)
     }
 
     gZstoreController->Drain();
-
     spdk_env_thread_wait_all();
-
     gZstoreController->zstore_cleanup();
 
     return rc;

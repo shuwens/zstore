@@ -18,10 +18,10 @@
 namespace net = boost::asio; // from <boost/asio.hpp>
 const int current_zone = 0;
 
-uint64_t GetZslba(int zone_num)
-{
-    return Configuration::GetZoneDist() * zone_num;
-}
+// uint64_t GetZslba(int zone_num)
+// {
+//     return Configuration::GetZoneDist() * zone_num;
+// }
 
 class ZstoreController
 {

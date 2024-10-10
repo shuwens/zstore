@@ -106,9 +106,7 @@ class session : public std::enable_shared_from_this<session>
             return fail(ec, "read");
 
         if (req_.method() == http::verb::get) {
-            // async_do_get(req_, asio::deferred);
-            // log_debug("do enqueue write");
-            // FIXME
+            // log_debug("REQUEST: {}", req_.target());
             if (!zctrl_.isDraining &&
                 zctrl_.mRequestContextPool->availableContexts.size() > 0) {
                 if (!zctrl_.start) {
@@ -116,19 +114,12 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
 
-                // FIXME change msg
                 auto self(shared_from_this());
-                // Write the response
-                // FIXME
                 auto closure_ = [this,
                                  self](http::request<http::string_body> req_) {
-                    // log_error("enter closure {} \n", 1);
-
                     http::message_generator msg =
                         handle_request(std::move(req_), zctrl_);
-                    // log_error("made msg. {}", msg.is_done());
                     bool keep_alive = msg.keep_alive();
-
                     beast::async_write(stream_, std::move(msg),
                                        beast::bind_front_handler(
                                            &session::on_write,
@@ -149,8 +140,14 @@ class session : public std::enable_shared_from_this<session>
                 ioCtx.ns = zctrl_.GetDevice()->GetNamespace();
                 ioCtx.qpair = zctrl_.GetIoQpair();
                 ioCtx.data = slot->dataBuffer;
-                ioCtx.offset = Configuration::GetZslba() +
-                               zctrl_.GetDevice()->mTotalCounts;
+
+                // lookup
+                auto entry = zctrl_.find_object(req_.target());
+                ioCtx.offset = Configuration::GetZslba() + entry.value().second;
+
+                // ioCtx.offset = Configuration::GetZslba() +
+                //                zctrl_.GetDevice()->mTotalCounts;
+
                 ioCtx.size = io_size_blocks;
                 ioCtx.cb = complete;
                 ioCtx.ctx = slot;

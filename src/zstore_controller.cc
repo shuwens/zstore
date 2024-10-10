@@ -118,12 +118,10 @@ int ZstoreController::PopulateMap(bool bogus)
     mMap.insert({"carrots", createMapEntry("device", 7).value()});
     mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
 
-    // if (bogus) {
     for (int i = 0; i < 2'000'000; i++) {
         mMap.insert(
-            {"key" + std::to_string(i), createMapEntry("device", i).value()});
+            {"/db/" + std::to_string(i), createMapEntry("device", i).value()});
     }
-    // }
 
     return 0;
 }
@@ -225,7 +223,8 @@ int ZstoreController::Init(bool object, u16 key_experiment)
 
         // TODO: right now we sort of just pick read and write zone, this should
         // be done smartly
-        mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
+        // FIXME bug
+        // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
     }
 
     log_info("ZstoreController Init finish");

@@ -26,3 +26,7 @@ zstore4.log
 run.sh
 cpuprofile.file
 
+paths.txt
+vault-benchmarking/
+wrk-scripts/
+

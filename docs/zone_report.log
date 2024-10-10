@@ -1,0 +1,492 @@
+[17:46] zstore1:build-rel (dev *%) | meson compile && sudo ./zstore 1 2
+INFO: autodetecting backend as ninja
+INFO: calculating backend command to run: /usr/local/bin/ninja
+ninja: no work to do.
+[DBG ../src/zstore_controller.cc:137 Init] mZone sizes 0
+[DBG ../src/zstore_controller.cc:139 Init] Configure Zstore with configuration
+[INFO ../src/zstore_controller.cc:378 register_controllers] Initializing NVMe Controllers
+[DBG ../src/zstore_controller.cc:358 zns_dev_init] zns dev
+[INFO ../src/device.cc:8 Init] md size 0, not supporting metadata
+[INFO ../src/device.cc:21 Init] Getting ns: 1, Zone size: 524288, zone cap: 275712, num of zones: 406
+[INFO ../src/device.cc:8 Init] md size 0, not supporting metadata
+[INFO ../src/device.cc:21 Init] Getting ns: 2, Zone size: 524288, zone cap: 275712, num of zones: 406
+[INFO ../src/zstore_controller.cc:344 register_ctrlr] Zone size: sectors 524288, bytes 2147483648
+[INFO ../src/zstore_controller.cc:346 register_ctrlr] Zones: num 406, max open 14, active 14
+[INFO ../src/zstore_controller.cc:348 register_ctrlr] Max zones append size: 131072, metadata size 0
+[DBG ../src/zstore_controller.cc:191 Init] ZstoreController launching threads
+[INFO ../src/zstore_controller.cc:107 initIoThread] IO thread name IoThread id 1 on core 2
+[INFO ../src/zstore_controller.cc:107 initIoThread] IO thread name IoThread id 2 on core 3
+[INFO ../src/zstore_controller.cc:71 initDispatchThread] Create DispatchThread (id 3) on Core 1
+[INFO ../src/zstore_controller.cc:80 initDispatchThread] Not using object
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 4 on core 4
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 5 on core 5
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 6 on core 6
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 7 on core 7
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 8 on core 8
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 9 on core 9
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 10 on core 10
+[INFO ../src/zstore_controller.cc:35 initHttpThread] Http thread name HttpThread id 11 on core 11
+[INFO ../src/zstore_controller.cc:211 Init] Initialization complete. Launching workers.
+[DBG ../src/zstore_controller.cc:221 Init] read zone and headers 0.
+[DBG ../src/device.cc:153 ReadZoneHeaders] number of zones 406, report size 26048
+[2024-10-10 17:46:43.179554] nvme_tcp.c: 323:nvme_tcp_qpair_set_recv_state: *ERROR*: The recv state of tqpair=0x5be2f535ae00 is same with the state(2) to be set
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 0: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 0: wp 275712, zslba 0
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 1: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 1: wp 800000, zslba 524288
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 2: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 2: wp 1324288, zslba 1048576
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 3: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 3: wp 1848576, zslba 1572864
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 4: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 4: wp 2372864, zslba 2097152
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 5: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 5: wp 2897152, zslba 2621440
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 6: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 6: wp 3421440, zslba 3145728
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 7: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 7: wp 3945728, zslba 3670016
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 8: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 8: wp 4470016, zslba 4194304
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 9: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 9: wp 4994304, zslba 4718592
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 10: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 10: wp 5518592, zslba 5242880
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 11: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 11: wp 6042880, zslba 5767168
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 12: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 12: wp 6567168, zslba 6291456
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 13: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 13: wp 7091456, zslba 6815744
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 14: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 14: wp 7615744, zslba 7340032
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 15: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 15: wp 8140032, zslba 7864320
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 16: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 16: wp 8664320, zslba 8388608
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 17: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 17: wp 9188608, zslba 8912896
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 18: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 18: wp 9712896, zslba 9437184
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 19: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 19: wp 10237184, zslba 9961472
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 20: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 20: wp 10761472, zslba 10485760
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 21: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 21: wp 11285760, zslba 11010048
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 22: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 22: wp 11810048, zslba 11534336
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 23: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 23: wp 12334336, zslba 12058624
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 24: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 24: wp 12858624, zslba 12582912
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 25: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 25: wp 13382912, zslba 13107200
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 26: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 26: wp 13907200, zslba 13631488
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 27: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 27: wp 14431488, zslba 14155776
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 28: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 28: wp 14955776, zslba 14680064
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 29: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 29: wp 15480064, zslba 15204352
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 30: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 30: wp 16004352, zslba 15728640
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 31: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 31: wp 16528640, zslba 16252928
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 32: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 32: wp 17052928, zslba 16777216
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 33: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 34: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 34: wp 18101504, zslba 17825792
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 35: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 36: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 36: wp 19150080, zslba 18874368
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 37: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 38: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 38: wp 20198656, zslba 19922944
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 39: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 39: wp 20722944, zslba 20447232
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 40: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 40: wp 21247232, zslba 20971520
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 41: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 41: wp 21771520, zslba 21495808
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 42: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 42: wp 22295808, zslba 22020096
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 43: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 43: wp 22820096, zslba 22544384
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 44: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 44: wp 23344384, zslba 23068672
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 45: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 45: wp 23868672, zslba 23592960
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 46: start
+[DBG ../src/device.cc:198 ReadZoneHeaders] zone 46: wp 24392960, zslba 24117248
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 47: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 48: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 49: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 50: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 51: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 52: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 53: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 54: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 55: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 56: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 57: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 58: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 59: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 60: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 61: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 62: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 63: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 64: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 65: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 66: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 67: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 68: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 69: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 70: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 71: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 72: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 73: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 74: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 75: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 76: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 77: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 78: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 79: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 80: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 81: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 82: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 83: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 84: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 85: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 86: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 87: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 88: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 89: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 90: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 91: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 92: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 93: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 94: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 95: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 96: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 97: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 98: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 99: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 100: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 101: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 102: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 103: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 104: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 105: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 106: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 107: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 108: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 109: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 110: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 111: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 112: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 113: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 114: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 115: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 116: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 117: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 118: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 119: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 120: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 121: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 122: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 123: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 124: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 125: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 126: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 127: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 128: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 129: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 130: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 131: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 132: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 133: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 134: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 135: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 136: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 137: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 138: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 139: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 140: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 141: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 142: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 143: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 144: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 145: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 146: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 147: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 148: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 149: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 150: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 151: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 152: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 153: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 154: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 155: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 156: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 157: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 158: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 159: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 160: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 161: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 162: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 163: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 164: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 165: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 166: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 167: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 168: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 169: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 170: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 171: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 172: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 173: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 174: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 175: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 176: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 177: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 178: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 179: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 180: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 181: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 182: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 183: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 184: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 185: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 186: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 187: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 188: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 189: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 190: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 191: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 192: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 193: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 194: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 195: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 196: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 197: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 198: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 199: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 200: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 201: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 202: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 203: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 204: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 205: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 206: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 207: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 208: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 209: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 210: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 211: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 212: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 213: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 214: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 215: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 216: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 217: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 218: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 219: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 220: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 221: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 222: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 223: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 224: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 225: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 226: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 227: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 228: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 229: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 230: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 231: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 232: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 233: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 234: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 235: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 236: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 237: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 238: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 239: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 240: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 241: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 242: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 243: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 244: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 245: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 246: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 247: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 248: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 249: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 250: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 251: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 252: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 253: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 254: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 255: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 256: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 257: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 258: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 259: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 260: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 261: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 262: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 263: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 264: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 265: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 266: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 267: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 268: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 269: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 270: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 271: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 272: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 273: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 274: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 275: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 276: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 277: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 278: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 279: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 280: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 281: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 282: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 283: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 284: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 285: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 286: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 287: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 288: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 289: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 290: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 291: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 292: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 293: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 294: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 295: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 296: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 297: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 298: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 299: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 300: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 301: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 302: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 303: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 304: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 305: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 306: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 307: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 308: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 309: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 310: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 311: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 312: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 313: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 314: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 315: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 316: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 317: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 318: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 319: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 320: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 321: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 322: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 323: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 324: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 325: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 326: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 327: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 328: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 329: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 330: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 331: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 332: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 333: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 334: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 335: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 336: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 337: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 338: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 339: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 340: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 341: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 342: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 343: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 344: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 345: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 346: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 347: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 348: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 349: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 350: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 351: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 352: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 353: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 354: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 355: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 356: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 357: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 358: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 359: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 360: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 361: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 362: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 363: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 364: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 365: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 366: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 367: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 368: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 369: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 370: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 371: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 372: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 373: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 374: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 375: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 376: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 377: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 378: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 379: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 380: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 381: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 382: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 383: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 384: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 385: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 386: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 387: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 388: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 389: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 390: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 391: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 392: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 393: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 394: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 395: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 396: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 397: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 398: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 399: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 400: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 401: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 402: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 403: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 404: start
+[DBG ../src/device.cc:163 ReadZoneHeaders] zone 405: start
+[INFO ../src/zstore_controller.cc:232 Init] ZstoreController Init finish
+[INFO ../src/main.cc:57 main] Starting HTTP server with port 2000!
+
+[INFO ../src/main.cc:68 main] Total IO 0, total time 1728582403185520ms, throughput 0 IOPS
+[INFO ../src/main.cc:68 main] Total IO 0, total time 1000050ms, throughput 0 IOPS
+[INFO ../src/main.cc:68 main] Total IO 0, total time 1000044ms, throughput 0 IOPS
+[INFO ../src/main.cc:68 main] Total IO 0, total time 1000053ms, throughput 0 IOPS
+[INFO ../src/main.cc:68 main] Total IO 0, total time 1000024ms, throughput 0 IOPS
+^C⏎
+

@@ -155,11 +155,9 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
     spdk_nvme_zns_report_zones(mNamespace, GetIoQueue(0), report, report_bytes,
                                0, SPDK_NVME_ZRA_LIST_ALL, false, complete,
                                &done);
-    log_debug("fuck2");
     while (!done) {
         spdk_nvme_qpair_process_completions(GetIoQueue(0), 0);
     }
-    // log_debug("fuck3");
 
     for (uint32_t i = 0; i < report->nr_zones; ++i) {
         log_debug("zone {}: start", i);

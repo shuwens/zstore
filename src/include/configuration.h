@@ -155,7 +155,7 @@ class Configuration
     // TODO: use other spdk thread to work stealing
     bool gUseWorkStealing = false;
 
-    const int current_zone = 49;
+    const int current_zone = 46;
     // uint32_t gTotalIO = 4'000'000;
 
     int gNumIoThreads = 2;

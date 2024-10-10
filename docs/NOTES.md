@@ -9,6 +9,7 @@
 
 ## Immediate TODOs
  * This list should be empty :)
+ * read zone header broken, wtf
  * logs, maps, bloom filters
 
 ## Short-term TODOs
