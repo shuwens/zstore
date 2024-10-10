@@ -4,6 +4,7 @@
 #include "include/common.h"
 #include "include/configuration.h"
 #include "include/device.h"
+#include <cassert>
 
 static std::vector<Device *> g_devices;
 
@@ -127,7 +128,7 @@ int ZstoreController::PopulateMap(bool bogus)
     return 0;
 }
 
-int ZstoreController::Init(bool object)
+int ZstoreController::Init(bool object, u16 key_experiment)
 {
     int rc = 0;
     verbose = true;
@@ -207,11 +208,17 @@ int ZstoreController::Init(bool object)
     }
     initHttpThread();
 
+    log_info("Initialization complete. Launching workers.");
+
+    PopulateMap(true);
+    pivot = 0;
+
     // Read zone headers
 
     // Valid (full and open) zones and their headers
     std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
     for (uint32_t i = 0; i < mN; ++i) {
+        log_debug("read zone and headers {}.", i);
         // if (i == failedDriveId) {
         //     continue;
         // }
@@ -220,11 +227,6 @@ int ZstoreController::Init(bool object)
         // be done smartly
         mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
     }
-
-    log_info("Initialization complete. Launching workers.");
-
-    PopulateMap(true);
-    pivot = 0;
 
     log_info("ZstoreController Init finish");
 

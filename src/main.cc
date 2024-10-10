@@ -14,6 +14,14 @@
 
 int main(int argc, char **argv)
 {
+    if (argc < 3) {
+        log_info("Usage: ./zstore <key_experiment> <dummy>");
+        return 1;
+    }
+
+    u16 key_experiment = std::stoull(argv[1]);
+    u16 dummy = std::stoull(argv[2]);
+
     int rc;
     struct spdk_env_opts opts;
 
@@ -45,48 +53,10 @@ int main(int argc, char **argv)
 
     net::io_context ioc{Configuration::GetNumHttpThreads()};
     gZstoreController = new ZstoreController(std::ref(ioc));
-    gZstoreController->Init(false);
+    gZstoreController->Init(false, key_experiment);
 
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
-
-        // const int threads = 4;
-        // net::io_context ioc{threads};
-
-        // Create and launch a listening port
-        // std::make_shared<listener>(ioc, tcp::endpoint{address, port},
-        // doc_root)
-        //     ->run();
-
-        // Run the I/O service on the requested number of threads
-        // gZstoreController->v.reserve(threads - 1);
-
-        // for (auto i = threads - 1; i > 0; --i)
-        //     gZstoreController->v.emplace_back([&ioc] { ioc.run(); });
-        // ioc.run();
-        // boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
-        //     work{gZstoreController->mIoc.get_executor()};
-
-        // boost::asio::executor_work_guard<
-        //     boost::asio::io_context::executor_type> =
-        //     boost::asio::make_work_guard(
-        //         gZstoreController->mIoc.get_executor());
-
-        // for (auto i = threads - 1; i > 0; --i) {
-        //     log_debug("i is {}", i);
-        //     gZstoreController->mHttpThreads.emplace_back(
-        //         []() { gZstoreController->mIoc.run(); });
-        // }
-        // std::ranges::generate(gZstoreController->mHttpThreads, [&]() {
-        //     return std::thread([&]() { gZstoreController->mIoc.run(); });
-        // });
-        // gZstoreController->mIoc.run();
-
-        // ranges::generate(m_extra_threads, [&]() {
-        //     return std::thread([&]() { context().run(); });
-        // });
-
-        // context().run();
 
         // return EXIT_SUCCESS;
         while (1) {

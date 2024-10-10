@@ -9,11 +9,7 @@
 
 ## Immediate TODOs
  * This list should be empty :)
- * configure number of targets (1-3)
- * configure number of devices (2)
- * figure out wp, zone full, identify read and write zone
  * logs, maps, bloom filters
- * 
 
 ## Short-term TODOs
  * Need to have a test for object

@@ -152,15 +152,18 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
         sizeof(report->descs[0]) * nr_zones + sizeof(*report);
     log_debug("number of zones {}, report size {}", nr_zones, report_bytes);
     report = (struct spdk_nvme_zns_zone_report *)calloc(1, report_bytes);
+    log_debug("fuck");
     spdk_nvme_zns_report_zones(mNamespace, mIoQueues[0], report, report_bytes,
                                0, SPDK_NVME_ZRA_LIST_ALL, false, complete,
                                &done);
+    log_debug("fuck2");
     while (!done) {
         spdk_nvme_qpair_process_completions(mIoQueues[0], 0);
     }
+    // log_debug("fuck3");
 
     for (uint32_t i = 0; i < report->nr_zones; ++i) {
-        // log_debug("zone {}: start", i);
+        log_debug("zone {}: start", i);
         struct spdk_nvme_zns_zone_desc *zdesc = &(report->descs[i]);
         uint64_t wp = ~0ull;
         uint64_t zslba = zdesc->zslba;
@@ -174,12 +177,12 @@ void Device::ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones)
         }
 
         if (wp == ~0ull) {
-            if (mCurrentWriteZone == 0) {
-                log_debug("Current write zone {}, current read zone {}", i,
-                          i - 1);
-                mCurrentWriteZone = i;
-                mCurrentReadZone = i - 1;
-            }
+            // if (mCurrentWriteZone == 0) {
+            //     log_debug("Current write zone {}, current read zone {}", i,
+            //               i - 1);
+            //     mCurrentWriteZone = i;
+            //     mCurrentReadZone = i - 1;
+            // }
             // if (mCurrentReadZone == -1)
             continue;
         }

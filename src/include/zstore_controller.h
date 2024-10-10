@@ -31,7 +31,7 @@ class ZstoreController
     net::io_context &mIoc_;
 
     ~ZstoreController();
-    int Init(bool need_env);
+    int Init(bool object, u16 key_experiment);
     int PopulateMap(bool bogus);
     int pivot;
 
