@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
+typedef http::request<http::string_body> HttpRequest;
 
 class ZstoreController;
 class session;
@@ -20,15 +21,15 @@ struct DrainArgs {
     bool ready;
 };
 
-struct Request {
-    ZstoreController *controller;
-    uint64_t offset;
-    uint32_t size;
-    void *data;
-    char type;
-    zns_raid_request_complete cb_fn;
-    void *cb_args;
-};
+// struct Request {
+//     ZstoreController *controller;
+//     uint64_t offset;
+//     uint32_t size;
+//     void *data;
+//     char type;
+//     zns_raid_request_complete cb_fn;
+//     void *cb_args;
+// };
 
 struct RequestContext {
     // The buffers are pre-allocated
@@ -72,14 +73,14 @@ struct RequestContext {
     } ioContext;
     uint32_t bufferSize; // for recording partial writes
 
-    std::shared_ptr<std::string const> doc_root;
-    http::request<http::string_body> request;
-    session *session_;
-    http::message_generator *msg;
+    // std::shared_ptr<std::string const> doc_root;
+    HttpRequest request;
+    // session *session_;
+    // http::message_generator *msg;
     bool keep_alive;
 
     // closure
-    std::function<void(http::request<http::string_body> req_)> fn;
+    std::function<void(HttpRequest)> fn;
     // std::function<void(http::message_generator msg, bool keep_alive)> fn;
     // void apply() { value = function(value); }
 

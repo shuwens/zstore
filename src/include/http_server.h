@@ -1,8 +1,10 @@
 #pragma once
 #include "boost_utils.h"
 #include "common.h"
+#include "src/include/utils.h"
 #include <boost/asio.hpp>
 #include <boost/beast/http/message.hpp>
+#include <cassert>
 
 namespace asio = boost::asio;
 
@@ -106,7 +108,16 @@ class session : public std::enable_shared_from_this<session>
             return fail(ec, "read");
 
         if (req_.method() == http::verb::get) {
-            // log_debug("REQUEST: {}", req_.target());
+            // NOTE: READ path: see section 3.4
+            auto object_key = req_.target();
+
+            if (zctrl_.SearchBF(object_key).value()) {
+                log_info("Object {} is recently modified", object_key);
+                log_error("Unimplemented!!!");
+            }
+
+            auto entry = zctrl_.FindObject(object_key).value();
+
             if (!zctrl_.isDraining &&
                 zctrl_.mRequestContextPool->availableContexts.size() > 0) {
                 if (!zctrl_.start) {
@@ -126,48 +137,17 @@ class session : public std::enable_shared_from_this<session>
                                            shared_from_this(), keep_alive));
                 };
 
-                RequestContext *slot =
-                    zctrl_.mRequestContextPool->GetRequestContext(true);
-                slot->ctrl = &zctrl_;
-                assert(slot->ctrl == &zctrl_);
-
-                auto ioCtx = slot->ioContext;
-                // FIXME hardcode
-                // int size_in_ios = 212860928;
-                int io_size_blocks = 1;
-                // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-                // auto offset_in_ios = 1;
-                ioCtx.ns = zctrl_.GetDevice()->GetNamespace();
-                ioCtx.qpair = zctrl_.GetIoQpair();
-                ioCtx.data = slot->dataBuffer;
-
-                // lookup
-                auto entry = zctrl_.find_object(req_.target());
-                ioCtx.offset = Configuration::GetZslba() + entry.value().second;
-
-                // ioCtx.offset = Configuration::GetZslba() +
-                //                zctrl_.GetDevice()->mTotalCounts;
-
-                ioCtx.size = io_size_blocks;
-                ioCtx.cb = complete;
-                ioCtx.ctx = slot;
-                ioCtx.flags = 0;
-                slot->ioContext = ioCtx;
-                slot->request = req_;
-                slot->request = std::move(req_);
-                // slot->keep_alive = keep_alive;
-                // slot->doc_root = doc_root_;
-                // slot->session_ = this;
-                slot->fn = closure_;
-
-                assert(slot->ioContext.cb != nullptr);
-                assert(slot->ctrl != nullptr);
+                auto slot =
+                    MakeRequestContext(&zctrl_, entry.second, req_, closure_);
+                assert(slot.has_value());
                 {
                     std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-                    zctrl_.EnqueueRead(slot);
+                    zctrl_.EnqueueRead(slot.value());
                 }
             }
         } else if (req_.method() == http::verb::put) {
+            // NOTE: Write path: see section 3.3
+
             async_do_put(req_, asio::deferred);
         } else {
             log_error("Request is not a supported operation\n");

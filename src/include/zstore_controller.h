@@ -31,9 +31,51 @@ class ZstoreController
     net::io_context &mIoc_;
 
     ~ZstoreController();
-    int Init(bool object, u16 key_experiment);
-    int PopulateMap(bool bogus);
+    int Init(bool object, int key_experiment);
+    int PopulateMap(bool bogus, int key_experiment);
     int pivot;
+
+    // ZStore Map: this maps key to tuple of ZNS target and lba
+    // TODO
+    // at some point we need to discuss the usage of flat hash map or unordered
+    // map key -> tuple of <zns target, lba> std::unordered_map<std::string,
+    // std::tuple<std::pair<std::string, int32_t>>>
+    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
+    // MapEntry>>
+    // std::unordered_map<std::string, MapEntry, std::less<>> mMap;
+    std::unordered_map<std::string, MapEntry> mMap;
+    std::shared_mutex mMapMutex;
+
+    // ZStore Bloom Filter: this maintains a bloom filter of hashes of
+    // object name (key).
+    //
+    // For simplicity, right now we are just using a set to keep track of
+    // the hashes
+    std::unordered_set<std::string> mBF;
+    std::shared_mutex mBFMutex;
+
+    // Object APIs
+    Result<bool> SearchBF(std::string key);
+
+    Result<MapEntry> FindObject(std::string key);
+    Result<void> ReleaseObject(std::string key);
+
+    // int64_t alloc_object_entry();
+    // void dealloc_object_entry(int64_t object_index);
+    Result<void> PutObject(std::string key, void *data, size_t size);
+    // Result<Object> getObject(std::string key, sm_offset *ptr, size_t *size);
+    // int seal_object(uint64_t object_id);
+    Result<void> DeleteObject(std::string key);
+
+    // Add an object to the store
+    // void(std::string key, void *data);
+
+    // Retrieve an object from the store by ID
+    // Object *getObject(std::string key);
+    int getObject(std::string key, uint8_t *readValidateBuffer);
+
+    // Delete an object from the store by ID
+    bool deleteObject(std::string key);
 
     // threads
     void initIoThread();
@@ -46,6 +88,7 @@ class ZstoreController
     struct spdk_thread *GetHttpThread(int id) { return mHttpThread[id].thread; }
     struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
 
+    // SPDK components
     struct spdk_nvme_qpair *GetIoQpair();
     bool CheckIoQpair(std::string msg);
 
@@ -67,6 +110,7 @@ class ZstoreController
 
     Device *GetDevice() { return mDevices[0]; };
 
+    // Setting up SPDK
     void register_ctrlr(Device *device, struct spdk_nvme_ctrlr *ctrlr);
     void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
 
@@ -82,39 +126,18 @@ class ZstoreController
     int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
                            enum spdk_nvme_qprio qprio);
 
-    // Object APIs
-
-    Result<MapEntry> find_object(std::string key);
-    Result<void> release_object(std::string key);
-
-    // int64_t alloc_object_entry();
-    // void dealloc_object_entry(int64_t object_index);
-    Result<void> putObject(std::string key, void *data, size_t size);
-    // Result<Object> getObject(std::string key, sm_offset *ptr, size_t *size);
-    // int seal_object(uint64_t object_id);
-    Result<void> delete_object(std::string key);
-
-    // Add an object to the store
-    // void(std::string key, void *data);
-
-    // Retrieve an object from the store by ID
-    // Object *getObject(std::string key);
-    int getObject(std::string key, uint8_t *readValidateBuffer);
-
-    // Delete an object from the store by ID
-    bool deleteObject(std::string key);
-
+    // TODO:
     void Append(uint64_t zslba, uint32_t size, void *data,
                 zns_raid_request_complete cb_fn, void *cb_args);
-
-    void Write(uint64_t offset, uint32_t size, void *data,
-               zns_raid_request_complete cb_fn, void *cb_args);
-
-    void Read(uint64_t offset, uint32_t size, void *data,
-              zns_raid_request_complete cb_fn, void *cb_args);
-
-    void Execute(uint64_t offset, uint32_t size, void *data, bool is_write,
-                 zns_raid_request_complete cb_fn, void *cb_args);
+    //
+    // void Write(uint64_t offset, uint32_t size, void *data,
+    //            zns_raid_request_complete cb_fn, void *cb_args);
+    //
+    Result<void> Read(uint64_t offset, HttpRequest request,
+                      std::function<void(HttpRequest)> fn);
+    //
+    // void Execute(uint64_t offset, uint32_t size, void *data, bool is_write,
+    //              zns_raid_request_complete cb_fn, void *cb_args);
 
     void Drain();
 
@@ -133,7 +156,7 @@ class ZstoreController
 
     std::queue<RequestContext *> &GetRequestQueue();
     std::shared_mutex &GetRequestQueueMutex();
-    std::shared_mutex &GetSessionMutex();
+    // std::shared_mutex &GetSessionMutex();
     // std::mutex &GetRequestQueueMutex();
     int GetRequestQueueSize();
 
@@ -168,25 +191,6 @@ class ZstoreController
     bool start = false;
     chrono_tp stime;
 
-    // ZStore Map: this maps key to tuple of ZNS target and lba
-    // TODO
-    // at some point we need to discuss the usage of flat hash map or unordered
-    // map key -> tuple of <zns target, lba> std::unordered_map<std::string,
-    // std::tuple<std::pair<std::string, int32_t>>>
-    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
-    // MapEntry>>
-    // std::unordered_map<std::string, MapEntry, std::less<>> mMap;
-    std::unordered_map<std::string, MapEntry> mMap;
-    std::mutex mMapMutex;
-
-    // ZStore Bloom Filter: this maintains a bloom filter of hashes of
-    // object name (key).
-    //
-    // For simplicity, right now we are just using a set to keep track of
-    // the hashes
-    std::unordered_set<std::string> mBF;
-    std::mutex mBFMutex;
-
     RequestContextPool *mRequestContextPool;
     std::unordered_set<RequestContext *> mInflightRequestContext;
 
@@ -214,7 +218,6 @@ class ZstoreController
 
     std::vector<Device *> mDevices;
     std::queue<RequestContext *> mRequestQueue;
-    // std::mutex mRequestQueueMutex;
     std::shared_mutex mRequestQueueMutex;
 
     std::shared_mutex mSessionMutex;

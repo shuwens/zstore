@@ -19,8 +19,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    u16 key_experiment = std::stoull(argv[1]);
-    u16 dummy = std::stoull(argv[2]);
+    int key_experiment = std::stoull(argv[1]);
+    int dummy = std::stoull(argv[2]);
 
     int rc;
     struct spdk_env_opts opts;

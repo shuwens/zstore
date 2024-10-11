@@ -372,7 +372,7 @@ int handleObjectSubmit(void *args)
         //     // log_debug("key {} is not in the map", current_key);
         //     // std::cout << got->first << " is " << got->second;
         //     MapEntry entry = got->second;
-        auto res = zctrlr->find_object(current_key);
+        auto res = zctrlr->FindObject(current_key);
         // log_debug("Found {}, value {}", current_key, res.value());
         // int offset = res.value().second;
 
@@ -637,4 +637,38 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
         assert(availableContexts.size() <= capacity);
         availableContexts.emplace_back(slot);
     }
+}
+
+Result<RequestContext *>
+MakeRequestContext(ZstoreController *zctrl_, uint64_t offset,
+                   HttpRequest request,
+                   std::function<void(HttpRequest)> closure)
+{
+    RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = zctrl_;
+    assert(slot->ctrl == zctrl_);
+    auto ioCtx = slot->ioContext;
+    // FIXME hardcode
+    // int size_in_ios = 212860928;
+    int io_size_blocks = 1;
+    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    // auto offset_in_ios = 1;
+    ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
+    ioCtx.qpair = zctrl_->GetIoQpair();
+    ioCtx.data = slot->dataBuffer;
+    // lookup
+    ioCtx.offset = Configuration::GetZslba() + offset;
+    // ioCtx.offset = Configuration::GetZslba() +
+    //                zctrl_.GetDevice()->mTotalCounts;
+    ioCtx.size = io_size_blocks;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+    slot->request = std::move(request);
+    slot->fn = closure;
+    assert(slot->ioContext.cb != nullptr);
+    assert(slot->ctrl != nullptr);
+
+    return slot;
 }

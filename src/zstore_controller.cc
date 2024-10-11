@@ -4,7 +4,10 @@
 #include "include/common.h"
 #include "include/configuration.h"
 #include "include/device.h"
+#include "src/include/utils.h"
+#include <boost/beast/http/message.hpp>
 #include <cassert>
+#include <shared_mutex>
 
 static std::vector<Device *> g_devices;
 
@@ -112,21 +115,41 @@ void ZstoreController::initIoThread()
     }
 }
 
-int ZstoreController::PopulateMap(bool bogus)
+int ZstoreController::PopulateMap(bool bogus, int key_experiment)
 {
-    mMap.insert({"apples", createMapEntry("device", 0).value()});
-    mMap.insert({"carrots", createMapEntry("device", 7).value()});
-    mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
+    // mMap.insert({"apples", createMapEntry("device", 0).value()});
+    // mMap.insert({"carrots", createMapEntry("device", 7).value()});
+    // mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
 
-    for (int i = 0; i < 2'000'000; i++) {
-        mMap.insert(
-            {"/db/" + std::to_string(i), createMapEntry("device", i).value()});
+    if (key_experiment == 1) {
+        // Random Read
+        for (int i = 0; i < 2'000'000; i++) {
+            mMap.insert({"/db/" + std::to_string(i),
+                         createMapEntry("device", i).value()});
+        }
+    } else if (key_experiment == 2) {
+        // Random Append
+        // for (int i = 0; i < 2'000'000; i++) {
+        //     mMap.insert({"/db/" + std::to_string(i),
+        //                  createMapEntry("device", i).value()});
+        // }
+    } else if (key_experiment == 3) {
+        // Target failure
+    } else if (key_experiment == 4) {
+        // gateway failure
+    } else if (key_experiment == 5) {
+        // Target and gateway failure
+    } else if (key_experiment == 6) {
+        // GC
+    } else if (key_experiment == 7) {
+        // Checkpoint
     }
+    // else if (key_experiment == 1) {}
 
     return 0;
 }
 
-int ZstoreController::Init(bool object, u16 key_experiment)
+int ZstoreController::Init(bool object, int key_experiment)
 {
     int rc = 0;
     verbose = true;
@@ -208,7 +231,7 @@ int ZstoreController::Init(bool object, u16 key_experiment)
 
     log_info("Initialization complete. Launching workers.");
 
-    PopulateMap(true);
+    PopulateMap(true, key_experiment);
     pivot = 0;
 
     // Read zone headers
@@ -420,6 +443,45 @@ void ZstoreController::cleanup(uint32_t task_count)
     // spdk_mempool_free(mTaskPool);
 }
 
+Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
+                                    std::function<void(HttpRequest)> closure)
+{
+    RequestContext *slot = mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = this;
+    assert(slot->ctrl == this);
+
+    auto ioCtx = slot->ioContext;
+    // FIXME hardcode
+    // int size_in_ios = 212860928;
+    int io_size_blocks = 1;
+    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    // auto offset_in_ios = 1;
+    ioCtx.ns = GetDevice()->GetNamespace();
+    ioCtx.qpair = GetIoQpair();
+    ioCtx.data = slot->dataBuffer;
+
+    ioCtx.offset = Configuration::GetZslba() + offset;
+
+    // ioCtx.offset = Configuration::GetZslba() +
+    //                zctrl_.GetDevice()->mTotalCounts;
+
+    ioCtx.size = io_size_blocks;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+    // slot->request = req_;
+    slot->request = std::move(req_);
+    slot->fn = closure;
+
+    assert(slot->ioContext.cb != nullptr);
+    assert(slot->ctrl != nullptr);
+    {
+        // std::unique_lock lock(mRequestQueueMutex);
+        EnqueueRead(slot);
+    }
+}
+
 void ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
@@ -441,10 +503,19 @@ std::shared_mutex &ZstoreController::GetRequestQueueMutex()
     return mRequestQueueMutex;
 }
 
-std::shared_mutex &ZstoreController::GetSessionMutex() { return mSessionMutex; }
-
-Result<MapEntry> ZstoreController::find_object(std::string key)
+Result<bool> ZstoreController::SearchBF(std::string key)
 {
+    std::shared_lock<std::shared_mutex> lock(mBFMutex);
+    if (mBF.find(key) != mBF.end()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+Result<MapEntry> ZstoreController::FindObject(std::string key)
+{
+    std::shared_lock<std::shared_mutex> lock(mMapMutex);
     // thanks to std::less<> this no longer creates a std::string
     auto it = mMap.find(key);
     if (it != mMap.end()) {
@@ -453,12 +524,14 @@ Result<MapEntry> ZstoreController::find_object(std::string key)
     }
 
     // int64_t head_index =
-    //     store_header_->hashmap.hash_entries[object_id % 65536].object_list;
+    //     store_header_->hashmap.hash_entries[object_id %
+    //     65536].object_list;
     // int64_t current_index = head_index;
     //
     // while (current_index >= 0) {
-    //     ObjectEntry *current = &store_header_->object_entries[current_index];
-    //     if (current->object_id == object_id) {
+    //     ObjectEntry *current =
+    //     &store_header_->object_entries[current_index]; if
+    //     (current->object_id == object_id) {
     //         return current_index;
     //     }
     //     current_index = current->next;

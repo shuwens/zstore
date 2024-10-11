@@ -51,9 +51,9 @@ class Device
     void SetDeviceTransportAddress(const char *addr);
     char *GetDeviceTransportAddress() const;
 
-    void startIo(RequestContext *slot);
-    void issueIo2(spdk_event_fn event_fn, RequestContext *slot);
-    void issueIo(spdk_msg_fn msg_fn, RequestContext *slot);
+    // void startIo(RequestContext *slot);
+    // void issueIo2(spdk_event_fn event_fn, RequestContext *slot);
+    // void issueIo(spdk_msg_fn msg_fn, RequestContext *slot);
 
     // debug
     // std::map<uint32_t, uint64_t> mReadCounts;

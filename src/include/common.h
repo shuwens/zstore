@@ -1,4 +1,5 @@
 #pragma once
+#include "global.h"
 #include "object.h"
 #include "spdk/nvme.h"
 #include "utils.h"
@@ -109,3 +110,7 @@ static int g_micro_to_second = 1'000'000;
 Result<MapEntry> createMapEntry(std::string device, int32_t lba);
 
 void updateMapEntry(MapEntry entry, std::string device, int32_t lba);
+
+Result<RequestContext *>
+MakeRequestContext(ZstoreController *zctrl, uint64_t offset,
+                   HttpRequest request, std::function<void(HttpRequest)> fn);
