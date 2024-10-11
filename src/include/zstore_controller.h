@@ -3,20 +3,34 @@
 #include "configuration.h"
 #include "device.h"
 #include "global.h"
+#include "http_server.h"
+#include <boost/asio.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
+#include <cassert>
 #include <cstring>
 #include <mutex>
+#include <queue>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
 #include <unistd.h>
+#include <unordered_set>
+
+// typedef std::string ObjectKey;
+// typedef std::tuple<std::pair<std::string, std::string>,
+//                    std::pair<std::string, std::string>,
+//                    std::pair<std::string, std::string>>
+//     DevTuple;
+// typedef std::pair<std::pair<std::string, std::string>, u64> TargetLbaPair;
 
 namespace net = boost::asio; // from <boost/asio.hpp>
-const int current_zone = 0;
+
+// const int current_zone = 0;
 
 // uint64_t GetZslba(int zone_num)
 // {
@@ -32,7 +46,9 @@ class ZstoreController
 
     ~ZstoreController();
     int Init(bool object, int key_experiment);
-    int PopulateMap(bool bogus, int key_experiment);
+    Result<void> PopulateMap(bool bogus, int key_experiment);
+    Result<void> PopulateDevHash(int key_experiment);
+    Result<DevTuple> GetDevTuple(ObjectKey object_key);
     int pivot;
 
     // ZStore Map: this maps key to tuple of ZNS target and lba
@@ -43,26 +59,36 @@ class ZstoreController
     // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
     // MapEntry>>
     // std::unordered_map<std::string, MapEntry, std::less<>> mMap;
-    std::unordered_map<std::string, MapEntry> mMap;
+    std::unordered_map<ObjectKey, MapEntry> mMap;
     std::shared_mutex mMapMutex;
+
+    // ZStore Device Consistent Hashmap: this maintains a consistent hash map
+    // which maps object key to tupke of devices. Right now this is
+    // pre-populated and just randomly
+    // std::unordered_map<ObjectKey, DevTuple> mDevHash;
+    std::vector<DevTuple> mDevHash;
+    std::shared_mutex mDevHashMutex;
 
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
     //
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
-    std::unordered_set<std::string> mBF;
+    std::unordered_set<ObjectKey> mBF;
     std::shared_mutex mBFMutex;
 
     // Object APIs
-    Result<bool> SearchBF(std::string key);
+    Result<bool> SearchBF(ObjectKey key);
+    Result<void> UpdateBF(ObjectKey key);
 
     Result<MapEntry> FindObject(std::string key);
     Result<void> ReleaseObject(std::string key);
 
     // int64_t alloc_object_entry();
     // void dealloc_object_entry(int64_t object_index);
-    Result<void> PutObject(std::string key, void *data, size_t size);
+    Result<MapEntry> CreateObject(std::string key, DevTuple tuple);
+    Result<void> PutObject(std::string key, MapEntry entry);
+
     // Result<Object> getObject(std::string key, sm_offset *ptr, size_t *size);
     // int seal_object(uint64_t object_id);
     Result<void> DeleteObject(std::string key);
@@ -127,8 +153,8 @@ class ZstoreController
                            enum spdk_nvme_qprio qprio);
 
     // TODO:
-    void Append(uint64_t zslba, uint32_t size, void *data,
-                zns_raid_request_complete cb_fn, void *cb_args);
+    // void Append(uint64_t zslba, uint32_t size, void *data,
+    //             zns_raid_request_complete cb_fn, void *cb_args);
     //
     // void Write(uint64_t offset, uint32_t size, void *data,
     //            zns_raid_request_complete cb_fn, void *cb_args);
@@ -249,3 +275,16 @@ class ZstoreController
     std::vector<Zone *> mZones;
     // std::vector<RequestContext> mResetContext;
 };
+
+Result<MapEntry> createMapEntry(DevTuple tuple, u64 lba1, u64 lba2, u64 lba3);
+
+// Result<void> updateMapEntry(MapEntry *entry, std::string device, int32_t
+// lba);
+
+Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl,
+                                         uint64_t offset, HttpRequest request,
+                                         std::function<void(HttpRequest)> fn);
+
+Result<RequestContext *>
+MakeWriteRequest(ZstoreController *zctrl, HttpRequest request, MapEntry entry,
+                 std::function<void(HttpRequest, MapEntry)> fn);

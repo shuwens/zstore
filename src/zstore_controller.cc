@@ -1,15 +1,13 @@
 #include "include/zstore_controller.h"
-#include "common.cc"
-#include "device.cc"
-#include "include/common.h"
-#include "include/configuration.h"
-#include "include/device.h"
-#include "src/include/utils.h"
 #include <boost/beast/http/message.hpp>
 #include <cassert>
 #include <shared_mutex>
+#include <spdk/string.h>
+#include <tuple>
+#include <utility>
 
 static std::vector<Device *> g_devices;
+using tcp = boost::asio::ip::tcp;
 
 void ZstoreController::initHttpThread()
 {
@@ -115,146 +113,6 @@ void ZstoreController::initIoThread()
     }
 }
 
-int ZstoreController::PopulateMap(bool bogus, int key_experiment)
-{
-    // mMap.insert({"apples", createMapEntry("device", 0).value()});
-    // mMap.insert({"carrots", createMapEntry("device", 7).value()});
-    // mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
-
-    if (key_experiment == 1) {
-        // Random Read
-        for (int i = 0; i < 2'000'000; i++) {
-            mMap.insert({"/db/" + std::to_string(i),
-                         createMapEntry("device", i).value()});
-        }
-    } else if (key_experiment == 2) {
-        // Random Append
-        // for (int i = 0; i < 2'000'000; i++) {
-        //     mMap.insert({"/db/" + std::to_string(i),
-        //                  createMapEntry("device", i).value()});
-        // }
-    } else if (key_experiment == 3) {
-        // Target failure
-    } else if (key_experiment == 4) {
-        // gateway failure
-    } else if (key_experiment == 5) {
-        // Target and gateway failure
-    } else if (key_experiment == 6) {
-        // GC
-    } else if (key_experiment == 7) {
-        // Checkpoint
-    }
-    // else if (key_experiment == 1) {}
-
-    return 0;
-}
-
-int ZstoreController::Init(bool object, int key_experiment)
-{
-    int rc = 0;
-    verbose = true;
-
-    // TODO: set all parameters too
-    log_debug("mZone sizes {}", mZones.size());
-
-    log_debug("Configure Zstore with configuration");
-    setQueuDepth(Configuration::GetQueueDepth());
-    setContextPoolSize(Configuration::GetContextPoolSize());
-    setNumOfDevices(Configuration::GetNumOfDevices() *
-                    Configuration::GetNumOfTargets());
-
-    // FIXME use number of target and number of devices
-    // we add one device for now
-    {
-        Device *device = new Device();
-        if (register_controllers(device) != 0) {
-            rc = 1;
-            zstore_cleanup();
-            return rc;
-        }
-        g_devices.emplace_back(device);
-    }
-    mDevices = g_devices;
-
-    // Preallocate contexts for user requests
-    // Sufficient to support multiple I/O queues of NVMe-oF target
-    mRequestContextPool = new RequestContextPool(mContextPoolSize);
-
-    if (mRequestContextPool == NULL) {
-        log_error("could not initialize task pool");
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
-    isDraining = false;
-    // bogus setup for Map and BF
-
-    // Create poll groups for the io threads and perform initialization
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-         ++threadId) {
-        mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
-        mIoThread[threadId].controller = this;
-    }
-    for (uint32_t i = 0; i < mN; ++i) {
-        struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
-        for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
-             ++threadId) {
-            spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
-            int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
-                                              ioQueues[threadId]);
-            assert(rc == 0);
-        }
-        mDevices[i]->ConnectIoPairs();
-    }
-
-    CheckIoQpair("Starting all the threads");
-
-    log_debug("ZstoreController launching threads");
-
-    initIoThread();
-    initDispatchThread();
-
-    auto const address = net::ip::make_address("127.0.0.1");
-    auto const port = 2000;
-    auto const doc_root = std::make_shared<std::string>(".");
-    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, doc_root,
-                               *this)
-        ->run();
-
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
-         ++threadId) {
-        // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
-        // NULL);
-        mHttpThread[threadId].controller = this;
-    }
-    initHttpThread();
-
-    log_info("Initialization complete. Launching workers.");
-
-    PopulateMap(true, key_experiment);
-    pivot = 0;
-
-    // Read zone headers
-
-    // Valid (full and open) zones and their headers
-    std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
-    for (uint32_t i = 0; i < mN; ++i) {
-        log_debug("read zone and headers {}.", i);
-        // if (i == failedDriveId) {
-        //     continue;
-        // }
-
-        // TODO: right now we sort of just pick read and write zone, this should
-        // be done smartly
-        // FIXME bug
-        // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
-    }
-
-    log_info("ZstoreController Init finish");
-
-    return rc;
-}
-
 void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
 {
     thread_send_msg(GetIoThread(0), zoneRead, ctx);
@@ -282,6 +140,8 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 
     return mDevices[0]->GetIoQueue(0);
 }
+
+static auto quit(void *args) { exit(0); }
 
 ZstoreController::~ZstoreController()
 {
@@ -443,45 +303,6 @@ void ZstoreController::cleanup(uint32_t task_count)
     // spdk_mempool_free(mTaskPool);
 }
 
-Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
-                                    std::function<void(HttpRequest)> closure)
-{
-    RequestContext *slot = mRequestContextPool->GetRequestContext(true);
-    slot->ctrl = this;
-    assert(slot->ctrl == this);
-
-    auto ioCtx = slot->ioContext;
-    // FIXME hardcode
-    // int size_in_ios = 212860928;
-    int io_size_blocks = 1;
-    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-    // auto offset_in_ios = 1;
-    ioCtx.ns = GetDevice()->GetNamespace();
-    ioCtx.qpair = GetIoQpair();
-    ioCtx.data = slot->dataBuffer;
-
-    ioCtx.offset = Configuration::GetZslba() + offset;
-
-    // ioCtx.offset = Configuration::GetZslba() +
-    //                zctrl_.GetDevice()->mTotalCounts;
-
-    ioCtx.size = io_size_blocks;
-    ioCtx.cb = complete;
-    ioCtx.ctx = slot;
-    ioCtx.flags = 0;
-    slot->ioContext = ioCtx;
-    // slot->request = req_;
-    slot->request = std::move(req_);
-    slot->fn = closure;
-
-    assert(slot->ioContext.cb != nullptr);
-    assert(slot->ctrl != nullptr);
-    {
-        // std::unique_lock lock(mRequestQueueMutex);
-        EnqueueRead(slot);
-    }
-}
-
 void ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
@@ -503,41 +324,6 @@ std::shared_mutex &ZstoreController::GetRequestQueueMutex()
     return mRequestQueueMutex;
 }
 
-Result<bool> ZstoreController::SearchBF(std::string key)
-{
-    std::shared_lock<std::shared_mutex> lock(mBFMutex);
-    if (mBF.find(key) != mBF.end()) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
-Result<MapEntry> ZstoreController::FindObject(std::string key)
-{
-    std::shared_lock<std::shared_mutex> lock(mMapMutex);
-    // thanks to std::less<> this no longer creates a std::string
-    auto it = mMap.find(key);
-    if (it != mMap.end()) {
-        // std::cout << "I have " << it->second << " apples!\n";
-        return Result<MapEntry>(it->second);
-    }
-
-    // int64_t head_index =
-    //     store_header_->hashmap.hash_entries[object_id %
-    //     65536].object_list;
-    // int64_t current_index = head_index;
-    //
-    // while (current_index >= 0) {
-    //     ObjectEntry *current =
-    //     &store_header_->object_entries[current_index]; if
-    //     (current->object_id == object_id) {
-    //         return current_index;
-    //     }
-    //     current_index = current->next;
-    // }
-}
-
 void tryDrainController(void *args)
 {
     DrainArgs *drainArgs = (DrainArgs *)args;
@@ -549,6 +335,15 @@ void tryDrainController(void *args)
         drainArgs->ctrl->GetContextPoolSize();
 
     drainArgs->ready = true;
+}
+
+static void busyWait(bool *ready)
+{
+    while (!*ready) {
+        if (spdk_get_thread() == nullptr) {
+            std::this_thread::sleep_for(std::chrono::seconds(0));
+        }
+    }
 }
 
 void ZstoreController::Drain()
@@ -581,4 +376,351 @@ void ZstoreController::Drain()
     // exit(0);
 
     log_info("done .");
+}
+
+Result<void> ZstoreController::PopulateMap(bool bogus, int key_experiment)
+{
+    std::unique_lock lock(mMapMutex);
+    // mMap.insert({"apples", createMapEntry("device", 0).value()});
+    // mMap.insert({"carrots", createMapEntry("device", 7).value()});
+    // mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
+
+    if (key_experiment == 1) {
+        // Random Read
+        for (int i = 0; i < 2'000'000; i++) {
+            auto entry = createMapEntry(
+                             std::make_tuple(std::make_pair("Zstore1", "dev1"),
+                                             std::make_pair("Zstore1", "dev1"),
+                                             std::make_pair("Zstore1", "dev1")),
+                             i, i, i)
+                             .value();
+            // assert(rc.has_value());
+            mMap.insert({"/db/" + std::to_string(i), entry});
+        }
+    } else if (key_experiment == 2) {
+        // Random Append
+        // for (int i = 0; i < 2'000'000; i++) {
+        //     mMap.insert({"/db/" + std::to_string(i),
+        //                  createMapEntry("device", i).value()});
+        // }
+    } else if (key_experiment == 3) {
+        // Target failure
+    } else if (key_experiment == 4) {
+        // gateway failure
+    } else if (key_experiment == 5) {
+        // Target and gateway failure
+    } else if (key_experiment == 6) {
+        // GC
+    } else if (key_experiment == 7) {
+        // Checkpoint
+    }
+    // else if (key_experiment == 1) {}
+}
+
+Result<void> ZstoreController::PopulateDevHash(int key_experiment)
+{
+    std::unique_lock lock(mDevHashMutex);
+
+    assert(0 < key_experiment < 10);
+
+    // permutate Zstore2-Zstore4, Dev1-2
+    std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
+    std::vector<std::string> dev_list({"Dev1", "Dev2"});
+    std::vector<std::pair<std::string, std::string>> tgt_dev_vec;
+
+    for (int i = 0; i < tgt_list.size(); i++) {
+        for (int j = 0; j < dev_list.size(); j++) {
+            tgt_dev_vec.push_back({std::make_pair(tgt_list[i], dev_list[j])});
+        }
+    }
+
+    std::vector<std::pair<std::string, std::string>> entry;
+    for (int i = 0; i < tgt_dev_vec.size(); i++) {
+        for (int j = 0; j < tgt_dev_vec.size(); j++) {
+            if (i == j)
+                continue;
+            else {
+                entry.push_back(tgt_dev_vec[i]);
+                if (entry.size() == 3) {
+                    mDevHash.push_back({std::make_tuple(
+                        tgt_dev_vec[0], tgt_dev_vec[1], tgt_dev_vec[2])});
+
+                    entry.clear();
+                }
+            }
+            // tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
+        }
+    }
+
+    for (int i = 0; i < mDevHash.size(); i++) {
+        log_debug("DevHash: {}", mDevHash[i]);
+    }
+}
+
+int ZstoreController::Init(bool object, int key_experiment)
+{
+    int rc = 0;
+    verbose = true;
+
+    // TODO: set all parameters too
+    log_debug("mZone sizes {}", mZones.size());
+
+    log_debug("Configure Zstore with configuration");
+    setQueuDepth(Configuration::GetQueueDepth());
+    setContextPoolSize(Configuration::GetContextPoolSize());
+    setNumOfDevices(Configuration::GetNumOfDevices() *
+                    Configuration::GetNumOfTargets());
+
+    // FIXME use number of target and number of devices
+    // we add one device for now
+    {
+        Device *device = new Device();
+        if (register_controllers(device) != 0) {
+            rc = 1;
+            zstore_cleanup();
+            return rc;
+        }
+        g_devices.emplace_back(device);
+    }
+    mDevices = g_devices;
+
+    // Preallocate contexts for user requests
+    // Sufficient to support multiple I/O queues of NVMe-oF target
+    mRequestContextPool = new RequestContextPool(mContextPoolSize);
+
+    if (mRequestContextPool == NULL) {
+        log_error("could not initialize task pool");
+        rc = 1;
+        zstore_cleanup();
+        return rc;
+    }
+    isDraining = false;
+    // bogus setup for Map and BF
+
+    // Create poll groups for the io threads and perform initialization
+    for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
+         ++threadId) {
+        mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
+        mIoThread[threadId].controller = this;
+    }
+    for (int i = 0; i < mN; ++i) {
+        struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
+        for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
+             ++threadId) {
+            spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
+            int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
+                                              ioQueues[threadId]);
+            assert(rc == 0);
+        }
+        mDevices[i]->ConnectIoPairs();
+    }
+
+    CheckIoQpair("Starting all the threads");
+    log_debug("ZstoreController launching threads");
+
+    initIoThread();
+    initDispatchThread();
+
+    auto const address = net::ip::make_address("127.0.0.1");
+    auto const port = 2000;
+    // auto const doc_root = std::make_shared<std::string>(".");
+    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, // doc_root,
+                               *this)
+        ->run();
+
+    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
+         ++threadId) {
+        // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
+        // NULL);
+        mHttpThread[threadId].controller = this;
+    }
+    initHttpThread();
+
+    log_info("Initialization complete. Launching workers.");
+
+    auto ret = PopulateDevHash(key_experiment);
+    assert(ret.has_value());
+
+    ret = PopulateMap(true, key_experiment);
+    assert(ret.has_value());
+    pivot = 0;
+
+    // Read zone headers
+
+    // Valid (full and open) zones and their headers
+    std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
+    for (int i = 0; i < mN; ++i) {
+        log_debug("read zone and headers {}.", i);
+        // if (i == failedDriveId) {
+        //     continue;
+        // }
+
+        // TODO: right now we sort of just pick read and write zone, this should
+        // be done smartly
+        // FIXME bug
+        // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
+    }
+
+    log_info("ZstoreController Init finish");
+
+    return rc;
+}
+
+Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
+                                    std::function<void(HttpRequest)> closure)
+{
+    RequestContext *slot = mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = this;
+    assert(slot->ctrl == this);
+
+    auto ioCtx = slot->ioContext;
+    // FIXME hardcode
+    // int size_in_ios = 212860928;
+    int io_size_blocks = 1;
+    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    // auto offset_in_ios = 1;
+    ioCtx.ns = GetDevice()->GetNamespace();
+    ioCtx.qpair = GetIoQpair();
+    ioCtx.data = slot->dataBuffer;
+
+    ioCtx.offset = Configuration::GetZslba() + offset;
+
+    // ioCtx.offset = Configuration::GetZslba() +
+    //                zctrl_.GetDevice()->mTotalCounts;
+
+    ioCtx.size = io_size_blocks;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+    // slot->request = req_;
+    slot->request = std::move(req_);
+    slot->read_fn = closure;
+
+    assert(slot->ioContext.cb != nullptr);
+    assert(slot->ctrl != nullptr);
+    {
+        // std::unique_lock lock(mRequestQueueMutex);
+        EnqueueRead(slot);
+    }
+}
+
+Result<bool> ZstoreController::SearchBF(std::string key)
+{
+    std::shared_lock<std::shared_mutex> lock(mBFMutex);
+    if (mBF.find(key) != mBF.end()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+Result<void> ZstoreController::UpdateBF(std::string key)
+{
+    std::unique_lock<std::shared_mutex> lock(mBFMutex);
+    if (mBF.find(key) != mBF.end()) {
+        // do nothing since item is alredy in BF?
+    } else {
+        mBF.insert({key});
+    }
+}
+
+Result<MapEntry> ZstoreController::FindObject(std::string key)
+{
+    std::shared_lock<std::shared_mutex> lock(mMapMutex);
+    // thanks to std::less<> this no longer creates a std::string
+    auto it = mMap.find(key);
+    if (it != mMap.end()) {
+        return Result<MapEntry>(it->second);
+    }
+}
+
+Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
+{
+    auto entry = createMapEntry(tuple, 0, 0, 0);
+    assert(entry.has_value());
+    return entry.value();
+}
+
+Result<void> ZstoreController::PutObject(std::string key, MapEntry entry)
+{
+    std::unique_lock<std::shared_mutex> lock(mMapMutex);
+    // auto entry = createMapEntry(device1, device2, device3);
+    // assert(entry.has_value());
+    mMap.insert({key, entry});
+}
+
+Result<DevTuple> GetDevTuple(ObjectKey object_key)
+{
+    return std::make_tuple(std::make_pair("Zstore2", "dev1"),
+                           std::make_pair("Zstore3", "dev1"),
+                           std::make_pair("Zstore4", "dev1"));
+}
+
+Result<RequestContext *>
+MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
+                std::function<void(HttpRequest)> closure)
+{
+    RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = zctrl_;
+    assert(slot->ctrl == zctrl_);
+    auto ioCtx = slot->ioContext;
+    // FIXME hardcode
+    // int size_in_ios = 212860928;
+    int io_size_blocks = 1;
+    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    // auto offset_in_ios = 1;
+    ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
+    ioCtx.qpair = zctrl_->GetIoQpair();
+    ioCtx.data = slot->dataBuffer;
+    // lookup
+    ioCtx.offset = Configuration::GetZslba() + offset;
+    // ioCtx.offset = Configuration::GetZslba() +
+    //                zctrl_.GetDevice()->mTotalCounts;
+    ioCtx.size = io_size_blocks;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+    slot->request = std::move(request);
+    slot->read_fn = closure;
+    assert(slot->ioContext.cb != nullptr);
+    assert(slot->ctrl != nullptr);
+
+    return slot;
+}
+
+Result<RequestContext *>
+MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
+                 std::function<void(HttpRequest, MapEntry)> closure)
+{
+    // TODO: read value
+    RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = zctrl_;
+    assert(slot->ctrl == zctrl_);
+    auto ioCtx = slot->ioContext;
+    // FIXME hardcode
+    // int size_in_ios = 212860928;
+    int io_size_blocks = 1;
+    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    // auto offset_in_ios = 1;
+    ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
+    ioCtx.qpair = zctrl_->GetIoQpair();
+    ioCtx.data = slot->dataBuffer;
+    // lookup
+    ioCtx.offset = Configuration::GetZslba();
+    // ioCtx.offset = Configuration::GetZslba() +
+    //                zctrl_.GetDevice()->mTotalCounts;
+    ioCtx.size = io_size_blocks;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+    slot->request = std::move(request);
+    slot->entry = std::move(entry);
+    slot->write_fn = closure;
+    assert(slot->ioContext.cb != nullptr);
+    assert(slot->ctrl != nullptr);
+
+    return slot;
 }

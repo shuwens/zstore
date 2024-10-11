@@ -176,13 +176,27 @@ endforeach
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
+zstore_lib_src = [
+	'src/common.cc',
+	'src/device.cc',
+	# 'src/object.cc',
+	'src/zstore_controller.cc',
+	'src/main.cc',
+]
+
+# zstore_lib = static_library('zstore_lib', zstore_lib_src)
+
+subdir('src/include')
+
 executable(
 	'zstore',
-	files('src/main.cc'),
-	# dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	zstore_lib_src,
+	dependencies: [
+		zstore_deps,
+		# dependency('_spdk'),
+	],
+	include_directories: [zstore_inc],
 	link_args: spdk_link_args,
-	# include_directories: incdir,
 	install: true,
 )
 

@@ -1,112 +1,62 @@
 #pragma once
-#include "device.h"
-#include "http_server.h"
+// #include "device.h"
+// #include "http_server.h"
 #include "utils.h"
-#include "zstore_controller.h"
+// #include "zstore_controller.h"
 #include <boost/beast/http.hpp>
+#include <iostream>
 #include <map>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
+
+static int g_dpdk_mem = 0;
+static bool g_dpdk_mem_single_seg = false;
+
+static int g_micro_to_second = 1'000'000;
+
+/*
+ * For weighted round robin arbitration mechanism, the smaller value between
+ * weight and burst will be picked to execute the commands in one queue.
+ */
+#define USER_SPECIFIED_HIGH_PRIORITY_WEIGHT 32
+#define USER_SPECIFIED_MEDIUM_PRIORITY_WEIGHT 16
+#define USER_SPECIFIED_LOW_PRIORITY_WEIGHT 8
+
+typedef std::string ObjectKey;
+typedef std::tuple<std::pair<std::string, std::string>,
+                   std::pair<std::string, std::string>,
+                   std::pair<std::string, std::string>>
+    DevTuple;
+typedef std::pair<std::pair<std::string, std::string>, u64> TargetLbaPair;
+
+struct MapEntry {
+    std::tuple<TargetLbaPair, TargetLbaPair, TargetLbaPair> data;
+
+    std::pair<std::string, std::string> &first_tgt()
+    {
+        return std::get<0>(data).first;
+    }
+    u64 &first_lba() { return std::get<0>(data).second; }
+
+    std::pair<std::string, std::string> &second_tgt()
+    {
+        return std::get<1>(data).first;
+    }
+    u64 &second_lba() { return std::get<1>(data).second; }
+
+    std::pair<std::string, std::string> &third_tgt()
+    {
+        return std::get<2>(data).first;
+    }
+    u64 &third_lba() { return std::get<2>(data).second; }
+};
+
+// typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
 typedef http::request<http::string_body> HttpRequest;
-
-class ZstoreController;
-class session;
-
-struct DrainArgs {
-    ZstoreController *ctrl;
-    bool success;
-    bool ready;
-};
-
-// struct Request {
-//     ZstoreController *controller;
-//     uint64_t offset;
-//     uint32_t size;
-//     void *data;
-//     char type;
-//     zns_raid_request_complete cb_fn;
-//     void *cb_args;
-// };
-
-struct RequestContext {
-    // The buffers are pre-allocated
-    uint8_t *dataBuffer;
-
-    // A user request use the following field:
-    // Info: lba, size, req_type, data
-    // pbaArray, successBytes, and targetBytes
-    uint64_t lba;
-    uint32_t size;
-    uint8_t req_type;
-    uint8_t *data;
-    uint32_t successBytes;
-    uint32_t targetBytes;
-    uint32_t curOffset;
-    void *cb_args;
-    uint32_t ioOffset;
-
-    bool available;
-
-    // Used inside a Segment write/read
-    ZstoreController *ctrl;
-    uint32_t zoneId;
-    uint32_t offset;
-
-    double stime;
-    double ctime;
-    uint64_t timestamp;
-
-    struct timeval timeA;
-
-    struct {
-        struct spdk_nvme_ns *ns;
-        struct spdk_nvme_qpair *qpair;
-        void *data;
-        uint64_t offset;
-        uint32_t size;
-        spdk_nvme_cmd_cb cb;
-        void *ctx;
-        uint32_t flags;
-    } ioContext;
-    uint32_t bufferSize; // for recording partial writes
-
-    // std::shared_ptr<std::string const> doc_root;
-    HttpRequest request;
-    // session *session_;
-    // http::message_generator *msg;
-    bool keep_alive;
-
-    // closure
-    std::function<void(HttpRequest)> fn;
-    // std::function<void(http::message_generator msg, bool keep_alive)> fn;
-    // void apply() { value = function(value); }
-
-    void Clear();
-    void Queue();
-    double GetElapsedTime();
-    void PrintStats();
-    void CopyFrom(const RequestContext &o);
-};
-
-struct IoThread {
-    struct spdk_nvme_poll_group *group;
-    struct spdk_thread *thread;
-    uint32_t threadId;
-    ZstoreController *controller;
-};
-
-struct RequestContextPool {
-    RequestContext *contexts;
-    std::vector<RequestContext *> availableContexts;
-    uint32_t capacity;
-
-    RequestContextPool(uint32_t cap);
-    RequestContext *GetRequestContext(bool force);
-    void ReturnRequestContext(RequestContext *slot);
-};
 
 static bool verbose = false;
 
@@ -157,5 +107,3 @@ std::string dummy_device = "dummy_device";
 
 // These data struct are not supposed to be global like this, but this is the
 // simple way to do it. So sue me.
-
-ZstoreController *gZstoreController;

@@ -1,8 +1,8 @@
+#include "include/configuration.h"
 #include "include/http_server.h"
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
-#include "src/include/global.h"
-#include "zstore_controller.cc"
+#include "include/global.h"
 #include <algorithm>
 #include <bits/stdc++.h>
 #include <boost/asio/executor_work_guard.hpp>
@@ -11,6 +11,9 @@
 #include <fmt/core.h>
 #include <sys/time.h>
 #include <unistd.h>
+
+ZstoreController *gZstoreController;
+static struct spdk_nvme_transport_id g_trid = {};
 
 int main(int argc, char **argv)
 {

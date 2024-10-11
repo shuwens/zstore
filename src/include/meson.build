@@ -1,0 +1,13 @@
+zstore_inc = include_directories('.')
+
+install_headers('boost_utils.h')
+install_headers('configuration.h')
+install_headers('global.h')
+install_headers('object.h')
+install_headers('zns_utils.h')
+install_headers('zstore_controller.h')
+install_headers('common.h')
+install_headers('device.h')
+install_headers('http_server.h')
+install_headers('utils.h')
+install_headers('zone.h')
