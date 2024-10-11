@@ -5,11 +5,8 @@
 #include <fstream>
 #include <iostream>
 
-typedef std::pair<std::string, int32_t> MapEntry;
-// typedef uint16_t keylen_t;
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID
-// typedef char[30] key_t;
 
 struct LogEntry {
     uint64_t next_offset;  // Offset to the next log entry on disk (0 if no next

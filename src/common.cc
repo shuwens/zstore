@@ -11,6 +11,8 @@
 #include <sched.h>
 #include <spdk/event.h>
 #include <sys/time.h>
+#include <tuple>
+#include <utility>
 
 static auto quit(void *args) { exit(0); }
 
@@ -38,16 +40,10 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
-    // g_session_mutex_.unlock();
-
-    // slot->session_->send_response(
-    //     handle_request(std::move(slot->request), *ctrl));
-    // log_debug("nvme cmd complete: now we evaluate the closure.");
-    // log_debug("msg {}, keep alive {}.", slot->msg->is_done(),
-    // slot->keep_alive);
-    // log_debug("keep alive {}.", slot->keep_alive);
-    slot->fn(slot->request);
-    // slot->fn(std::move(*slot->msg), slot->keep_alive);
+    if (slot->is_write)
+        slot->write_fn(slot->request, slot->entry);
+    else
+        slot->read_fn(slot->request);
 
     ctrl->GetDevice()->mTotalCounts++;
 
@@ -462,20 +458,6 @@ int completionWorker(void *args)
     // }
 }
 
-Result<MapEntry> createMapEntry(std::string device, int32_t lba)
-{
-    MapEntry entry;
-    entry.first = device;
-    entry.second = lba;
-    return entry;
-}
-
-void updateMapEntry(MapEntry *entry, std::string device, int32_t lba)
-{
-    entry->first = device;
-    entry->second = lba;
-}
-
 void RequestContext::Clear()
 {
     available = true;
@@ -639,10 +621,34 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
     }
 }
 
+Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
+                                int32_t lba3)
+{
+
+    auto data = std::make_tuple(
+        std::make_pair(
+            std::make_pair(std::get<0>(tuple).first, std::get<0>(tuple).second),
+            lba1),
+        std::make_pair(
+            std::make_pair(std::get<1>(tuple).first, std::get<1>(tuple).second),
+            lba2),
+        std::make_pair(
+            std::make_pair(std::get<2>(tuple).first, std::get<2>(tuple).second),
+            lba3));
+    MapEntry entry = {.data = data};
+    return entry;
+}
+
+Result<DevTuple> GetDevTuple(ObjectKey object_key)
+{
+    return std::make_tuple(std::make_pair("Zstore2", "dev1"),
+                           std::make_pair("Zstore3", "dev1"),
+                           std::make_pair("Zstore4", "dev1"));
+}
+
 Result<RequestContext *>
-MakeRequestContext(ZstoreController *zctrl_, uint64_t offset,
-                   HttpRequest request,
-                   std::function<void(HttpRequest)> closure)
+MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
+                std::function<void(HttpRequest)> closure)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
@@ -666,7 +672,42 @@ MakeRequestContext(ZstoreController *zctrl_, uint64_t offset,
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
     slot->request = std::move(request);
-    slot->fn = closure;
+    slot->read_fn = closure;
+    assert(slot->ioContext.cb != nullptr);
+    assert(slot->ctrl != nullptr);
+
+    return slot;
+}
+
+Result<RequestContext *>
+MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
+                 std::function<void(HttpRequest, MapEntry)> closure)
+{
+    // TODO: read value
+    RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = zctrl_;
+    assert(slot->ctrl == zctrl_);
+    auto ioCtx = slot->ioContext;
+    // FIXME hardcode
+    // int size_in_ios = 212860928;
+    int io_size_blocks = 1;
+    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
+    // auto offset_in_ios = 1;
+    ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
+    ioCtx.qpair = zctrl_->GetIoQpair();
+    ioCtx.data = slot->dataBuffer;
+    // lookup
+    ioCtx.offset = Configuration::GetZslba();
+    // ioCtx.offset = Configuration::GetZslba() +
+    //                zctrl_.GetDevice()->mTotalCounts;
+    ioCtx.size = io_size_blocks;
+    ioCtx.cb = complete;
+    ioCtx.ctx = slot;
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+    slot->request = std::move(request);
+    slot->entry = std::move(entry);
+    slot->write_fn = closure;
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
 

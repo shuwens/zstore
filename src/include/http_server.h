@@ -138,7 +138,7 @@ class session : public std::enable_shared_from_this<session>
                 };
 
                 auto slot =
-                    MakeRequestContext(&zctrl_, entry.second, req_, closure_);
+                    MakeReadRequest(&zctrl_, entry.first_lba(), req_, closure_);
                 assert(slot.has_value());
                 {
                     std::unique_lock lock(zctrl_.GetRequestQueueMutex());
@@ -148,7 +148,52 @@ class session : public std::enable_shared_from_this<session>
         } else if (req_.method() == http::verb::put) {
             // NOTE: Write path: see section 3.3
 
-            async_do_put(req_, asio::deferred);
+            // NOTE: Write path: see section 3.3
+
+            auto object_key = req_.target();
+            auto object_value = req_.body();
+
+            // TODO: populate the map with consistent hashes
+            auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
+            auto entry = zctrl_.CreateObject(object_key, dev_tuple);
+            assert(entry.has_value());
+
+            if (!zctrl_.isDraining &&
+                zctrl_.mRequestContextPool->availableContexts.size() > 0) {
+                if (!zctrl_.start) {
+                    zctrl_.start = true;
+                    zctrl_.stime = std::chrono::high_resolution_clock::now();
+                }
+
+                auto self(shared_from_this());
+                auto closure_ = [this, self](HttpRequest req_, MapEntry entry) {
+                    auto object_key = req_.target();
+                    // update lba in map
+                    auto rc = zctrl_.PutObject(object_key, entry);
+                    assert(rc.has_value());
+
+                    // update and broadcast BF
+                    rc = zctrl_.UpdateBF(object_key);
+                    assert(rc.has_value());
+
+                    // send ack back to client
+                    http::message_generator msg =
+                        handle_request(std::move(req_), zctrl_);
+                    bool keep_alive = msg.keep_alive();
+                    beast::async_write(stream_, std::move(msg),
+                                       beast::bind_front_handler(
+                                           &session::on_write,
+                                           shared_from_this(), keep_alive));
+                };
+
+                auto slot =
+                    MakeWriteRequest(&zctrl_, req_, entry.value(), closure_);
+                assert(slot.has_value());
+                {
+                    std::unique_lock lock(zctrl_.GetRequestQueueMutex());
+                    zctrl_.EnqueueWrite(slot.value());
+                }
+            }
         } else {
             log_error("Request is not a supported operation\n");
             //           req_.method());

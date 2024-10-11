@@ -115,17 +115,23 @@ void ZstoreController::initIoThread()
     }
 }
 
+// Result<void> ZstoreController::PopulateMap(bool bogus, int key_experiment)
 int ZstoreController::PopulateMap(bool bogus, int key_experiment)
 {
-    // mMap.insert({"apples", createMapEntry("device", 0).value()});
-    // mMap.insert({"carrots", createMapEntry("device", 7).value()});
-    // mMap.insert({"tomatoes", createMapEntry("device", 13).value()});
+    std::unique_lock lock(mMapMutex);
 
     if (key_experiment == 1) {
+        log_debug("xxxxx");
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
-            mMap.insert({"/db/" + std::to_string(i),
-                         createMapEntry("device", i).value()});
+            auto entry = createMapEntry(
+                             std::make_tuple(std::make_pair("Zstore1", "dev1"),
+                                             std::make_pair("Zstore1", "dev1"),
+                                             std::make_pair("Zstore1", "dev1")),
+                             i, i, i)
+                             .value();
+            // assert(rc.has_value());
+            mMap.insert({"/db/" + std::to_string(i), entry});
         }
     } else if (key_experiment == 2) {
         // Random Append
@@ -145,7 +151,49 @@ int ZstoreController::PopulateMap(bool bogus, int key_experiment)
         // Checkpoint
     }
     // else if (key_experiment == 1) {}
+    return 0;
+}
 
+// Result<void> ZstoreController::PopulateDevHash(int key_experiment)
+int ZstoreController::PopulateDevHash(int key_experiment)
+{
+    std::unique_lock lock(mDevHashMutex);
+
+    assert(0 < key_experiment < 10);
+
+    // permutate Zstore2-Zstore4, Dev1-2
+    std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
+    std::vector<std::string> dev_list({"Dev1", "Dev2"});
+    std::vector<std::pair<std::string, std::string>> tgt_dev_vec;
+
+    for (int i = 0; i < tgt_list.size(); i++) {
+        for (int j = 0; j < dev_list.size(); j++) {
+            tgt_dev_vec.push_back({std::make_pair(tgt_list[i], dev_list[j])});
+        }
+    }
+
+    std::vector<std::pair<std::string, std::string>> entry;
+    for (int i = 0; i < tgt_dev_vec.size(); i++) {
+        for (int j = 0; j < tgt_dev_vec.size(); j++) {
+            if (i == j)
+                continue;
+            else {
+                entry.push_back(tgt_dev_vec[i]);
+                if (entry.size() == 3) {
+                    mDevHash.push_back({std::make_tuple(
+                        tgt_dev_vec[0], tgt_dev_vec[1], tgt_dev_vec[2])});
+
+                    entry.clear();
+                }
+            }
+            // tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
+        }
+    }
+
+    for (int i = 0; i < mDevHash.size(); i++) {
+        log_debug("DevHash: {}", i);
+        log_debug("DevHash: {}", mDevHash[i]);
+    }
     return 0;
 }
 
@@ -231,7 +279,14 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     log_info("Initialization complete. Launching workers.");
 
-    PopulateMap(true, key_experiment);
+    // auto ret = PopulateDevHash(key_experiment);
+    // assert(ret.has_value());
+    rc = PopulateDevHash(key_experiment);
+    log_debug("111.");
+
+    rc = PopulateMap(true, key_experiment);
+    log_debug("222.");
+    // assert(ret.has_value());
     pivot = 0;
 
     // Read zone headers
@@ -472,7 +527,7 @@ Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
     slot->ioContext = ioCtx;
     // slot->request = req_;
     slot->request = std::move(req_);
-    slot->fn = closure;
+    slot->read_fn = closure;
 
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
@@ -501,41 +556,6 @@ std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
 std::shared_mutex &ZstoreController::GetRequestQueueMutex()
 {
     return mRequestQueueMutex;
-}
-
-Result<bool> ZstoreController::SearchBF(std::string key)
-{
-    std::shared_lock<std::shared_mutex> lock(mBFMutex);
-    if (mBF.find(key) != mBF.end()) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
-Result<MapEntry> ZstoreController::FindObject(std::string key)
-{
-    std::shared_lock<std::shared_mutex> lock(mMapMutex);
-    // thanks to std::less<> this no longer creates a std::string
-    auto it = mMap.find(key);
-    if (it != mMap.end()) {
-        // std::cout << "I have " << it->second << " apples!\n";
-        return Result<MapEntry>(it->second);
-    }
-
-    // int64_t head_index =
-    //     store_header_->hashmap.hash_entries[object_id %
-    //     65536].object_list;
-    // int64_t current_index = head_index;
-    //
-    // while (current_index >= 0) {
-    //     ObjectEntry *current =
-    //     &store_header_->object_entries[current_index]; if
-    //     (current->object_id == object_id) {
-    //         return current_index;
-    //     }
-    //     current_index = current->next;
-    // }
 }
 
 void tryDrainController(void *args)
@@ -581,4 +601,56 @@ void ZstoreController::Drain()
     // exit(0);
 
     log_info("done .");
+}
+
+Result<bool> ZstoreController::SearchBF(std::string key)
+{
+    std::shared_lock<std::shared_mutex> lock(mBFMutex);
+    if (mBF.find(key) != mBF.end()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+Result<void> ZstoreController::UpdateBF(std::string key)
+{
+    std::unique_lock<std::shared_mutex> lock(mBFMutex);
+    if (mBF.find(key) != mBF.end()) {
+        // do nothing since item is alredy in BF?
+    } else {
+        mBF.insert({key});
+    }
+}
+
+Result<MapEntry> ZstoreController::FindObject(std::string key)
+{
+    std::shared_lock<std::shared_mutex> lock(mMapMutex);
+    // thanks to std::less<> this no longer creates a std::string
+    auto it = mMap.find(key);
+    if (it != mMap.end()) {
+        return Result<MapEntry>(it->second);
+    }
+}
+
+Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
+{
+    auto entry = createMapEntry(tuple, 0, 0, 0);
+    assert(entry.has_value());
+    return entry.value();
+}
+
+Result<void> ZstoreController::PutObject(std::string key, MapEntry entry)
+{
+    std::unique_lock<std::shared_mutex> lock(mMapMutex);
+    // auto entry = createMapEntry(device1, device2, device3);
+    // assert(entry.has_value());
+    mMap.insert({key, entry});
+}
+
+Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)
+{
+    return std::make_tuple(std::make_pair("Zstore2", "dev1"),
+                           std::make_pair("Zstore3", "dev1"),
+                           std::make_pair("Zstore4", "dev1"));
 }

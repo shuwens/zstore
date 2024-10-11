@@ -32,7 +32,11 @@ class ZstoreController
 
     ~ZstoreController();
     int Init(bool object, int key_experiment);
+    // Result<void> PopulateMap(bool bogus, int key_experiment);
+    // Result<void> PopulateDevHash(int key_experiment);
+    int PopulateDevHash(int key_experiment);
     int PopulateMap(bool bogus, int key_experiment);
+    Result<DevTuple> GetDevTuple(ObjectKey object_key);
     int pivot;
 
     // ZStore Map: this maps key to tuple of ZNS target and lba
@@ -46,6 +50,13 @@ class ZstoreController
     std::unordered_map<std::string, MapEntry> mMap;
     std::shared_mutex mMapMutex;
 
+    // ZStore Device Consistent Hashmap: this maintains a consistent hash map
+    // which maps object key to tupke of devices. Right now this is
+    // pre-populated and just randomly
+    // std::unordered_map<ObjectKey, DevTuple> mDevHash;
+    std::vector<DevTuple> mDevHash;
+    std::shared_mutex mDevHashMutex;
+
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
     //
@@ -56,26 +67,15 @@ class ZstoreController
 
     // Object APIs
     Result<bool> SearchBF(std::string key);
+    Result<void> UpdateBF(std::string key);
 
     Result<MapEntry> FindObject(std::string key);
     Result<void> ReleaseObject(std::string key);
 
-    // int64_t alloc_object_entry();
-    // void dealloc_object_entry(int64_t object_index);
-    Result<void> PutObject(std::string key, void *data, size_t size);
-    // Result<Object> getObject(std::string key, sm_offset *ptr, size_t *size);
-    // int seal_object(uint64_t object_id);
+    Result<MapEntry> CreateObject(std::string key, DevTuple tuple);
+    Result<void> PutObject(std::string key, MapEntry entry);
+
     Result<void> DeleteObject(std::string key);
-
-    // Add an object to the store
-    // void(std::string key, void *data);
-
-    // Retrieve an object from the store by ID
-    // Object *getObject(std::string key);
-    int getObject(std::string key, uint8_t *readValidateBuffer);
-
-    // Delete an object from the store by ID
-    bool deleteObject(std::string key);
 
     // threads
     void initIoThread();

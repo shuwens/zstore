@@ -17,14 +17,7 @@
 #include <string>
 
 std::shared_mutex g_shared_mutex_;
-// std::mutex g_mutex_;
 std::shared_mutex g_session_mutex_;
-
-typedef std::pair<std::string, int32_t> MapEntry;
-typedef std::unordered_map<std::string, MapEntry>::const_iterator MapIter;
-
-// class ZstoreController;
-// struct RequestContext;
 
 inline uint64_t round_up(uint64_t value, uint64_t align)
 {
@@ -107,10 +100,15 @@ static int g_micro_to_second = 1'000'000;
 
 // Object and Map related
 
-Result<MapEntry> createMapEntry(std::string device, int32_t lba);
+Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
+                                int32_t lba3);
 
-void updateMapEntry(MapEntry entry, std::string device, int32_t lba);
+Result<DevTuple> GetDevTuple(ObjectKey object_key);
 
 Result<RequestContext *>
-MakeRequestContext(ZstoreController *zctrl, uint64_t offset,
-                   HttpRequest request, std::function<void(HttpRequest)> fn);
+MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
+                std::function<void(HttpRequest)> closure);
+
+Result<RequestContext *>
+MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
+                 std::function<void(HttpRequest, MapEntry)> closure);
