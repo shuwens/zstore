@@ -58,6 +58,7 @@ class Configuration
 
     static int GetNumHttpThreads() { return GetInstance().gNumHttpThreads; }
 
+    static bool Verbose() { return GetInstance().gVerbose; }
     static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload; }
     static bool UseObject() { return GetInstance().gUseObject; }
     static bool UseHttp() { return GetInstance().gUseHttp; }
@@ -148,6 +149,8 @@ class Configuration
     int gNumOfTargets = 1;
     // how many devices/drives on a target
     int gNumOfDevices = 1;
+
+    bool gVerbose = false;
 
     bool gUseObject = false;
     bool gUseDummyWorkload = false;

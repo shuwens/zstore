@@ -197,7 +197,7 @@ int ZstoreController::PopulateDevHash(int key_experiment)
 int ZstoreController::Init(bool object, int key_experiment)
 {
     int rc = 0;
-    verbose = true;
+    verbose = Configuration::Verbose();
 
     // TODO: set all parameters too
     log_debug("mZone sizes {}", mZones.size());
@@ -537,7 +537,8 @@ void ZstoreController::EnqueueRead(RequestContext *ctx)
 
 void ZstoreController::EnqueueWrite(RequestContext *ctx)
 {
-    mWriteQueue.push(ctx);
+    mReadQueue.push(ctx);
+    // mWriteQueue.push(ctx);
     // log_debug("after push: read q {}", GetWriteQueueSize());
 }
 

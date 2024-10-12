@@ -30,6 +30,8 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     RequestContext *slot = (RequestContext *)arg;
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
 
+    if (ctrl->verbose)
+        log_debug("111");
     if (spdk_nvme_cpl_is_error(completion)) {
         fprintf(stderr, "I/O error status: %s\n",
                 spdk_nvme_cpl_get_status_string(&completion->status));
@@ -38,12 +40,21 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
+    if (ctrl->verbose)
+        log_debug("is write: {}", slot->is_write);
     // TODO: swap data buffer into request body
-
-    if (slot->is_write)
+    auto ioCtx = slot->ioContext;
+    if (slot->is_write) {
+        if (ctrl->verbose)
+            log_debug("111");
+        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+        // slot->request.body() = body;
         slot->write_fn(slot->request, slot->entry);
-    else
+    } else {
+        std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+        slot->request.body() = body;
         slot->read_fn(slot->request);
+    }
 
     ctrl->GetDevice()->mTotalCounts++;
 
@@ -648,6 +659,8 @@ MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
     assert(slot->ctrl == zctrl_);
+
+    // IO Context
     auto ioCtx = slot->ioContext;
     // FIXME hardcode
     // int size_in_ios = 212860928;
@@ -666,6 +679,9 @@ MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
     ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
+
+    // Request is read
+    slot->is_write = false;
     slot->request = std::move(request);
     slot->read_fn = closure;
     assert(slot->ioContext.cb != nullptr);
@@ -682,27 +698,26 @@ MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
     assert(slot->ctrl == zctrl_);
+
+    // IO Context
     auto ioCtx = slot->ioContext;
-    // FIXME hardcode
-    // int size_in_ios = 212860928;
     int io_size_blocks = 1;
-    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-    // auto offset_in_ios = 1;
     ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
     ioCtx.qpair = zctrl_->GetIoQpair();
     ioCtx.data = slot->dataBuffer;
     // lookup
     ioCtx.offset = Configuration::GetZslba();
-    // ioCtx.offset = Configuration::GetZslba() +
-    //                zctrl_.GetDevice()->mTotalCounts;
     ioCtx.size = io_size_blocks;
     ioCtx.cb = complete;
     ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
+
+    // Write request
+    slot->is_write = true;
     slot->request = std::move(request);
-    slot->entry = std::move(entry);
     slot->write_fn = closure;
+    slot->entry = std::move(entry);
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
 

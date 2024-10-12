@@ -22,6 +22,8 @@ template <class Body, class Allocator>
 http::message_generator
 handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
 {
+    // if (ctrl->verbose)
+    //     log_debug("1111");
     // Returns a bad request response
     auto const bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request,
@@ -100,7 +102,9 @@ handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
         res.keep_alive(req.keep_alive());
         res.body() = req.body();
         return res;
-    } else if (req.method() == http::verb::put) {
+    } else if (req.method() == http::verb::post) {
+        // if (ctrl->verbose)
+        //     log_debug("dw1111");
         // Respond to PUT request
         http::response<http::string_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);

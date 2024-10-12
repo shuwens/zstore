@@ -142,7 +142,10 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.EnqueueRead(slot.value());
                 }
             }
-        } else if (req_.method() == http::verb::put) {
+            // } else if (req_.method() == http::verb::put) {
+        } else if (req_.method() == http::verb::post) {
+            if (zctrl_.verbose)
+                log_debug("11111");
             // NOTE: Write path: see section 3.3
 
             auto object_key = req_.target();
@@ -159,17 +162,22 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.start = true;
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
+                // if (zctrl_.verbose)
+                // log_debug("222");
 
                 auto self(shared_from_this());
                 auto closure_ = [this, self](HttpRequest req_, MapEntry entry) {
+                    // log_debug("closure: 111");
                     auto object_key = req_.target();
+
+                    // FIXME:crash
                     // update lba in map
-                    auto rc = zctrl_.PutObject(object_key, entry);
-                    assert(rc.has_value());
+                    // auto rc = zctrl_.PutObject(object_key, entry);
+                    // assert(rc.has_value());
 
                     // update and broadcast BF
-                    rc = zctrl_.UpdateBF(object_key);
-                    assert(rc.has_value());
+                    // auto rc = zctrl_.UpdateBF(object_key);
+                    // assert(rc.has_value());
 
                     // send ack back to client
                     http::message_generator msg =
@@ -181,17 +189,22 @@ class session : public std::enable_shared_from_this<session>
                                            shared_from_this(), keep_alive));
                 };
 
+                if (zctrl_.verbose)
+                    log_debug("333");
                 auto slot =
                     MakeWriteRequest(&zctrl_, req_, entry.value(), closure_);
+                if (zctrl_.verbose)
+                    log_debug("444");
                 assert(slot.has_value());
                 {
                     std::unique_lock lock(zctrl_.GetRequestQueueMutex());
                     zctrl_.EnqueueWrite(slot.value());
                 }
+                if (zctrl_.verbose)
+                    log_debug("666");
             }
         } else {
             log_error("Request is not a supported operation\n");
-            //           req_.method());
         }
     }
 
