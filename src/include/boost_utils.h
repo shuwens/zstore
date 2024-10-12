@@ -62,13 +62,13 @@ handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
     };
 
     // Make sure we can handle the method
-    if (req.method() != http::verb::get && req.method() != http::verb::head)
-        return bad_request("Unknown HTTP-method");
+    // if (req.method() != http::verb::get && req.method() != http::verb::head)
+    //     return bad_request("Unknown HTTP-method");
 
     // Request path must be absolute and not contain "..".
-    if (req.target().empty() || req.target()[0] != '/' ||
-        req.target().find("..") != beast::string_view::npos)
-        return bad_request("Illegal request-target");
+    // if (req.target().empty() || req.target()[0] != '/' ||
+    //     req.target().find("..") != beast::string_view::npos)
+    //     return bad_request("Illegal request-target");
 
     // Attempt to open the file
     // beast::error_code ec;
@@ -102,6 +102,17 @@ handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
         res.keep_alive(req.keep_alive());
         res.body() = req.body();
         return res;
+    } else if (req.method() == http::verb::put) {
+        // if (ctrl->verbose)
+        //     log_debug("dw1111");
+        // Respond to PUT request
+        http::response<http::string_body> res{http::status::ok, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "object");
+        res.content_length(size);
+        res.keep_alive(req.keep_alive());
+        res.body() = "Object is written";
+        return res;
     } else if (req.method() == http::verb::post) {
         // if (ctrl->verbose)
         //     log_debug("dw1111");
@@ -113,6 +124,8 @@ handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
         res.keep_alive(req.keep_alive());
         res.body() = "Object is written";
         return res;
+    } else {
+        return bad_request("Unknown HTTP-method");
     }
 }
 
