@@ -119,7 +119,6 @@ int ZstoreController::PopulateMap(bool bogus, int key_experiment)
     std::unique_lock lock(mMapMutex);
 
     if (key_experiment == 1) {
-        log_debug("xxxxx");
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
             auto entry = createMapEntry(
@@ -188,10 +187,10 @@ int ZstoreController::PopulateDevHash(int key_experiment)
         }
     }
 
-    for (int i = 0; i < mDevHash.size(); i++) {
-        log_debug("DevHash: {}", i);
-        log_debug("DevHash: {}", mDevHash[i]);
-    }
+    // for (int i = 0; i < mDevHash.size(); i++) {
+    //     log_debug("DevHash: {}", i);
+    //     log_debug("DevHash: {}", mDevHash[i]);
+    // }
     return 0;
 }
 
@@ -262,9 +261,7 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
-    auto const doc_root = std::make_shared<std::string>(".");
-    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, doc_root,
-                               *this)
+    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, *this)
         ->run();
 
     for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
@@ -280,10 +277,8 @@ int ZstoreController::Init(bool object, int key_experiment)
     // auto ret = PopulateDevHash(key_experiment);
     // assert(ret.has_value());
     rc = PopulateDevHash(key_experiment);
-    log_debug("111.");
 
     rc = PopulateMap(true, key_experiment);
-    log_debug("222.");
     // assert(ret.has_value());
     pivot = 0;
 

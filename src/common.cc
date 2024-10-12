@@ -29,8 +29,6 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 {
     RequestContext *slot = (RequestContext *)arg;
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-    // std::unique_lock<std::mutex> lock(ctrl->GetSessionMutex());
-    // std::unique_lock lock(ctrl->GetSessionMutex());
 
     if (spdk_nvme_cpl_is_error(completion)) {
         fprintf(stderr, "I/O error status: %s\n",
@@ -40,6 +38,8 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         exit(1);
     }
 
+    // TODO: swap data buffer into request body
+
     if (slot->is_write)
         slot->write_fn(slot->request, slot->entry);
     else
@@ -47,17 +47,12 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
 
     ctrl->GetDevice()->mTotalCounts++;
 
-    // FIXME
     assert(ctrl != nullptr);
 
     // this should move to reclaim context and in controller
     slot->available = true;
     slot->Clear();
     ctrl->mRequestContextPool->ReturnRequestContext(slot);
-
-    // TODO: here we need to invoke the magic and make sure the on_get or
-    // on_put can be invoked, it can be as simple of mark completion token is
-    // done
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)

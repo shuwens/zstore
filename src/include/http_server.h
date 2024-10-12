@@ -13,7 +13,6 @@ class session : public std::enable_shared_from_this<session>
 {
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
-    std::shared_ptr<std::string const> doc_root_;
     http::request<http::string_body> req_;
     ZstoreController &zctrl_;
 
@@ -62,10 +61,8 @@ class session : public std::enable_shared_from_this<session>
     }
 
     // Take ownership of the stream
-    session(tcp::socket &&socket,
-            std::shared_ptr<std::string const> const &doc_root,
-            ZstoreController &zctrl)
-        : stream_(std::move(socket)), doc_root_(doc_root), zctrl_(zctrl)
+    session(tcp::socket &&socket, ZstoreController &zctrl)
+        : stream_(std::move(socket)), zctrl_(zctrl)
     {
     }
 
@@ -129,7 +126,7 @@ class session : public std::enable_shared_from_this<session>
                 auto closure_ = [this,
                                  self](http::request<http::string_body> req_) {
                     http::message_generator msg =
-                        handle_request(std::move(req_), zctrl_);
+                        handle_request(std::move(req_));
                     bool keep_alive = msg.keep_alive();
                     beast::async_write(stream_, std::move(msg),
                                        beast::bind_front_handler(
@@ -146,8 +143,6 @@ class session : public std::enable_shared_from_this<session>
                 }
             }
         } else if (req_.method() == http::verb::put) {
-            // NOTE: Write path: see section 3.3
-
             // NOTE: Write path: see section 3.3
 
             auto object_key = req_.target();
@@ -178,7 +173,7 @@ class session : public std::enable_shared_from_this<session>
 
                     // send ack back to client
                     http::message_generator msg =
-                        handle_request(std::move(req_), zctrl_);
+                        handle_request(std::move(req_));
                     bool keep_alive = msg.keep_alive();
                     beast::async_write(stream_, std::move(msg),
                                        beast::bind_front_handler(
@@ -199,20 +194,6 @@ class session : public std::enable_shared_from_this<session>
             //           req_.method());
         }
     }
-
-    // void send_response(http::message_generator &&msg)
-    // {
-    //     // log_error("Send_response.");
-    //     bool keep_alive = msg.keep_alive();
-    //
-    //     // Write the response
-    //     // FIXME
-    //     // log_error("async write.");
-    //     beast::async_write(stream_, std::move(msg),
-    //                        beast::bind_front_handler(&session::on_write,
-    //                                                  shared_from_this(),
-    //                                                  keep_alive));
-    // }
 
     void on_write(bool keep_alive, beast::error_code ec,
                   std::size_t bytes_transferred)
@@ -249,15 +230,12 @@ class listener : public std::enable_shared_from_this<listener>
 {
     net::io_context &ioc_;
     tcp::acceptor acceptor_;
-    std::shared_ptr<std::string const> doc_root_;
     ZstoreController &zctrl_;
 
   public:
     listener(net::io_context &ioc, tcp::endpoint endpoint,
-             std::shared_ptr<std::string const> const &doc_root,
              ZstoreController &zctrl)
-        : ioc_(ioc), acceptor_(net::make_strand(ioc)), doc_root_(doc_root),
-          zctrl_(zctrl)
+        : ioc_(ioc), acceptor_(net::make_strand(ioc)), zctrl_(zctrl)
     {
         beast::error_code ec;
 
@@ -309,8 +287,7 @@ class listener : public std::enable_shared_from_this<listener>
             return; // To avoid infinite loop
         } else {
             // Create the session and run it
-            std::make_shared<session>(std::move(socket), doc_root_, zctrl_)
-                ->run();
+            std::make_shared<session>(std::move(socket), zctrl_)->run();
         }
 
         // Accept another connection

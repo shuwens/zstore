@@ -11,7 +11,7 @@
  * This list should be empty :)
  * read zone header broken, wtf
  * logs, maps, bloom filters
- * read object workflow
+ * read object workflow: in complete swap req body with data buffer
  * write object worklfow
  * key experiment tput/latency: read
  * key experiment tput/latency: append
