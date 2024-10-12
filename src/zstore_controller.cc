@@ -9,8 +9,6 @@
 #include <cassert>
 #include <shared_mutex>
 
-static std::vector<Device *> g_devices;
-
 void ZstoreController::initHttpThread()
 {
     struct spdk_cpuset cpumask;

@@ -6,8 +6,22 @@
 #include <boost/beast/http.hpp>
 #include <map>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <vector>
+
+using chrono_tp = std::chrono::high_resolution_clock::time_point;
+
+static struct spdk_nvme_transport_id g_trid = {};
+
+static std::vector<Device *> g_devices;
+static int g_dpdk_mem = 0;
+static bool g_dpdk_mem_single_seg = false;
+
+static int g_micro_to_second = 1'000'000;
+
+std::shared_mutex g_shared_mutex_;
+std::shared_mutex g_session_mutex_;
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
 typedef http::request<http::string_body> HttpRequest;

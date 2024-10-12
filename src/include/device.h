@@ -10,6 +10,7 @@
 #include <vector>
 
 class Zone;
+
 class Device
 {
   public:

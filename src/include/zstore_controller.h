@@ -16,12 +16,6 @@
 #include <unistd.h>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
-const int current_zone = 0;
-
-// uint64_t GetZslba(int zone_num)
-// {
-//     return Configuration::GetZoneDist() * zone_num;
-// }
 
 class ZstoreController
 {
@@ -127,8 +121,7 @@ class ZstoreController
                            enum spdk_nvme_qprio qprio);
 
     // TODO:
-    void Append(uint64_t zslba, uint32_t size, void *data,
-                zns_raid_request_complete cb_fn, void *cb_args);
+    void Append(uint64_t zslba, uint32_t size, void *data, void *cb_args);
     //
     // void Write(uint64_t offset, uint32_t size, void *data,
     //            zns_raid_request_complete cb_fn, void *cb_args);
