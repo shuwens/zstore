@@ -169,7 +169,9 @@ handle_request(beast::string_view doc_root,
     };
 
     // Make sure we can handle the method
-    if (req.method() != http::verb::get && req.method() != http::verb::head)
+    if (req.method() != http::verb::get && req.method() != http::verb::head &&
+        req.method() != http::verb::post && req.method() != http::verb::put)
+
         return bad_request("Unknown HTTP-method");
 
     // Request path must be absolute and not contain "..".

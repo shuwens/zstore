@@ -636,10 +636,15 @@ Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
 
 Result<void> ZstoreController::PutObject(std::string key, MapEntry entry)
 {
-    std::unique_lock<std::shared_mutex> lock(mMapMutex);
+    log_debug("111");
+    std::lock_guard<std::shared_mutex> lock(
+        mMapMutex); // Automatically locks and unlocks
+    // std::unique_lock<std::shared_mutex> lock(mMapMutex);
+    // mMapMutex.lock();
     // auto entry = createMapEntry(device1, device2, device3);
     // assert(entry.has_value());
     mMap.insert({key, entry});
+    // mMapMutex.unlock();
 }
 
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)

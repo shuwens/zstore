@@ -44,6 +44,12 @@ function request()
           '","extra" : "1xxxxxxxxx2xxxxxxxxx3xxxxxxxxx4xxxxxxxxx5xxxxxxxxx6xxxxxxxxx7xxxxxxxxx8xxxxxxxxx9xxxxxxxxx0xxxxxxxxx"}'
    end
    requests = requests + 1
+
+   -- DEBUG
+   -- print(method)
+   -- print(path)
+   -- print(body)
+
    return wrk.format(method, path, nil, body)
 end
 

@@ -45,6 +45,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     // TODO: swap data buffer into request body
     auto ioCtx = slot->ioContext;
     if (slot->is_write) {
+        // TODO: update entry with LBA
         if (ctrl->verbose)
             log_debug("111");
         // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);

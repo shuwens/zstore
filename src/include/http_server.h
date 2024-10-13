@@ -142,66 +142,72 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.EnqueueRead(slot.value());
                 }
             }
-        } else if (req_.method() == http::verb::put) {
-            if (zctrl_.verbose)
-                log_debug("11111");
-            // NOTE: Write path: see section 3.3
-
-            auto object_key = req_.target();
-            auto object_value = req_.body();
-
-            // TODO: populate the map with consistent hashes
-            auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
-            auto entry = zctrl_.CreateObject(object_key, dev_tuple);
-            assert(entry.has_value());
-
-            if (!zctrl_.isDraining &&
-                zctrl_.mRequestContextPool->availableContexts.size() > 0) {
-                if (!zctrl_.start) {
-                    zctrl_.start = true;
-                    zctrl_.stime = std::chrono::high_resolution_clock::now();
-                }
-                // if (zctrl_.verbose)
-                // log_debug("222");
-
-                auto self(shared_from_this());
-                auto closure_ = [this, self](HttpRequest req_, MapEntry entry) {
-                    // log_debug("closure: 111");
-                    auto object_key = req_.target();
-
-                    // FIXME:crash
-                    // update lba in map
-                    // auto rc = zctrl_.PutObject(object_key, entry);
-                    // assert(rc.has_value());
-
-                    // update and broadcast BF
-                    // auto rc = zctrl_.UpdateBF(object_key);
-                    // assert(rc.has_value());
-
-                    // send ack back to client
-                    http::message_generator msg =
-                        handle_request(std::move(req_));
-                    bool keep_alive = msg.keep_alive();
-                    beast::async_write(stream_, std::move(msg),
-                                       beast::bind_front_handler(
-                                           &session::on_write,
-                                           shared_from_this(), keep_alive));
-                };
-
-                if (zctrl_.verbose)
-                    log_debug("333");
-                auto slot =
-                    MakeWriteRequest(&zctrl_, req_, entry.value(), closure_);
-                if (zctrl_.verbose)
-                    log_debug("444");
-                assert(slot.has_value());
-                {
-                    std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-                    zctrl_.EnqueueWrite(slot.value());
-                }
-                if (zctrl_.verbose)
-                    log_debug("666");
-            }
+            // } else if (req_.method() == http::verb::put) {
+            //     if (zctrl_.verbose)
+            //         log_debug("11111");
+            //     // NOTE: Write path: see section 3.3
+            //
+            //     auto object_key = req_.target();
+            //     auto object_value = req_.body();
+            //     // log_debug("key {}, value {}", req_.target(), req_.body());
+            //     // log_debug("key {}, value {}", req_.target(), req_.body());
+            //
+            //     // TODO: populate the map with consistent hashes
+            //     auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
+            //     auto entry = zctrl_.CreateObject(object_key, dev_tuple);
+            //     assert(entry.has_value());
+            //
+            //     if (!zctrl_.isDraining &&
+            //         zctrl_.mRequestContextPool->availableContexts.size() > 0)
+            //         { if (!zctrl_.start) {
+            //             zctrl_.start = true;
+            //             zctrl_.stime =
+            //             std::chrono::high_resolution_clock::now();
+            //         }
+            //         // if (zctrl_.verbose)
+            //         // log_debug("222");
+            //
+            //         auto self(shared_from_this());
+            //         auto closure_ = [this, self](HttpRequest req_, MapEntry
+            //         entry) {
+            //             // log_debug("closure: 111");
+            //             auto object_key = req_.target();
+            //
+            //             // FIXME:crash
+            //             // update lba in map
+            //             // auto rc = zctrl_.PutObject(object_key, entry);
+            //             // assert(rc.has_value());
+            //
+            //             // update and broadcast BF
+            //             // auto rc = zctrl_.UpdateBF(object_key);
+            //             // assert(rc.has_value());
+            //
+            //             // send ack back to client
+            //             http::message_generator msg =
+            //                 handle_request(std::move(req_));
+            //             bool keep_alive = msg.keep_alive();
+            //             beast::async_write(stream_, std::move(msg),
+            //                                beast::bind_front_handler(
+            //                                    &session::on_write,
+            //                                    shared_from_this(),
+            //                                    keep_alive));
+            //         };
+            //
+            //         if (zctrl_.verbose)
+            //             log_debug("333");
+            //         auto slot =
+            //             MakeWriteRequest(&zctrl_, req_, entry.value(),
+            //             closure_);
+            //         if (zctrl_.verbose)
+            //             log_debug("444");
+            //         assert(slot.has_value());
+            //         {
+            //             std::unique_lock lock(zctrl_.GetRequestQueueMutex());
+            //             zctrl_.EnqueueWrite(slot.value());
+            //         }
+            //         if (zctrl_.verbose)
+            //             log_debug("666");
+            //     }
         } else if (req_.method() == http::verb::post) {
             if (zctrl_.verbose)
                 log_debug("11111");
@@ -209,6 +215,7 @@ class session : public std::enable_shared_from_this<session>
 
             auto object_key = req_.target();
             auto object_value = req_.body();
+            // log_debug("key {}, value {}", req_.target(), req_.body());
 
             // TODO: populate the map with consistent hashes
             auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
@@ -229,14 +236,18 @@ class session : public std::enable_shared_from_this<session>
                     // log_debug("closure: 111");
                     auto object_key = req_.target();
 
+                    // NOTE: right now if we accquire lock for every writes,
+                    // update map will casue issue should we just use another
+                    // async write to update map???
+
                     // FIXME:crash
                     // update lba in map
                     // auto rc = zctrl_.PutObject(object_key, entry);
                     // assert(rc.has_value());
 
                     // update and broadcast BF
-                    // auto rc = zctrl_.UpdateBF(object_key);
-                    // assert(rc.has_value());
+                    // auto rc2 = zctrl_.UpdateBF(object_key);
+                    // assert(rc2.has_value());
 
                     // send ack back to client
                     http::message_generator msg =
