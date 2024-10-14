@@ -375,7 +375,8 @@ int handleObjectSubmit(void *args)
         //     // log_debug("key {} is not in the map", current_key);
         //     // std::cout << got->first << " is " << got->second;
         //     MapEntry entry = got->second;
-        auto res = zctrlr->FindObject(current_key);
+        MapEntry entry;
+        auto res = zctrlr->GetObject(current_key, entry);
         // log_debug("Found {}, value {}", current_key, res.value());
         // int offset = res.value().second;
 

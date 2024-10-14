@@ -8,11 +8,12 @@
 #include <boost/beast/http/message.hpp>
 #include <cassert>
 #include <shared_mutex>
+#include <utility>
 
 void ZstoreController::initHttpThread()
 {
     struct spdk_cpuset cpumask;
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
+    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
          ++threadId) {
         spdk_cpuset_zero(&cpumask);
         spdk_cpuset_set_cpu(&cpumask,
@@ -91,7 +92,7 @@ void ZstoreController::initDispatchThread()
 void ZstoreController::initIoThread()
 {
     struct spdk_cpuset cpumask;
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+    for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
         spdk_cpuset_zero(&cpumask);
         spdk_cpuset_set_cpu(&cpumask,
@@ -156,7 +157,8 @@ int ZstoreController::PopulateDevHash(int key_experiment)
 {
     std::unique_lock lock(mDevHashMutex);
 
-    assert(0 < key_experiment < 10);
+    assert(0 < key_experiment);
+    assert(key_experiment < 10);
 
     // permutate Zstore2-Zstore4, Dev1-2
     std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
@@ -235,14 +237,14 @@ int ZstoreController::Init(bool object, int key_experiment)
     // bogus setup for Map and BF
 
     // Create poll groups for the io threads and perform initialization
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+    for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
         mIoThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
         mIoThread[threadId].controller = this;
     }
-    for (uint32_t i = 0; i < mN; ++i) {
+    for (int i = 0; i < mN; ++i) {
         struct spdk_nvme_qpair **ioQueues = mDevices[i]->GetIoQueues();
-        for (uint32_t threadId = 0; threadId < Configuration::GetNumIoThreads();
+        for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
              ++threadId) {
             spdk_nvme_ctrlr_disconnect_io_qpair(ioQueues[threadId]);
             int rc = spdk_nvme_poll_group_add(mIoThread[threadId].group,
@@ -264,7 +266,7 @@ int ZstoreController::Init(bool object, int key_experiment)
     std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, *this)
         ->run();
 
-    for (uint32_t threadId = 0; threadId < Configuration::GetNumHttpThreads();
+    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
          ++threadId) {
         // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
         // NULL);
@@ -286,7 +288,7 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     // Valid (full and open) zones and their headers
     std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
-    for (uint32_t i = 0; i < mN; ++i) {
+    for (int i = 0; i < mN; ++i) {
         log_debug("read zone and headers {}.", i);
         // if (i == failedDriveId) {
         //     continue;
@@ -333,11 +335,11 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 
 ZstoreController::~ZstoreController()
 {
-    for (uint32_t i = 0; i < Configuration::GetNumIoThreads(); ++i) {
+    for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
         thread_send_msg(mIoThread[i].thread, quit, nullptr);
     }
     thread_send_msg(mDispatchThread, quit, nullptr);
-    for (uint32_t i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
+    for (int i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
         thread_send_msg(mHttpThread[i].thread, quit, nullptr);
     }
     log_debug("drain io: {}", spdk_get_ticks());
@@ -420,8 +422,6 @@ void ZstoreController::register_ctrlr(Device *device,
 void ZstoreController::zns_dev_init(Device *device, std::string ip1,
                                     std::string port1)
 {
-    // int rc = 0;
-
     char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
 
     log_debug("zns dev");
@@ -597,34 +597,43 @@ void ZstoreController::Drain()
     log_info("done .");
 }
 
-Result<bool> ZstoreController::SearchBF(std::string key)
+// Bloom filter
+Result<bool> ZstoreController::SearchBF(const ObjectKey &key)
 {
-    std::shared_lock<std::shared_mutex> lock(mBFMutex);
-    if (mBF.find(key) != mBF.end()) {
-        return true;
-    } else {
-        return false;
-    }
+    return mBF.contains(key);
 }
 
-Result<void> ZstoreController::UpdateBF(std::string key)
+Result<bool> ZstoreController::UpdateBF(const ObjectKey &key)
 {
-    std::unique_lock<std::shared_mutex> lock(mBFMutex);
-    if (mBF.find(key) != mBF.end()) {
+    if (mBF.contains(key)) {
+        return true;
         // do nothing since item is alredy in BF?
     } else {
         mBF.insert({key});
+        return true;
     }
 }
 
-Result<MapEntry> ZstoreController::FindObject(std::string key)
+// Map
+
+Result<bool> ZstoreController::PutObject(const ObjectKey &key,
+                                         const MapEntry entry)
 {
-    std::shared_lock<std::shared_mutex> lock(mMapMutex);
-    // thanks to std::less<> this no longer creates a std::string
-    auto it = mMap.find(key);
-    if (it != mMap.end()) {
-        return Result<MapEntry>(it->second);
-    }
+    return mMap.insert_or_assign(key, entry);
+}
+
+Result<bool> ZstoreController::GetObject(const ObjectKey &key, MapEntry &entry)
+{
+
+    return mMap.cvisit(key, [&entry](const auto &x) {
+        // entry = x.second->value;
+        entry = x.second;
+    });
+}
+
+Result<void> ZstoreController::UpdateMap(ObjectKey key, MapEntry entry)
+{
+    mMap.visit(key, [=](auto &x) { x.second = entry; });
 }
 
 Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
@@ -632,19 +641,6 @@ Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
     auto entry = createMapEntry(tuple, 0, 0, 0);
     assert(entry.has_value());
     return entry.value();
-}
-
-Result<void> ZstoreController::PutObject(std::string key, MapEntry entry)
-{
-    log_debug("111");
-    std::lock_guard<std::shared_mutex> lock(
-        mMapMutex); // Automatically locks and unlocks
-    // std::unique_lock<std::shared_mutex> lock(mMapMutex);
-    // mMapMutex.lock();
-    // auto entry = createMapEntry(device1, device2, device3);
-    // assert(entry.has_value());
-    mMap.insert({key, entry});
-    // mMapMutex.unlock();
 }
 
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)

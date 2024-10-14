@@ -9,6 +9,8 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
+#include <boost/unordered/concurrent_flat_map.hpp>
+#include <boost/unordered/concurrent_flat_set.hpp>
 #include <cstring>
 #include <mutex>
 #include <shared_mutex>
@@ -16,6 +18,8 @@
 #include <unistd.h>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
+using zstore_map = boost::concurrent_flat_map<ObjectKey, MapEntry>;
+using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKey>;
 
 class ZstoreController
 {
@@ -33,43 +37,39 @@ class ZstoreController
     Result<DevTuple> GetDevTuple(ObjectKey object_key);
     int pivot;
 
-    // ZStore Map: this maps key to tuple of ZNS target and lba
-    // TODO
-    // at some point we need to discuss the usage of flat hash map or unordered
-    // map key -> tuple of <zns target, lba> std::unordered_map<std::string,
-    // std::tuple<std::pair<std::string, int32_t>>>
-    // std::unordered_map<std::string, std::tuple<MapEntry, MapEntry,
-    // MapEntry>>
-    // std::unordered_map<std::string, MapEntry, std::less<>> mMap;
-    std::unordered_map<std::string, MapEntry> mMap;
-    std::shared_mutex mMapMutex;
-
     // ZStore Device Consistent Hashmap: this maintains a consistent hash map
     // which maps object key to tupke of devices. Right now this is
     // pre-populated and just randomly
-    // std::unordered_map<ObjectKey, DevTuple> mDevHash;
     std::vector<DevTuple> mDevHash;
     std::shared_mutex mDevHashMutex;
+
+    // ZStore Map: this maps key to tuple of ZNS target and lba
+    zstore_map mMap;
+    std::shared_mutex mMapMutex;
 
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
     //
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
-    std::unordered_set<std::string> mBF;
+    zstore_bloom_filter mBF;
     std::shared_mutex mBFMutex;
 
     // Object APIs
-    Result<bool> SearchBF(std::string key);
-    Result<void> UpdateBF(std::string key);
+    Result<bool> SearchBF(const ObjectKey &key);
+    Result<bool> UpdateBF(const ObjectKey &key);
 
-    Result<MapEntry> FindObject(std::string key);
-    Result<void> ReleaseObject(std::string key);
+    Result<bool> PutObject(const ObjectKey &key, MapEntry entry);
+    Result<bool> GetObject(const ObjectKey &key, MapEntry &entry);
+    void try_evict();
 
-    Result<MapEntry> CreateObject(std::string key, DevTuple tuple);
-    Result<void> PutObject(std::string key, MapEntry entry);
+    Result<void> UpdateMap(ObjectKey key, MapEntry entry);
 
-    Result<void> DeleteObject(std::string key);
+    Result<void> ReleaseObject(ObjectKey key);
+
+    Result<MapEntry> CreateObject(ObjectKey key, DevTuple tuple);
+
+    Result<void> DeleteObject(ObjectKey key);
 
     // threads
     void initIoThread();
@@ -201,7 +201,7 @@ class ZstoreController
     int mN;
     // context pool size
     int mContextPoolSize;
-
+    int _max_size = 1000'000;
     // simple way to terminate the server
     // uint64_t tsc_end;
 

@@ -113,7 +113,9 @@ class session : public std::enable_shared_from_this<session>
                 log_error("Unimplemented!!!");
             }
 
-            auto entry = zctrl_.FindObject(object_key).value();
+            MapEntry entry;
+            auto rc = zctrl_.GetObject(object_key, entry).value();
+            assert(rc == true);
 
             if (!zctrl_.isDraining &&
                 zctrl_.mRequestContextPool->availableContexts.size() > 0) {
@@ -233,21 +235,22 @@ class session : public std::enable_shared_from_this<session>
 
                 auto self(shared_from_this());
                 auto closure_ = [this, self](HttpRequest req_, MapEntry entry) {
-                    // log_debug("closure: 111");
                     auto object_key = req_.target();
 
                     // NOTE: right now if we accquire lock for every writes,
                     // update map will casue issue should we just use another
                     // async write to update map???
 
-                    // FIXME:crash
                     // update lba in map
-                    // auto rc = zctrl_.PutObject(object_key, entry);
-                    // assert(rc.has_value());
+                    auto rc = zctrl_.PutObject(object_key, entry).value();
+                    // FIXME:we need to handle the failure
+                    // assert(rc == true);
+                    // if (rc == false)
+                    //     log_debug("Inserting object {} failed", object_key);
 
                     // update and broadcast BF
-                    // auto rc2 = zctrl_.UpdateBF(object_key);
-                    // assert(rc2.has_value());
+                    auto rc2 = zctrl_.UpdateBF(object_key);
+                    assert(rc2.has_value());
 
                     // send ack back to client
                     http::message_generator msg =
