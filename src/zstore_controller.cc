@@ -114,19 +114,17 @@ void ZstoreController::initIoThread()
     }
 }
 
-// Result<void> ZstoreController::PopulateMap(bool bogus, int key_experiment)
 int ZstoreController::PopulateMap(bool bogus, int key_experiment)
 {
-    std::unique_lock lock(mMapMutex);
-
+    int zone_offset = 1808277;
     if (key_experiment == 1) {
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
             auto entry = createMapEntry(
                              std::make_tuple(std::make_pair("Zstore1", "dev1"),
-                                             std::make_pair("Zstore1", "dev1"),
+                                             std::make_pair("Zstore1", "dev2"),
                                              std::make_pair("Zstore1", "dev1")),
-                             i, i, i)
+                             i + zone_offset, i + zone_offset, i + zone_offset)
                              .value();
             // assert(rc.has_value());
             mMap.insert({"/db/" + std::to_string(i), entry});
@@ -152,7 +150,6 @@ int ZstoreController::PopulateMap(bool bogus, int key_experiment)
     return 0;
 }
 
-// Result<void> ZstoreController::PopulateDevHash(int key_experiment)
 int ZstoreController::PopulateDevHash(int key_experiment)
 {
     std::unique_lock lock(mDevHashMutex);
@@ -401,7 +398,6 @@ void ZstoreController::register_ctrlr(Device *device,
     }
 
     // TODO log and store stats
-
     auto zone_size_sectors = spdk_nvme_zns_ns_get_zone_size_sectors(ns);
     auto zone_size_bytes = spdk_nvme_zns_ns_get_zone_size(ns);
     auto num_zones = spdk_nvme_zns_ns_get_num_zones(ns);
@@ -499,29 +495,18 @@ Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
     assert(slot->ctrl == this);
 
     auto ioCtx = slot->ioContext;
-    // FIXME hardcode
-    // int size_in_ios = 212860928;
-    int io_size_blocks = 1;
-    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-    // auto offset_in_ios = 1;
     ioCtx.ns = GetDevice()->GetNamespace();
     ioCtx.qpair = GetIoQpair();
     ioCtx.data = slot->dataBuffer;
-
     ioCtx.offset = Configuration::GetZslba() + offset;
-
-    // ioCtx.offset = Configuration::GetZslba() +
-    //                zctrl_.GetDevice()->mTotalCounts;
-
-    ioCtx.size = io_size_blocks;
+    ioCtx.size = Configuration::GetDataBufferSizeInSector();
     ioCtx.cb = complete;
     ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
-    // slot->request = req_;
+
     slot->request = std::move(req_);
     slot->read_fn = closure;
-
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
     {
@@ -539,7 +524,6 @@ void ZstoreController::EnqueueWrite(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
     // mWriteQueue.push(ctx);
-    // log_debug("after push: read q {}", GetWriteQueueSize());
 }
 
 std::queue<RequestContext *> &ZstoreController::GetRequestQueue()

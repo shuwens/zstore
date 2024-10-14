@@ -30,38 +30,32 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     RequestContext *slot = (RequestContext *)arg;
     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
 
-    if (ctrl->verbose)
-        log_debug("111");
     if (spdk_nvme_cpl_is_error(completion)) {
-        fprintf(stderr, "I/O error status: %s\n",
-                spdk_nvme_cpl_get_status_string(&completion->status));
-        fprintf(stderr, "I/O failed, aborting run\n");
-        assert(0);
-        exit(1);
+        log_error("I/O error status: {}",
+                  spdk_nvme_cpl_get_status_string(&completion->status));
+        // fprintf(stderr, "I/O failed, aborting run\n");
+        // assert(0);
+        // exit(1);
+        log_debug("Unimplemented: put context back in pool");
     }
 
-    if (ctrl->verbose)
-        log_debug("is write: {}", slot->is_write);
-    // TODO: swap data buffer into request body
     auto ioCtx = slot->ioContext;
     if (slot->is_write) {
-        // TODO: update entry with LBA
-        if (ctrl->verbose)
-            log_debug("111");
-        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-        // slot->request.body() = body;
+        // TODO: 1. update entry with LBA
+        // TODO: 2. what do we return in response
         slot->write_fn(slot->request, slot->entry);
     } else {
+        // For read, we swap the read date into the request body
         std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
         slot->request.body() = body;
+
         slot->read_fn(slot->request);
     }
 
     ctrl->GetDevice()->mTotalCounts++;
-
     assert(ctrl != nullptr);
 
-    // this should move to reclaim context and in controller
+    // TODO: this should move to reclaim context and in controller
     slot->available = true;
     slot->Clear();
     ctrl->mRequestContextPool->ReturnRequestContext(slot);
@@ -94,18 +88,12 @@ int handleDummyRequest(void *args)
         assert(slot->ctrl == ctrl);
 
         auto ioCtx = slot->ioContext;
-        // FIXME hardcode
-        // int size_in_ios = 212860928;
-        int io_size_blocks = 1;
-        // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-        // auto offset_in_ios = 1;
-
         ioCtx.ns = ctrl->GetDevice()->GetNamespace();
         ioCtx.qpair = ctrl->GetIoQpair();
         ioCtx.data = slot->dataBuffer;
         ioCtx.offset =
             Configuration::GetZslba() + ctrl->GetDevice()->mTotalCounts;
-        ioCtx.size = io_size_blocks;
+        ioCtx.size = Configuration::GetDataBufferSizeInSector();
         ioCtx.cb = complete;
         ioCtx.ctx = slot;
         ioCtx.flags = 0;
@@ -166,22 +154,6 @@ static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
 
 int handleIoCompletions(void *args)
 {
-    // static double mTime = 0;
-    // static int timeCnt = 0;
-    {
-        // double timeNow = GetTimestampInUs();
-        // if (mTime == 0) {
-        //     printf("[DEBUG] %s %d\n", __func__, timeCnt);
-        //     mTime = timeNow;
-        // } else {
-        //     if (timeNow - mTime > 10.0) {
-        //         mTime += 10.0;
-        //         timeCnt += 10;
-        //         printf("[DEBUG] %s %d\n", __func__, timeCnt);
-        //     }
-        // }
-    }
-
     struct spdk_nvme_poll_group *pollGroup =
         (struct spdk_nvme_poll_group *)args;
     int r = 0;
@@ -194,10 +166,8 @@ int ioWorker(void *args)
 {
     IoThread *ioThread = (IoThread *)args;
     struct spdk_thread *thread = ioThread->thread;
-    // ZstoreController *ctrl = ioThread->controller;
     spdk_set_thread(thread);
     spdk_poller_register(handleIoCompletions, ioThread->group, 0);
-    // spdk_poller_register(handleIoPendingZoneWrites, ctrl, 0);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
     }
@@ -208,72 +178,48 @@ void zoneRead(void *arg1)
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
-
     assert(ctx->ctrl != nullptr);
 
     ctx->ctrl->CheckIoQpair("Zone read");
-    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
-                               ioCtx.offset + 1808277, ioCtx.size, ioCtx.cb,
-                               ioCtx.ctx, ioCtx.flags);
+    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
 
     if (rc != 0) {
         log_error("starting I/O failed {}", rc);
     } else {
         // worker->ns_ctx->current_queue_depth++;
     }
-    // assert(rc == 0);
-    // struct ZstoreObject *object;
-    // object = read_from_buffer((const char *)ioCtx.data, sizeof(ioCtx.data));
-
-    // log_debug("object key {}", object->key);
 }
 
 static void issueIo(void *args)
 {
-    ZstoreController *zc = (ZstoreController *)args;
-    if (zc->verbose)
-        log_debug("Issue IO");
-
-    RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
-    auto ioCtx = slot->ioContext;
-
-    ioCtx.ns = zc->GetDevice()->GetNamespace();
-    ioCtx.qpair = zc->GetIoQpair();
-    ioCtx.data = slot->dataBuffer;
-    // ioCtx.offset = offset_in_ios * entry->io_size_blocks;
-    ioCtx.offset = 0;
-    int io_size_blocks = 1;
-    ioCtx.size = io_size_blocks;
-    ioCtx.cb = complete;
-    ioCtx.ctx = slot;
-    ioCtx.flags = 0;
-
-    slot->ctrl = zc;
-    assert(slot->ctrl == zc);
-    assert(slot->ctrl != nullptr);
-
-    thread_send_msg(zc->GetIoThread(0), zoneRead, slot);
+    // ZstoreController *zc = (ZstoreController *)args;
+    // RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
+    //
+    // auto ioCtx = slot->ioContext;
+    // ioCtx.ns = zc->GetDevice()->GetNamespace();
+    // ioCtx.qpair = zc->GetIoQpair();
+    // ioCtx.data = slot->dataBuffer;
+    // ioCtx.offset = 0;
+    // ioCtx.size = Configuration::GetDataBufferSize;
+    // ioCtx.cb = complete;
+    // ioCtx.ctx = slot;
+    // ioCtx.flags = 0;
+    //
+    // slot->ctrl = zc;
+    // assert(slot->ctrl == zc);
+    // assert(slot->ctrl != nullptr);
+    //
+    // thread_send_msg(zc->GetIoThread(0), zoneRead, slot);
 }
 
 int handleSubmit(void *args)
 {
     bool busy = false;
     ZstoreController *ctrl = (ZstoreController *)args;
-
     std::queue<RequestContext *> &readQ = ctrl->GetReadQueue();
 
-    // int queue_depth = ctrl->GetQueueDepth();
-    // auto req_inflight = ctrl->mRequestContextPool->capacity -
-    //                     ctrl->mRequestContextPool->availableContexts.size();
-
-    // log_debug("queue depth {}, req in flight {}, completed {}, current queue
-    // "
-    //           "depth {} ",
-    //           queue_depth, req_inflight, worker->ns_ctx->io_completed,
-    //           readQ.size());
-
     while (!readQ.empty()) {
-        // if (ctrl->verbose)
         RequestContext *ctx = readQ.front();
         assert(ctx->ctrl != nullptr);
         ctrl->ReadInDispatchThread(ctx);
@@ -355,18 +301,10 @@ int handleObjectSubmit(void *args)
     bool busy = false;
     ZstoreController *zctrlr = (ZstoreController *)args;
     int queue_depth = zctrlr->GetQueueDepth();
-    // int queue_depth = zctrlr->mWorker->ns_ctx->current_queue_depth;
-
-    // auto task_count = zctrlr->GetTaskCount();
-
     // Multiple threads/readers can read the counter's value at the same time.
     auto req_inflight = zctrlr->mRequestContextPool->capacity -
                         zctrlr->mRequestContextPool->availableContexts.size();
     while (req_inflight < queue_depth) {
-
-        // log_debug("queue depth {}, task count {} - task pool size {} ",
-        //           queue_depth, task_count, zctrlr->GetTaskPoolSize());
-
         std::string current_key = "key" + std::to_string(zctrlr->pivot);
         // MapIter got = zctrlr->mMap.find(curent_key);
         // if (got == zctrlr->mMap.end())
@@ -468,6 +406,7 @@ int completionWorker(void *args)
 
 void RequestContext::Clear()
 {
+    // TODO: double check clear is fully done
     available = true;
     successBytes = 0;
     targetBytes = 0;
@@ -486,13 +425,9 @@ void RequestContext::Clear()
     // associatedStripe = nullptr;
     // associatedRead = nullptr;
     ctrl = nullptr;
-    // segment = nullptr;
 
     successBytes = 0;
     targetBytes = 0;
-
-    // needDegradedRead = false;
-    // pbaArray.clear();
 }
 
 double RequestContext::GetElapsedTime() { return ctime - stime; }
@@ -535,9 +470,7 @@ void RequestContext::CopyFrom(const RequestContext &o)
     available = o.available;
 
     ctrl = o.ctrl;
-    // segment = o.segment;
     zoneId = o.zoneId;
-    // stripeId = o.stripeId;
     offset = o.offset;
     // append = o.append;
 
@@ -561,17 +494,18 @@ RequestContextPool::RequestContextPool(uint32_t cap)
     contexts = new RequestContext[capacity];
     for (uint32_t i = 0; i < capacity; ++i) {
         contexts[i].Clear();
-        // contexts[i].lbaArray.resize(Configuration::GetMaxStripeUnitSize() /
-        //                             Configuration::GetBlockSize());
-        contexts[i].dataBuffer = (uint8_t *)spdk_zmalloc(
-            4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+        contexts[i].dataBuffer =
+            (uint8_t *)spdk_zmalloc(Configuration::GetDataBufferSizeInSector() *
+                                        Configuration::GetBlockSize(),
+                                    Configuration::GetBlockSize(), NULL,
+                                    SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
         // contexts[i].metadataBuffer =
         //     (uint8_t *)spdk_zmalloc(Configuration::GetMaxStripeUnitSize() /
         //                                 Configuration::GetBlockSize() *
         //                                 Configuration::GetMetadataSize(),
         //                             Configuration::GetBlockSize(), NULL,
         //                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        contexts[i].bufferSize = 4096;
+        contexts[i].bufferSize = Configuration::GetBlockSize();
         availableContexts.emplace_back(&contexts[i]);
     }
 }
@@ -579,38 +513,35 @@ RequestContextPool::RequestContextPool(uint32_t cap)
 RequestContext *RequestContextPool::GetRequestContext(bool force)
 {
     std::unique_lock lock(g_shared_mutex_);
-    // g_mutex_.lock();
 
     RequestContext *ctx = nullptr;
     if (availableContexts.empty() && force == false) {
         ctx = nullptr;
     } else {
         if (!availableContexts.empty()) {
-            // log_debug("available Context is not empty pop one from the
-            // back.");
             ctx = availableContexts.back();
             availableContexts.pop_back();
             ctx->Clear();
             ctx->available = false;
         } else {
-            // log_debug("available Context is empty, BAD.");
             ctx = new RequestContext();
             ctx->dataBuffer = (uint8_t *)spdk_zmalloc(
-                4096, 4096, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+                Configuration::GetDataBufferSizeInSector() *
+                    Configuration::GetBlockSize(),
+                Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
+                SPDK_MALLOC_DMA);
             // ctx->metadataBuffer = (uint8_t *)spdk_zmalloc(
             //     Configuration::GetMaxStripeUnitSize() /
             //         Configuration::GetBlockSize() *
             //         Configuration::GetMetadataSize(),
             //     Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
             //     SPDK_MALLOC_DMA);
-            ctx->bufferSize = 4096;
+            ctx->bufferSize = Configuration::GetBlockSize();
             ctx->Clear();
             ctx->available = false;
-            // log_debug("Request Context runs out.");
             exit(1);
         }
     }
-    // g_mutex_.unlock();
     return ctx;
 }
 
@@ -662,21 +593,12 @@ MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
     slot->ctrl = zctrl_;
     assert(slot->ctrl == zctrl_);
 
-    // IO Context
     auto ioCtx = slot->ioContext;
-    // FIXME hardcode
-    // int size_in_ios = 212860928;
-    int io_size_blocks = 1;
-    // auto offset_in_ios = rand_r(&seed) % size_in_ios;
-    // auto offset_in_ios = 1;
     ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
     ioCtx.qpair = zctrl_->GetIoQpair();
     ioCtx.data = slot->dataBuffer;
-    // lookup
     ioCtx.offset = Configuration::GetZslba() + offset;
-    // ioCtx.offset = Configuration::GetZslba() +
-    //                zctrl_.GetDevice()->mTotalCounts;
-    ioCtx.size = io_size_blocks;
+    ioCtx.size = Configuration::GetDataBufferSizeInSector();
     ioCtx.cb = complete;
     ioCtx.ctx = slot;
     ioCtx.flags = 0;
@@ -696,20 +618,16 @@ Result<RequestContext *>
 MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
                  std::function<void(HttpRequest, MapEntry)> closure)
 {
-    // TODO: read value
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
     assert(slot->ctrl == zctrl_);
 
-    // IO Context
     auto ioCtx = slot->ioContext;
-    int io_size_blocks = 1;
     ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
     ioCtx.qpair = zctrl_->GetIoQpair();
     ioCtx.data = slot->dataBuffer;
-    // lookup
     ioCtx.offset = Configuration::GetZslba();
-    ioCtx.size = io_size_blocks;
+    ioCtx.size = Configuration::GetDataBufferSizeInSector();
     ioCtx.cb = complete;
     ioCtx.ctx = slot;
     ioCtx.flags = 0;

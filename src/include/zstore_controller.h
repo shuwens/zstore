@@ -12,7 +12,6 @@
 #include <boost/unordered/concurrent_flat_map.hpp>
 #include <boost/unordered/concurrent_flat_set.hpp>
 #include <cstring>
-#include <mutex>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
 #include <unistd.h>
@@ -24,17 +23,13 @@ using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKey>;
 class ZstoreController
 {
   public:
-    ZstoreController(net::io_context &ioc) : mIoc_(ioc){};
-    // The io_context is required for all I/O
-    net::io_context &mIoc_;
-
-    ~ZstoreController();
-    int Init(bool object, int key_experiment);
-    // Result<void> PopulateMap(bool bogus, int key_experiment);
-    // Result<void> PopulateDevHash(int key_experiment);
     int PopulateDevHash(int key_experiment);
     int PopulateMap(bool bogus, int key_experiment);
+    // Result<void> PopulateMap(bool bogus, int key_experiment);
+    // Result<void> PopulateDevHash(int key_experiment);
+
     Result<DevTuple> GetDevTuple(ObjectKey object_key);
+
     int pivot;
 
     // ZStore Device Consistent Hashmap: this maintains a consistent hash map
@@ -45,7 +40,7 @@ class ZstoreController
 
     // ZStore Map: this maps key to tuple of ZNS target and lba
     zstore_map mMap;
-    std::shared_mutex mMapMutex;
+    // std::shared_mutex mMapMutex;
 
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
@@ -53,7 +48,7 @@ class ZstoreController
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
     zstore_bloom_filter mBF;
-    std::shared_mutex mBFMutex;
+    // std::shared_mutex mBFMutex;
 
     // Object APIs
     Result<bool> SearchBF(const ObjectKey &key);
@@ -61,15 +56,18 @@ class ZstoreController
 
     Result<bool> PutObject(const ObjectKey &key, MapEntry entry);
     Result<bool> GetObject(const ObjectKey &key, MapEntry &entry);
-    void try_evict();
 
     Result<void> UpdateMap(ObjectKey key, MapEntry entry);
-
     Result<void> ReleaseObject(ObjectKey key);
-
     Result<MapEntry> CreateObject(ObjectKey key, DevTuple tuple);
-
     Result<void> DeleteObject(ObjectKey key);
+
+    ZstoreController(net::io_context &ioc) : mIoc_(ioc){};
+    // The io_context is required for all I/O
+    net::io_context &mIoc_;
+
+    ~ZstoreController();
+    int Init(bool object, int key_experiment);
 
     // threads
     void initIoThread();
@@ -85,24 +83,22 @@ class ZstoreController
     // SPDK components
     struct spdk_nvme_qpair *GetIoQpair();
     bool CheckIoQpair(std::string msg);
+    int GetQueueDepth() { return mQueueDepth; };
+    void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
     void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
     void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
     void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
 
-    int GetQueueDepth() { return mQueueDepth; };
-
     int GetContextPoolSize() { return mContextPoolSize; };
-
-    void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     void setContextPoolSize(int context_pool_size)
     {
         mContextPoolSize = context_pool_size;
     };
-    void setNumOfDevices(int num_of_device) { mN = num_of_device; };
 
     Device *GetDevice() { return mDevices[0]; };
+    void setNumOfDevices(int num_of_device) { mN = num_of_device; };
 
     // Setting up SPDK
     void register_ctrlr(Device *device, struct spdk_nvme_ctrlr *ctrlr);
@@ -136,13 +132,9 @@ class ZstoreController
 
     void EnqueueWrite(RequestContext *ctx);
     void EnqueueRead(RequestContext *ctx);
-    // void EnqueueReadReaping(RequestContext *ctx);
     std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
-    std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
-
-    // std::queue<RequestContext *> &GetEventsToDispatch();
-
     int GetWriteQueueSize() { return mWriteQueue.size(); };
+    std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
     int GetReadQueueSize() { return mReadQueue.size(); };
 
     // int GetEventsToDispatchSize();
@@ -165,17 +157,12 @@ class ZstoreController
     void Flush();
     void Dump();
 
-    // uint32_t GetHeaderRegionSize();
-    // uint32_t GetDataRegionSize();
-    // uint32_t GetFooterRegionSize();
-
     bool Append(RequestContext *ctx, uint32_t offset);
     // bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
     void Reset(RequestContext *ctx);
     bool IsResetDone();
     void WriteComplete(RequestContext *ctx);
     void ReadComplete(RequestContext *ctx);
-    // void ReclaimReadContext(ReadContext *readContext);
 
     void AddZone(Zone *zone);
     const std::vector<Zone *> &GetZones();
@@ -187,13 +174,7 @@ class ZstoreController
     RequestContextPool *mRequestContextPool;
     std::unordered_set<RequestContext *> mInflightRequestContext;
 
-    // mutable std::shared_mutex g_mutex_;
-    // mutable std::shared_mutex context_pool_mutex_;
-    // std::mutex context_pool_mutex_;
-
-    // std::mutex mTaskPoolMutex;
     bool verbose;
-
     bool isDraining;
 
   private:
@@ -202,18 +183,14 @@ class ZstoreController
     // context pool size
     int mContextPoolSize;
     int _max_size = 1000'000;
-    // simple way to terminate the server
-    // uint64_t tsc_end;
 
-    RequestContext *getContextForUserRequest();
-    void doWrite(RequestContext *context);
-    void doRead(RequestContext *context);
+    // RequestContext *getContextForUserRequest();
+    // void doWrite(RequestContext *context);
+    // void doRead(RequestContext *context);
 
     std::vector<Device *> mDevices;
     std::queue<RequestContext *> mRequestQueue;
     std::shared_mutex mRequestQueueMutex;
-
-    std::shared_mutex mSessionMutex;
 
     spdk_poller *mEventsPoller = nullptr;
     spdk_poller *mDispatchPoller = nullptr;
@@ -224,21 +201,12 @@ class ZstoreController
 
     IoThread mIoThread[16];
     struct spdk_thread *mDispatchThread;
-    // struct spdk_thread *mHttpThread;
     IoThread mHttpThread[16];
     struct spdk_thread *mCompletionThread;
-
-    // int64_t mNumInvalidBlocks = 0;
-    // int64_t mNumBlocks = 0;
 
     std::queue<RequestContext *> mEventsToDispatch;
     std::queue<RequestContext *> mWriteQueue;
     std::queue<RequestContext *> mReadQueue;
 
-    // in memory object tables, used only by kv store
-    // std::map<std::string, kvobject> mem_obj_table;
-    // std::mutex mem_obj_table_mutex;
-    // ZstoreControllerMetadata mMeta;
     std::vector<Zone *> mZones;
-    // std::vector<RequestContext> mResetContext;
 };

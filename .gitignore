@@ -11,6 +11,8 @@ civetweb-1.16/
 civetweb-v1.16.tar.gz
 subprojects/spdk*
 subprojects/xnvme
+boost_1_86_0.tar.bz2
+boost_1_86_0/
 
 # build
 build

@@ -3,11 +3,9 @@
 
 setup:
 	rm -rf build* || true
-	rm current_zone || true
 	meson setup --native-file meson.ini build-rel --buildtype=release -Db_sanitize=none
 	meson setup --native-file meson.ini build-dbg --buildtype=debug
 	ln -s build-dbg build
-	ln -s ~/.current_zone current_zone
 	cd build && meson compile
 
 debug: #setup

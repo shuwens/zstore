@@ -25,6 +25,11 @@
  * consistent hashes for object keys to targets etc
  * crafting map for recovery: two devices 
  * crafting map for read and writes
+- [x] different object sizes
+- [ ] coroutine with different targets...
+- [ ] multiple devices
+- [ ] some functional or correctness tests
+- [ ] failure recover things 
 
 ## Long-term TODOs
  * Need to have a test for  overall system

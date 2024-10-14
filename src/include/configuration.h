@@ -124,9 +124,14 @@ class Configuration
         return GetInstance().gStorageSpaceInBytes;
     }
 
-    static uint32_t GetTotalIo() { return GetInstance().gTotalIO; }
+    // static uint32_t GetTotalIo() { return GetInstance().gTotalIO; }
 
     static uint64_t GetZoneDist() { return GetInstance().gZoneDist; }
+
+    static uint32_t GetDataBufferSizeInSector()
+    {
+        return GetInstance().gDataBufferSizeInSector;
+    }
 
     static uint64_t GetZslba()
     {
@@ -136,9 +141,28 @@ class Configuration
   private:
     // Hardcode because they won't change
     const uint64_t gZoneDist = 0x80000; // zone size
+
+    bool gVerbose = false;
+    bool gUseObject = false;
+    bool gUseDummyWorkload = false;
+    bool gUseHttp = true;
+    // TODO: use other spdk thread to work stealing
+    bool gUseWorkStealing = false;
+
+    uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
+
+    int gNumIoThreads = 1;
+    int gNumHttpThreads = 1;
+
+    uint32_t gDispatchThreadCoreId = 1;
+    uint32_t gIoThreadCoreIdBase = 2;
+    uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads;
+
     int gBlockSize = 4096;
     int gMetadataSize = 64;
     bool gDeviceSupportMetadata = true;
+
+    uint32_t gDataBufferSizeInSector = 16; // 1- 32
     // int gZoneCapacity = 0;
 
     // Configured parameters
@@ -150,34 +174,6 @@ class Configuration
     // how many devices/drives on a target
     int gNumOfDevices = 1;
 
-    bool gVerbose = false;
-
-    bool gUseObject = false;
-    bool gUseDummyWorkload = false;
-    bool gUseHttp = true;
-    // TODO: use other spdk thread to work stealing
-    bool gUseWorkStealing = false;
-
     const int current_zone = 46;
     // uint32_t gTotalIO = 4'000'000;
-
-    int gNumIoThreads = 1;
-    int gNumHttpThreads = 1;
-
-    uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
-
-    uint32_t gDispatchThreadCoreId = 1;
-    uint32_t gIoThreadCoreIdBase = 2;
-    uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads;
-
-    // Not used for now; functions collocated with dispatch thread.
-    // uint32_t gCompletionThreadCoreId = 5;
-    // uint32_t gIndexThreadCoreId = 6;
-    // uint32_t gReceiverThreadCoreId = 8;
-    // int gLargeRequestThreshold = 16 * 1024;
-
-    // FIXME total IO more than this causes failures
-    // FIXME queue size larger than 64 causes issue
-    uint32_t gTotalIO = 2'000'000;
-    // uint32_t gTotalIO = 500'000;
 };
