@@ -31,27 +31,20 @@ typedef std::tuple<std::pair<std::string, std::string>,
                    std::pair<std::string, std::string>,
                    std::pair<std::string, std::string>>
     DevTuple;
-typedef std::pair<std::pair<std::string, std::string>, u64> TargetLbaPair;
+
+// typedef std::pair<std::pair<std::string, std::string>, u64> TargetLbaPair;
+typedef std::pair<std::string, u64> TargetLbaPair;
 
 struct MapEntry {
     std::tuple<TargetLbaPair, TargetLbaPair, TargetLbaPair> data;
 
-    std::pair<std::string, std::string> &first_tgt()
-    {
-        return std::get<0>(data).first;
-    }
+    std::string &first_tgt() { return std::get<0>(data).first; }
     u64 &first_lba() { return std::get<0>(data).second; }
 
-    std::pair<std::string, std::string> &second_tgt()
-    {
-        return std::get<1>(data).first;
-    }
+    std::string &second_tgt() { return std::get<1>(data).first; }
     u64 &second_lba() { return std::get<1>(data).second; }
 
-    std::pair<std::string, std::string> &third_tgt()
-    {
-        return std::get<2>(data).first;
-    }
+    std::string &third_tgt() { return std::get<2>(data).first; }
     u64 &third_lba() { return std::get<2>(data).second; }
 };
 

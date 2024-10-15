@@ -136,8 +136,12 @@ class session : public std::enable_shared_from_this<session>
                                            shared_from_this(), keep_alive));
                 };
 
-                auto slot =
-                    MakeReadRequest(&zctrl_, entry.first_lba(), req_, closure_);
+                // log_debug("entry first tgt {} ", entry.first_tgt());
+                auto dev = zctrl_.GetDevice(entry.first_tgt());
+                // log_debug("111 ");
+
+                auto slot = MakeReadRequest(&zctrl_, dev, entry.first_lba(),
+                                            req_, closure_);
                 assert(slot.has_value());
                 {
                     std::unique_lock lock(zctrl_.GetRequestQueueMutex());
@@ -264,8 +268,9 @@ class session : public std::enable_shared_from_this<session>
 
                 if (zctrl_.verbose)
                     log_debug("333");
-                auto slot =
-                    MakeWriteRequest(&zctrl_, req_, entry.value(), closure_);
+                auto slot = MakeWriteRequest(
+                    &zctrl_, zctrl_.GetDevice(entry.value().first_tgt()), req_,
+                    entry.value(), closure_);
                 if (zctrl_.verbose)
                     log_debug("444");
                 assert(slot.has_value());

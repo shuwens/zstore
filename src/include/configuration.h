@@ -162,7 +162,7 @@ class Configuration
     int gMetadataSize = 64;
     bool gDeviceSupportMetadata = true;
 
-    uint32_t gDataBufferSizeInSector = 16; // 1- 32
+    uint32_t gDataBufferSizeInSector = 1; // 1- 32
     // int gZoneCapacity = 0;
 
     // Configured parameters
@@ -172,7 +172,7 @@ class Configuration
     // how many targets one gateway talks to
     int gNumOfTargets = 1;
     // how many devices/drives on a target
-    int gNumOfDevices = 1;
+    int gNumOfDevices = 2;
 
     const int current_zone = 46;
     // uint32_t gTotalIO = 4'000'000;

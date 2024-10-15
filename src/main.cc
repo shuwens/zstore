@@ -56,20 +56,21 @@ int main(int argc, char **argv)
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
 
+        // FIXME only tput on Zstore2Dev1
         while (1) {
             auto etime = std::chrono::high_resolution_clock::now();
             auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
                              etime - gZstoreController->stime)
                              .count();
-            auto tput = gZstoreController->GetDevice()->mTotalCounts *
-                        g_micro_to_second / delta;
+            auto tput =
+                gZstoreController->mTotalCounts * g_micro_to_second / delta;
 
             log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-                     gZstoreController->GetDevice()->mTotalCounts, delta, tput);
+                     gZstoreController->mTotalCounts, delta, tput);
             {
                 gZstoreController->stime =
                     std::chrono::high_resolution_clock::now();
-                gZstoreController->GetDevice()->mTotalCounts = 0;
+                gZstoreController->mTotalCounts = 0;
             }
             sleep(1);
         }

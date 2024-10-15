@@ -43,9 +43,10 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
 Result<DevTuple> GetDevTuple(ObjectKey object_key);
 
 Result<RequestContext *>
-MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
-                std::function<void(HttpRequest)> closure);
+MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
+                HttpRequest request, std::function<void(HttpRequest)> closure);
 
 Result<RequestContext *>
-MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
+MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
+                 MapEntry entry,
                  std::function<void(HttpRequest, MapEntry)> closure);

@@ -114,6 +114,95 @@ void ZstoreController::initIoThread()
     }
 }
 
+void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
+                                      struct spdk_nvme_ctrlr *ctrlr,
+                                      const char *traddr)
+{
+    struct spdk_nvme_ns *ns;
+    // union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
+    // const struct spdk_nvme_ctrlr_data *cdata =
+    // spdk_nvme_ctrlr_get_data(ctrlr);
+    for (int nsid = 1; nsid < Configuration::GetNumOfDevices() + 1; nsid++) {
+        Device *device = new Device();
+        // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
+        //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
+        ns = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
+        if (ns == NULL) {
+            continue;
+        }
+
+        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+            log_info("ns {} is not zns ns", nsid);
+            // continue;
+        } else {
+            // log_info("ns {} is zns ns", nsid);
+        }
+
+        // register_ns(ctrlr, ns);
+        device->Init(ctrlr, nsid);
+        device->SetDeviceTransportAddress(traddr);
+        g_devices.emplace_back(device);
+    }
+
+    // TODO log and store stats
+    auto zone_size_sectors = spdk_nvme_zns_ns_get_zone_size_sectors(ns);
+    auto zone_size_bytes = spdk_nvme_zns_ns_get_zone_size(ns);
+    auto num_zones = spdk_nvme_zns_ns_get_num_zones(ns);
+    uint32_t max_open_zones = spdk_nvme_zns_ns_get_max_open_zones(ns);
+    uint32_t active_zones = spdk_nvme_zns_ns_get_max_active_zones(ns);
+    uint32_t max_zone_append_size =
+        spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
+    auto metadata_size = spdk_nvme_ns_get_md_size(ns);
+
+    log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
+             zone_size_bytes);
+    log_info("Zones: num {}, max open {}, active {}", num_zones, max_open_zones,
+             active_zones);
+    log_info("Max zones append size: {}, metadata size {}",
+             max_zone_append_size, metadata_size);
+}
+
+void ZstoreController::zns_dev_init(std::vector<Device *> &g_devices,
+                                    const std::string &ip,
+                                    const std::string &port)
+{
+    char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+    // 1. connect nvmf device
+    struct spdk_nvme_transport_id trid = {};
+    snprintf(trid.traddr, sizeof(trid.traddr), "%s", ip.c_str());
+    snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
+    snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
+    trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid.trtype = SPDK_NVME_TRANSPORT_TCP;
+
+    struct spdk_nvme_ctrlr_opts opts;
+    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
+    snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
+    // NOTE: disable keep alive timeout
+    opts.keep_alive_timeout_ms = 0;
+    register_ctrlr(g_devices, spdk_nvme_connect(&trid, &opts, sizeof(opts)),
+                   trid.traddr);
+}
+
+int ZstoreController::register_controllers(
+    std::vector<Device *> &g_devices,
+    const std::pair<std::string, std::string> &ip_addr_pair)
+{
+    log_info("Initializing NVMe Controllers");
+
+    // RDMA
+    // zns_dev_init(ctx, "192.168.100.9", "5520");
+    // TCP
+    zns_dev_init(g_devices, ip_addr_pair.first, ip_addr_pair.second);
+
+    return 0;
+}
+
+void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
+{
+    // struct spdk_nvme_detach_ctx *detach_ctx = NULL;
+}
+
 int ZstoreController::PopulateMap(bool bogus, int key_experiment)
 {
     int zone_offset = 1808277;
@@ -121,9 +210,9 @@ int ZstoreController::PopulateMap(bool bogus, int key_experiment)
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
             auto entry = createMapEntry(
-                             std::make_tuple(std::make_pair("Zstore1", "dev1"),
-                                             std::make_pair("Zstore1", "dev2"),
-                                             std::make_pair("Zstore1", "dev1")),
+                             std::make_tuple(std::make_pair("Zstore2", "Dev1"),
+                                             std::make_pair("Zstore2", "Dev2"),
+                                             std::make_pair("Zstore3", "Dev1")),
                              i + zone_offset, i + zone_offset, i + zone_offset)
                              .value();
             // assert(rc.has_value());
@@ -209,14 +298,22 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     // FIXME use number of target and number of devices
     // we add one device for now
-    {
-        Device *device = new Device();
-        if (register_controllers(device) != 0) {
+    // RDMA
+    // zns_dev_init(ctx, "192.168.100.9", "5520");
+    // TCP
+
+    std::vector<std::pair<std::string, std::string>> ip_port_pairs{
+        std::make_pair("12.12.12.2", "5520"),
+        // std::make_pair("12.12.12.3", "5520"),
+        // std::make_pair("12.12.12.4", "5520")
+    };
+
+    for (auto &pair : ip_port_pairs) {
+        if (register_controllers(g_devices, pair) != 0) {
             rc = 1;
             zstore_cleanup();
             return rc;
         }
-        g_devices.emplace_back(device);
     }
     mDevices = g_devices;
 
@@ -370,95 +467,10 @@ ZstoreController::~ZstoreController()
     // print_stats(this);
 }
 
-void ZstoreController::register_ctrlr(Device *device,
-                                      struct spdk_nvme_ctrlr *ctrlr)
-{
-    uint32_t nsid;
-    struct spdk_nvme_ns *ns;
-    // union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
-    // const struct spdk_nvme_ctrlr_data *cdata =
-    // spdk_nvme_ctrlr_get_data(ctrlr);
-
-    for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
-         nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
-        ns = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
-        if (ns == NULL) {
-            continue;
-        }
-
-        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            log_info("ns {} is not zns ns", nsid);
-            // continue;
-        } else {
-            // log_info("ns {} is zns ns", nsid);
-        }
-
-        // register_ns(ctrlr, ns);
-        device->Init(ctrlr, nsid);
-    }
-
-    // TODO log and store stats
-    auto zone_size_sectors = spdk_nvme_zns_ns_get_zone_size_sectors(ns);
-    auto zone_size_bytes = spdk_nvme_zns_ns_get_zone_size(ns);
-    auto num_zones = spdk_nvme_zns_ns_get_num_zones(ns);
-    uint32_t max_open_zones = spdk_nvme_zns_ns_get_max_open_zones(ns);
-    uint32_t active_zones = spdk_nvme_zns_ns_get_max_active_zones(ns);
-    uint32_t max_zone_append_size =
-        spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
-    auto metadata_size = spdk_nvme_ns_get_md_size(ns);
-
-    log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
-             zone_size_bytes);
-    log_info("Zones: num {}, max open {}, active {}", num_zones, max_open_zones,
-             active_zones);
-    log_info("Max zones append size: {}, metadata size {}",
-             max_zone_append_size, metadata_size);
-}
-
-void ZstoreController::zns_dev_init(Device *device, std::string ip1,
-                                    std::string port1)
-{
-    char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
-
-    log_debug("zns dev");
-    // 1. connect nvmf device
-    struct spdk_nvme_transport_id trid1 = {};
-    snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
-    snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
-    snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
-    trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
-
-    struct spdk_nvme_ctrlr_opts opts;
-    spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
-    snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
-    // NOTE: disable keep alive timeout
-    opts.keep_alive_timeout_ms = 0;
-    register_ctrlr(device, spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
-    device->SetDeviceTransportAddress(trid1.traddr);
-}
-
-int ZstoreController::register_controllers(Device *device)
-{
-    log_info("Initializing NVMe Controllers");
-
-    // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    // TCP
-    zns_dev_init(device, "12.12.12.2", "5520");
-
-    return 0;
-}
-
-void ZstoreController::unregister_controllers(Device *device)
-{
-    // struct spdk_nvme_detach_ctx *detach_ctx = NULL;
-}
-
 void ZstoreController::zstore_cleanup()
 {
     log_info("unreg controllers");
-    unregister_controllers(mDevices[0]);
+    unregister_controllers(mDevices);
     log_info("cleanup ");
     cleanup(0);
 
@@ -487,7 +499,7 @@ void ZstoreController::cleanup(uint32_t task_count)
     // spdk_mempool_free(mTaskPool);
 }
 
-Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
+Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
                                     std::function<void(HttpRequest)> closure)
 {
     RequestContext *slot = mRequestContextPool->GetRequestContext(true);
@@ -495,8 +507,8 @@ Result<void> ZstoreController::Read(u64 offset, HttpRequest req_,
     assert(slot->ctrl == this);
 
     auto ioCtx = slot->ioContext;
-    ioCtx.ns = GetDevice()->GetNamespace();
-    ioCtx.qpair = GetIoQpair();
+    ioCtx.ns = dev->GetNamespace();
+    ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba() + offset;
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
@@ -551,6 +563,7 @@ void tryDrainController(void *args)
 
 void ZstoreController::Drain()
 {
+    // FIXME GetDevice default
     log_info("Perform draining on the system.");
     isDraining = true;
     DrainArgs args;
@@ -566,11 +579,11 @@ void ZstoreController::Drain()
     auto delta =
         std::chrono::duration_cast<std::chrono::microseconds>(etime - stime)
             .count();
-    auto tput = GetDevice()->mTotalCounts * g_micro_to_second / delta;
+    auto tput = mTotalCounts * g_micro_to_second / delta;
 
     // if (g->verbose)
-    log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-             GetDevice()->mTotalCounts, delta, tput);
+    log_info("Total IO {}, total time {}ms, throughput {} IOPS", mTotalCounts,
+             delta, tput);
 
     // log_debug("drain io: {}", spdk_get_ticks());
     log_debug("clean up ns worker");

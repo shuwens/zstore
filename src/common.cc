@@ -52,7 +52,7 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
         slot->read_fn(slot->request);
     }
 
-    ctrl->GetDevice()->mTotalCounts++;
+    ctrl->mTotalCounts++;
     assert(ctrl != nullptr);
 
     // TODO: this should move to reclaim context and in controller
@@ -73,37 +73,36 @@ void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 int handleDummyRequest(void *args)
 {
     bool busy = false;
-    ZstoreController *ctrl = (ZstoreController *)args;
-
-    if (!ctrl->isDraining &&
-        ctrl->mRequestContextPool->availableContexts.size() > 0) {
-        if (!ctrl->start) {
-            ctrl->start = true;
-            ctrl->stime = std::chrono::high_resolution_clock::now();
-        }
-
-        RequestContext *slot =
-            ctrl->mRequestContextPool->GetRequestContext(true);
-        slot->ctrl = ctrl;
-        assert(slot->ctrl == ctrl);
-
-        auto ioCtx = slot->ioContext;
-        ioCtx.ns = ctrl->GetDevice()->GetNamespace();
-        ioCtx.qpair = ctrl->GetIoQpair();
-        ioCtx.data = slot->dataBuffer;
-        ioCtx.offset =
-            Configuration::GetZslba() + ctrl->GetDevice()->mTotalCounts;
-        ioCtx.size = Configuration::GetDataBufferSizeInSector();
-        ioCtx.cb = complete;
-        ioCtx.ctx = slot;
-        ioCtx.flags = 0;
-        slot->ioContext = ioCtx;
-
-        assert(slot->ioContext.cb != nullptr);
-        assert(slot->ctrl != nullptr);
-        ctrl->EnqueueRead(slot);
-        busy = true;
-    }
+    // ZstoreController *ctrl = (ZstoreController *)args;
+    //
+    // if (!ctrl->isDraining &&
+    //     ctrl->mRequestContextPool->availableContexts.size() > 0) {
+    //     if (!ctrl->start) {
+    //         ctrl->start = true;
+    //         ctrl->stime = std::chrono::high_resolution_clock::now();
+    //     }
+    //
+    //     RequestContext *slot =
+    //         ctrl->mRequestContextPool->GetRequestContext(true);
+    //     slot->ctrl = ctrl;
+    //     assert(slot->ctrl == ctrl);
+    //
+    //     auto ioCtx = slot->ioContext;
+    //     ioCtx.ns = ctrl->GetDevice(slot->target_dev)->GetNamespace();
+    //     ioCtx.qpair = ctrl->GetIoQpair();
+    //     ioCtx.data = slot->dataBuffer;
+    //     ioCtx.offset = Configuration::GetZslba() + ctrl->mTotalCounts;
+    //     ioCtx.size = Configuration::GetDataBufferSizeInSector();
+    //     ioCtx.cb = complete;
+    //     ioCtx.ctx = slot;
+    //     ioCtx.flags = 0;
+    //     slot->ioContext = ioCtx;
+    //
+    //     assert(slot->ioContext.cb != nullptr);
+    //     assert(slot->ctrl != nullptr);
+    //     ctrl->EnqueueRead(slot);
+    //     busy = true;
+    // }
 
     return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
@@ -565,15 +564,12 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
 {
 
     auto data = std::make_tuple(
-        std::make_pair(
-            std::make_pair(std::get<0>(tuple).first, std::get<0>(tuple).second),
-            lba1),
-        std::make_pair(
-            std::make_pair(std::get<1>(tuple).first, std::get<1>(tuple).second),
-            lba2),
-        std::make_pair(
-            std::make_pair(std::get<2>(tuple).first, std::get<2>(tuple).second),
-            lba3));
+        std::make_pair(std::get<0>(tuple).first + std::get<0>(tuple).second,
+                       lba1),
+        std::make_pair(std::get<1>(tuple).first + std::get<1>(tuple).second,
+                       lba2),
+        std::make_pair(std::get<2>(tuple).first + std::get<2>(tuple).second,
+                       lba3));
     MapEntry entry = {.data = data};
     return entry;
 }
@@ -586,16 +582,16 @@ Result<DevTuple> GetDevTuple(ObjectKey object_key)
 }
 
 Result<RequestContext *>
-MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
-                std::function<void(HttpRequest)> closure)
+MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
+                HttpRequest request, std::function<void(HttpRequest)> closure)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
     assert(slot->ctrl == zctrl_);
 
     auto ioCtx = slot->ioContext;
-    ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
-    ioCtx.qpair = zctrl_->GetIoQpair();
+    ioCtx.ns = dev->GetNamespace();
+    ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba() + offset;
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
@@ -606,6 +602,7 @@ MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
 
     // Request is read
     slot->is_write = false;
+    // slot->target_dev = false;
     slot->request = std::move(request);
     slot->read_fn = closure;
     assert(slot->ioContext.cb != nullptr);
@@ -615,7 +612,8 @@ MakeReadRequest(ZstoreController *zctrl_, uint64_t offset, HttpRequest request,
 }
 
 Result<RequestContext *>
-MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
+MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
+                 MapEntry entry,
                  std::function<void(HttpRequest, MapEntry)> closure)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
@@ -623,8 +621,8 @@ MakeWriteRequest(ZstoreController *zctrl_, HttpRequest request, MapEntry entry,
     assert(slot->ctrl == zctrl_);
 
     auto ioCtx = slot->ioContext;
-    ioCtx.ns = zctrl_->GetDevice()->GetNamespace();
-    ioCtx.qpair = zctrl_->GetIoQpair();
+    ioCtx.ns = dev->GetNamespace();
+    ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba();
     ioCtx.size = Configuration::GetDataBufferSizeInSector();

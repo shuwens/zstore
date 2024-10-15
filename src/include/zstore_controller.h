@@ -3,6 +3,7 @@
 #include "configuration.h"
 #include "device.h"
 #include "global.h"
+#include "src/include/utils.h"
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
@@ -97,19 +98,23 @@ class ZstoreController
         mContextPoolSize = context_pool_size;
     };
 
-    Device *GetDevice() { return mDevices[0]; };
     void setNumOfDevices(int num_of_device) { mN = num_of_device; };
 
     // Setting up SPDK
-    void register_ctrlr(Device *device, struct spdk_nvme_ctrlr *ctrlr);
+    void register_ctrlr(std::vector<Device *> &g_devices,
+                        struct spdk_nvme_ctrlr *ctrlr, const char *traddr);
     void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
 
     int register_workers();
-    int register_controllers(Device *device);
-    void unregister_controllers(Device *device);
+    // int register_controllers(Device *device);
+    int register_controllers(
+        std::vector<Device *> &g_devices,
+        const std::pair<std::string, std::string> &ip_addr_pair);
+    void unregister_controllers(std::vector<Device *> &g_devices);
     int associate_workers_with_ns(Device *device);
     void zstore_cleanup();
-    void zns_dev_init(Device *device, std::string ip1, std::string port1);
+    void zns_dev_init(std::vector<Device *> &g_devices, const std::string &ip,
+                      const std::string &port);
     void cleanup_ns_worker_ctx();
     void cleanup(uint32_t task_count);
 
@@ -122,10 +127,11 @@ class ZstoreController
     // void Write(uint64_t offset, uint32_t size, void *data,
     //            zns_raid_request_complete cb_fn, void *cb_args);
     //
-    Result<void> Read(uint64_t offset, HttpRequest request,
+    Result<void> Read(uint64_t offset, Device *dev, HttpRequest request,
                       std::function<void(HttpRequest)> fn);
     //
-    // void Execute(uint64_t offset, uint32_t size, void *data, bool is_write,
+    // void Execute(uint64_t offset, uint32_t size, void *data, bool
+    // is_write,
     //              zns_raid_request_complete cb_fn, void *cb_args);
 
     void Drain();
@@ -176,6 +182,33 @@ class ZstoreController
 
     bool verbose;
     bool isDraining;
+
+    // debug
+    // std::map<uint32_t, uint64_t> mReadCounts;
+    // uint64_t mTotalReadCounts = 0;
+    uint64_t mTotalCounts = 0;
+
+    Device *GetDevice(const std::string &target_dev)
+    {
+        // NOTE currently we don't create mapping between target device to
+        // Device object, as such mapping is static. As such we manually do a
+        // switch on all target device cases
+        if (target_dev == "Zstore2Dev1") {
+            return mDevices[0];
+        } else if (target_dev == "Zstore2Dev2") {
+            return mDevices[1];
+        } else if (target_dev == "Zstore3Dev1") {
+            return mDevices[2];
+        } else if (target_dev == "Zstore3Dev2") {
+            return mDevices[3];
+        } else if (target_dev == "Zstore4Dev1") {
+            return mDevices[4];
+        } else if (target_dev == "Zstore4Dev1") {
+            return mDevices[5];
+        } else {
+            log_error("target device does not exist {}", target_dev);
+        }
+    };
 
   private:
     // number of devices
