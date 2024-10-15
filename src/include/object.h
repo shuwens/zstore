@@ -2,8 +2,6 @@
 #include "common.h"
 #include <cstdint>
 #include <cstring>
-#include <fstream>
-#include <iostream>
 
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID

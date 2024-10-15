@@ -3,7 +3,6 @@
 #include "spdk/env.h"
 #include "src/include/global.h"
 #include "zstore_controller.cc"
-#include <algorithm>
 #include <bits/stdc++.h>
 #include <boost/asio/executor_work_guard.hpp>
 #include <cassert>

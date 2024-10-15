@@ -1,4 +1,5 @@
 #include "include/device.h"
+#include "include/configuration.h"
 
 void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
 {

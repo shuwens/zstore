@@ -1,6 +1,5 @@
 #pragma once
 #include "common.h"
-#include "configuration.h"
 #include "device.h"
 #include "global.h"
 #include "src/include/utils.h"

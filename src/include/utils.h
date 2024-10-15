@@ -1,5 +1,4 @@
 #pragma once
-
 #include <boost/outcome.hpp>
 #include <boost/stacktrace.hpp>
 #include <fmt/chrono.h>

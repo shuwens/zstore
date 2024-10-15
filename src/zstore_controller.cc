@@ -8,6 +8,8 @@
 #include <boost/beast/http/message.hpp>
 #include <cassert>
 #include <shared_mutex>
+#include <spdk/nvme_zns.h>
+#include <spdk/string.h>
 #include <utility>
 
 void ZstoreController::initHttpThread()
@@ -642,7 +644,7 @@ Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
 
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)
 {
-    return std::make_tuple(std::make_pair("Zstore2", "dev1"),
-                           std::make_pair("Zstore3", "dev1"),
-                           std::make_pair("Zstore4", "dev1"));
+    return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
+                           std::make_pair("Zstore3", "Dev1"),
+                           std::make_pair("Zstore4", "Dev1"));
 }

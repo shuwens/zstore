@@ -1,7 +1,5 @@
 #include "include/common.h"
-#include "include/boost_utils.h"
-#include "include/http_server.h"
-#include "include/object.h"
+#include "include/configuration.h"
 #include "include/zstore_controller.h"
 #include "object.cc"
 #include "spdk/thread.h"
@@ -10,6 +8,8 @@
 #include <isa-l.h>
 #include <sched.h>
 #include <spdk/event.h>
+#include <spdk/nvme.h>
+#include <spdk/nvme_zns.h>
 #include <sys/time.h>
 #include <tuple>
 #include <utility>
@@ -576,9 +576,9 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
 
 Result<DevTuple> GetDevTuple(ObjectKey object_key)
 {
-    return std::make_tuple(std::make_pair("Zstore2", "dev1"),
-                           std::make_pair("Zstore3", "dev1"),
-                           std::make_pair("Zstore4", "dev1"));
+    return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
+                           std::make_pair("Zstore3", "Dev1"),
+                           std::make_pair("Zstore4", "Dev1"));
 }
 
 Result<RequestContext *>

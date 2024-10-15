@@ -1,12 +1,9 @@
 #pragma once
 #include "global.h"
-#include "object.h"
-#include "spdk/nvme.h"
 #include "utils.h"
 #include "zstore_controller.h"
 #include <bits/stdc++.h>
 #include <cassert>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -14,7 +11,6 @@
 #include <spdk/event.h>
 #include <spdk/nvme.h>
 #include <spdk/thread.h>
-#include <string>
 
 inline uint64_t round_up(uint64_t value, uint64_t align)
 {

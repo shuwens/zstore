@@ -1,11 +1,8 @@
 #pragma once
 #include "device.h"
-#include "http_server.h"
 #include "utils.h"
 #include "zstore_controller.h"
 #include <boost/beast/http.hpp>
-#include <map>
-#include <mutex>
 #include <shared_mutex>
 #include <string>
 #include <vector>

@@ -1,13 +1,9 @@
 #pragma once
 #include "common.h"
-#include "configuration.h"
-#include "global.h"
 #include "spdk/nvme.h"
-#include "spdk/nvme_zns.h"
 #include "zone.h"
+#include <map>
 #include <set>
-#include <unordered_map>
-#include <vector>
 
 class Zone;
 

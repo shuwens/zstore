@@ -29,10 +29,9 @@ install-boost:
 
 
 install-deps:
+	sudo apt install -y python3-pip
+	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old
 	pip3 install meson pyelftools
-	sudo apt install -y pkg-config uuid-dev libfmt-dev libarchive-dev python3-pyelftools
-	# libfmt-dev libaio-dev librados-dev mold \
-	# sudo apt install -y meson libfmt-dev libaio-dev librados-dev mold \
-	# 	libtcmalloc-minimal4 libboost-dev libradospp-dev \
-	# 	liburing-dev
-	# sudo apt install -y libfuse3-dev
+	sudo apt install -y pkg-config uuid-dev libfmt-dev libarchive-dev python3-pyelftools libssl-dev libisal-dev
+	sudo apt install -y nvme-cli
+	sudo apt install -y clang-18 lld-18 cmake
