@@ -21,7 +21,9 @@ std::shared_mutex g_shared_mutex_;
 std::shared_mutex g_session_mutex_;
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
+
 typedef http::request<http::string_body> HttpRequest;
+typedef http::response<http::string_body> HttpResponse;
 
 typedef std::string ObjectKey;
 typedef std::tuple<std::pair<std::string, std::string>,

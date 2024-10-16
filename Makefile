@@ -33,5 +33,5 @@ install-deps:
 	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old
 	pip3 install meson pyelftools
 	sudo apt install -y pkg-config uuid-dev libfmt-dev libarchive-dev python3-pyelftools libssl-dev libisal-dev
-	sudo apt install -y nvme-cli
+	sudo apt install -y nvme-cli net-tools
 	sudo apt install -y clang-18 lld-18 cmake

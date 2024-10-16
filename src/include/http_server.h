@@ -14,53 +14,10 @@ class session : public std::enable_shared_from_this<session>
 {
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
-    http::request<http::string_body> req_;
+    HttpRequest req_;
     ZstoreController &zctrl_;
 
   public:
-    // NOTE the following functions are important ones where our HTTP server
-    // (boost beast) interact with the SPDK infrastructure. Each of these
-    // do_zstore_X function is async, and also
-    // https://www.boost.org/doc/libs/1_86_0/doc/html/boost_asio/reference/asynchronous_operations.html
-    // https://www.boost.org/doc/libs/1_86_0/libs/beast/doc/html/beast/ref/boost__beast__async_base.html
-
-    template <class CompletionToken>
-    auto async_do_get(http::request<http::string_body> req_,
-                      CompletionToken &&token)
-    {
-        log_debug("start async do get ");
-        auto init = [](auto completion_handler,
-                       http::request<http::string_body> req_) {
-            log_debug("completion of async do get ");
-            // writeMessage(std::move(msg), std::move(completion_handler));
-            // initiate the operation and cause completion_handler to be
-            // invoked with the result
-        };
-
-        return async_initiate<CompletionToken,
-                              void(http::request<http::string_body>,
-                                   ZstoreObject)>(init, token, std::move(req_));
-    }
-
-    template <class CompletionToken>
-    auto async_do_put(http::request<http::string_body> req_,
-                      CompletionToken &&token)
-    {
-        log_debug("strt async do put ");
-
-        auto init = [](auto completion_handler,
-                       http::request<http::string_body> req_) {
-            log_debug("completion async do put ");
-            // writeMessage(std::move(msg), std::move(completion_handler));
-            // initiate the operation and cause completion_handler to be
-            // invoked with the result
-        };
-
-        return async_initiate<CompletionToken,
-                              void(http::request<http::string_body>,
-                                   ZstoreObject)>(init, token, std::move(req_));
-    }
-
     // Take ownership of the stream
     session(tcp::socket &&socket, ZstoreController &zctrl)
         : stream_(std::move(socket)), zctrl_(zctrl)
@@ -126,8 +83,7 @@ class session : public std::enable_shared_from_this<session>
                 }
 
                 auto self(shared_from_this());
-                auto closure_ = [this,
-                                 self](http::request<http::string_body> req_) {
+                auto closure_ = [this, self](HttpRequest req_) {
                     http::message_generator msg =
                         handle_request(std::move(req_));
                     bool keep_alive = msg.keep_alive();
@@ -149,72 +105,6 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.EnqueueRead(slot.value());
                 }
             }
-            // } else if (req_.method() == http::verb::put) {
-            //     if (zctrl_.verbose)
-            //         log_debug("11111");
-            //     // NOTE: Write path: see section 3.3
-            //
-            //     auto object_key = req_.target();
-            //     auto object_value = req_.body();
-            //     // log_debug("key {}, value {}", req_.target(), req_.body());
-            //     // log_debug("key {}, value {}", req_.target(), req_.body());
-            //
-            //     // TODO: populate the map with consistent hashes
-            //     auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
-            //     auto entry = zctrl_.CreateObject(object_key, dev_tuple);
-            //     assert(entry.has_value());
-            //
-            //     if (!zctrl_.isDraining &&
-            //         zctrl_.mRequestContextPool->availableContexts.size() > 0)
-            //         { if (!zctrl_.start) {
-            //             zctrl_.start = true;
-            //             zctrl_.stime =
-            //             std::chrono::high_resolution_clock::now();
-            //         }
-            //         // if (zctrl_.verbose)
-            //         // log_debug("222");
-            //
-            //         auto self(shared_from_this());
-            //         auto closure_ = [this, self](HttpRequest req_, MapEntry
-            //         entry) {
-            //             // log_debug("closure: 111");
-            //             auto object_key = req_.target();
-            //
-            //             // FIXME:crash
-            //             // update lba in map
-            //             // auto rc = zctrl_.PutObject(object_key, entry);
-            //             // assert(rc.has_value());
-            //
-            //             // update and broadcast BF
-            //             // auto rc = zctrl_.UpdateBF(object_key);
-            //             // assert(rc.has_value());
-            //
-            //             // send ack back to client
-            //             http::message_generator msg =
-            //                 handle_request(std::move(req_));
-            //             bool keep_alive = msg.keep_alive();
-            //             beast::async_write(stream_, std::move(msg),
-            //                                beast::bind_front_handler(
-            //                                    &session::on_write,
-            //                                    shared_from_this(),
-            //                                    keep_alive));
-            //         };
-            //
-            //         if (zctrl_.verbose)
-            //             log_debug("333");
-            //         auto slot =
-            //             MakeWriteRequest(&zctrl_, req_, entry.value(),
-            //             closure_);
-            //         if (zctrl_.verbose)
-            //             log_debug("444");
-            //         assert(slot.has_value());
-            //         {
-            //             std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-            //             zctrl_.EnqueueWrite(slot.value());
-            //         }
-            //         if (zctrl_.verbose)
-            //             log_debug("666");
-            //     }
         } else if (req_.method() == http::verb::post) {
             if (zctrl_.verbose)
                 log_debug("11111");
@@ -238,13 +128,9 @@ class session : public std::enable_shared_from_this<session>
                 // if (zctrl_.verbose)
                 // log_debug("222");
 
-                auto self(shared_from_this());
-                auto closure_ = [this, self](HttpRequest req_, MapEntry entry) {
+                auto closure_ = [this, self = shared_from_this()](
+                                    HttpRequest req_, MapEntry entry) {
                     auto object_key = req_.target();
-
-                    // NOTE: right now if we accquire lock for every writes,
-                    // update map will casue issue should we just use another
-                    // async write to update map???
 
                     // update lba in map
                     auto rc = zctrl_.PutObject(object_key, entry).value();
@@ -267,13 +153,10 @@ class session : public std::enable_shared_from_this<session>
                                            shared_from_this(), keep_alive));
                 };
 
-                if (zctrl_.verbose)
-                    log_debug("333");
                 auto slot = MakeWriteRequest(
                     &zctrl_, zctrl_.GetDevice(entry.value().first_tgt()), req_,
                     entry.value(), closure_);
-                if (zctrl_.verbose)
-                    log_debug("444");
+
                 assert(slot.has_value());
                 {
                     std::unique_lock lock(zctrl_.GetRequestQueueMutex());

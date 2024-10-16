@@ -48,8 +48,8 @@ if [ "$HOSTNAME" == "zstore2" ]; then
 	# pci2=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | tail -1)
 	pci2=06:00.0
 elif [ "$HOSTNAME" == "zstore3" ]; then
-	pci1=03:00.0
-	pci2=05:00.0
+	pci1=04:00.0
+	pci2=06:00.0
 elif [ "$HOSTNAME" == "zstore4" ]; then
 	pci1=05:00.0
 	pci2=0b:00.0
