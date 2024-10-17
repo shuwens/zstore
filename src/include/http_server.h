@@ -105,7 +105,8 @@ class session : public std::enable_shared_from_this<session>
                     zctrl_.EnqueueRead(slot.value());
                 }
             }
-        } else if (req_.method() == http::verb::post) {
+        } else if (req_.method() == http::verb::post ||
+                   req_.method() == http::verb::put) {
             if (zctrl_.verbose)
                 log_debug("11111");
             // NOTE: Write path: see section 3.3
