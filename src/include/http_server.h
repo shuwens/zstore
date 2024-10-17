@@ -4,10 +4,14 @@
 #include "object.h"
 #include "utils.h"
 #include <boost/asio.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/beast/http/message.hpp>
 #include <cassert>
 
 namespace asio = boost::asio;
+using asio::use_awaitable;
+// using asio::experimental::as_tuple;
+// using asio::experimental::deferred;
 
 // Handles an HTTP server connection
 class session : public std::enable_shared_from_this<session>
@@ -49,6 +53,40 @@ class session : public std::enable_shared_from_this<session>
         http::async_read(stream_, buffer_, req_,
                          beast::bind_front_handler(&session::on_request,
                                                    shared_from_this()));
+    }
+
+    template <typename Token, class ZstoreController, typename HttpRequest>
+    auto zstore_async_write(ZstoreController &ctrl, HttpRequest &req_,
+                            std::string target, Token &&token)
+    {
+        auto init = [this, ctrl, req_, target]() {
+            auto closure_ = [self = shared_from_this()](u32 lba) {
+                // auto object_key = req_.target();
+
+                // update lba in map
+                // auto rc = zctrl_.PutObject(object_key, entry).value();
+                // FIXME:we need to handle the failure
+                // assert(rc == true);
+                // if (rc == false)
+                //     log_debug("Inserting object {} failed", object_key);
+                u32 lba2 = 0;
+                return lba2;
+
+                // handle.resume
+            };
+            auto slot = MakeWriteRequest(&zctrl_, zctrl_.GetDevice(target),
+                                         req_, closure_);
+
+            assert(slot.has_value());
+            {
+                std::unique_lock lock(zctrl_.GetRequestQueueMutex());
+                zctrl_.EnqueueWrite(slot.value());
+            }
+            // writeMessage(std::move(msg), std::move(completion_handler));
+        };
+
+        return asio::async_initiate<Token, void(u32)>(init, token, ctrl, req_,
+                                                      target);
     }
 
     void on_request(beast::error_code ec, std::size_t bytes_transferred)
@@ -115,54 +153,43 @@ class session : public std::enable_shared_from_this<session>
             auto object_value = req_.body();
             // log_debug("key {}, value {}", req_.target(), req_.body());
 
-            // TODO: populate the map with consistent hashes
-            auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
-            auto entry = zctrl_.CreateObject(object_key, dev_tuple);
-            assert(entry.has_value());
-
             if (!zctrl_.isDraining &&
                 zctrl_.mRequestContextPool->availableContexts.size() > 0) {
                 if (!zctrl_.start) {
                     zctrl_.start = true;
                     zctrl_.stime = std::chrono::high_resolution_clock::now();
                 }
-                // if (zctrl_.verbose)
-                // log_debug("222");
 
-                auto closure_ = [this, self = shared_from_this()](
-                                    HttpRequest req_, MapEntry entry) {
-                    auto object_key = req_.target();
+                // TODO: populate the map with consistent hashes
+                auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
+                auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
 
-                    // update lba in map
-                    auto rc = zctrl_.PutObject(object_key, entry).value();
-                    // FIXME:we need to handle the failure
-                    // assert(rc == true);
-                    // if (rc == false)
-                    //     log_debug("Inserting object {} failed", object_key);
+                // std::tuple<u32, u32, u32> results = co_await (
+                //     zstore_async_write(zctrl_, req_, entry.first_tgt(),
+                //                        use_awaitable) &&
+                //     zstore_async_write(zctrl_, req_, entry.second_tgt(),
+                //                        use_awaitable) &&
+                //     zstore_async_write(zctrl_, req_, entry.third_tgt(),
+                //                        use_awaitable));
 
-                    // update and broadcast BF
-                    auto rc2 = zctrl_.UpdateBF(object_key);
-                    assert(rc2.has_value());
+                auto results = co_await zstore_async_write(
+                    &zctrl_, &req_, entry.first_tgt(), use_awaitable);
 
-                    // send ack back to client
-                    http::message_generator msg =
-                        handle_request(std::move(req_));
-                    bool keep_alive = msg.keep_alive();
-                    beast::async_write(stream_, std::move(msg),
-                                       beast::bind_front_handler(
-                                           &session::on_write,
-                                           shared_from_this(), keep_alive));
-                };
+                // update and broadcast BF
+                auto rc1 = zctrl_.UpdateBF(object_key);
+                assert(rc1.has_value());
 
-                auto slot = MakeWriteRequest(
-                    &zctrl_, zctrl_.GetDevice(entry.value().first_tgt()), req_,
-                    entry.value(), closure_);
+                auto rc2 = zctrl_.UpdateMap(object_key, entry);
+                assert(rc2.has_value());
 
-                assert(slot.has_value());
-                {
-                    std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-                    zctrl_.EnqueueWrite(slot.value());
-                }
+                // send ack back to client
+                http::message_generator msg = handle_request(std::move(req_));
+                bool keep_alive = msg.keep_alive();
+                beast::async_write(stream_, std::move(msg),
+                                   beast::bind_front_handler(&session::on_write,
+                                                             shared_from_this(),
+                                                             keep_alive));
+
                 if (zctrl_.verbose)
                     log_debug("666");
             }
