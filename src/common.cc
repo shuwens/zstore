@@ -1,13 +1,15 @@
 #include "include/common.h"
 #include "include/configuration.h"
+#include "include/device.h"
+#include "include/global.h"
 #include "include/zstore_controller.h"
-#include "object.cc"
 #include "spdk/thread.h"
 #include <boost/asio/use_awaitable.hpp>
 #include <cassert>
 #include <cstdlib>
 #include <isa-l.h>
 #include <sched.h>
+#include <shared_mutex>
 #include <spdk/event.h>
 #include <spdk/nvme.h>
 #include <spdk/nvme_zns.h>
@@ -15,54 +17,45 @@
 #include <tuple>
 #include <utility>
 
-static auto quit(void *args) { exit(0); }
+std::shared_mutex g_shared_mutex_;
 
-static void busyWait(bool *ready)
-{
-    while (!*ready) {
-        if (spdk_get_thread() == nullptr) {
-            std::this_thread::sleep_for(std::chrono::seconds(0));
-        }
-    }
-}
-
-void complete(void *arg, const struct spdk_nvme_cpl *completion)
-{
-    RequestContext *slot = (RequestContext *)arg;
-    ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-
-    if (spdk_nvme_cpl_is_error(completion)) {
-        log_error("I/O error status: {}",
-                  spdk_nvme_cpl_get_status_string(&completion->status));
-        // fprintf(stderr, "I/O failed, aborting run\n");
-        // assert(0);
-        // exit(1);
-        log_debug("Unimplemented: put context back in pool");
-    }
-
-    auto ioCtx = slot->ioContext;
-    if (slot->is_write) {
-        // TODO: 1. update entry with LBA
-        // TODO: 2. what do we return in response
-        slot->write_complete = true;
-        slot->lba = completion->cdw0;
-        // slot->write_fn(slot->request, slot->entry);
-    } else {
-        // For read, we swap the read date into the request body
-        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-        // slot->request.body() = body;
-        //
-        // slot->read_fn(slot->request);
-    }
-
-    ctrl->mTotalCounts++;
-    assert(ctrl != nullptr);
-
-    // TODO: this should move to reclaim context and in controller
-    slot->available = true;
-    slot->Clear();
-    ctrl->mRequestContextPool->ReturnRequestContext(slot);
-}
+// void complete(void *arg, const struct spdk_nvme_cpl *completion)
+// {
+//     RequestContext *slot = (RequestContext *)arg;
+//     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
+//
+//     if (spdk_nvme_cpl_is_error(completion)) {
+//         log_error("I/O error status: {}",
+//                   spdk_nvme_cpl_get_status_string(&completion->status));
+//         // fprintf(stderr, "I/O failed, aborting run\n");
+//         // assert(0);
+//         // exit(1);
+//         log_debug("Unimplemented: put context back in pool");
+//     }
+//
+//     auto ioCtx = slot->ioContext;
+//     if (slot->is_write) {
+//         // TODO: 1. update entry with LBA
+//         // TODO: 2. what do we return in response
+//         slot->write_complete = true;
+//         slot->lba = completion->cdw0;
+//         // slot->write_fn(slot->request, slot->entry);
+//     } else {
+//         // For read, we swap the read date into the request body
+//         // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+//         // slot->request.body() = body;
+//         //
+//         // slot->read_fn(slot->request);
+//     }
+//
+//     ctrl->mTotalCounts++;
+//     assert(ctrl != nullptr);
+//
+//     // TODO: this should move to reclaim context and in controller
+//     slot->available = true;
+//     slot->Clear();
+//     ctrl->mRequestContextPool->ReturnRequestContext(slot);
+// }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
@@ -218,7 +211,7 @@ auto spdk_nvme_zone_read_async(
 
     return net::async_initiate<decltype(net::use_awaitable),
                                void(const spdk_nvme_cpl *)>(
-        net::use_awaitable, init, thread, ns, qpair, data, offset, size, flags);
+        init, net::use_awaitable, thread, ns, qpair, data, offset, size, flags);
 }
 
 auto zoneRead(void *arg1) -> net::awaitable<void>
@@ -296,7 +289,7 @@ int handleSubmit(void *args)
     while (!readQ.empty()) {
         RequestContext *ctx = readQ.front();
         assert(ctx->ctrl != nullptr);
-        ctrl->ReadInDispatchThread(ctx);
+        // ctrl->ReadInDispatchThread(ctx);
 
         // if (ctx->curOffset == ctx->size / Configuration::GetBlockSize()) {
         busy = true;
@@ -659,9 +652,8 @@ Result<DevTuple> GetDevTuple(ObjectKey object_key)
                            std::make_pair("Zstore4", "Dev1"));
 }
 
-Result<RequestContext *>
-MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
-                HttpRequest request, std::function<void(HttpRequest)> closure)
+Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
+                                         uint64_t offset, HttpRequest request)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
@@ -673,8 +665,8 @@ MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba() + offset;
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    ioCtx.cb = complete;
-    ioCtx.ctx = slot;
+    // ioCtx.cb = complete;
+    // ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
@@ -684,16 +676,14 @@ MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
     // slot->target_dev = false;
     slot->request = std::move(request);
     // slot->read_fn = closure;
-    assert(slot->ioContext.cb != nullptr);
+    // assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
 
     return slot;
 }
 
-Result<RequestContext *>
-MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
-                 MapEntry entry,
-                 std::function<void(HttpRequest, MapEntry)> closure)
+Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
+                                          HttpRequest request, MapEntry entry)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
@@ -705,8 +695,8 @@ MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba();
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    ioCtx.cb = complete;
-    ioCtx.ctx = slot;
+    // ioCtx.cb = complete;
+    // ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
@@ -715,7 +705,7 @@ MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
     slot->request = std::move(request);
     // slot->write_fn = closure;
     slot->entry = std::move(entry);
-    assert(slot->ioContext.cb != nullptr);
+    // assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
 
     return slot;

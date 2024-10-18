@@ -1,6 +1,6 @@
 #pragma once
-#include "common.h"
-#include "device.h"
+// #include "common.h"
+#include <cstdint>
 
 class Device;
 class Zone

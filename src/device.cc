@@ -1,5 +1,7 @@
 #include "include/device.h"
 #include "include/configuration.h"
+#include "include/zone.h"
+#include <spdk/nvme_zns.h>
 
 void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
 {

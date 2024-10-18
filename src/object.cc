@@ -43,15 +43,16 @@ ZstoreObject *read_from_buffer(const char *buffer, size_t buffer_size)
 
 void _zoneRead(void *arg1)
 {
-    RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
-    auto ioCtx = ctx->ioContext;
-    int rc = 0;
-    ZstoreController *ctrl = (ZstoreController *)ctx->ctrl;
-    if (ctrl->verbose)
-        log_debug("ding ding: we are running spdk read");
-    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
-                               ioCtx.size, ioCtx.cb, ioCtx.ctx, 0);
-    assert(rc == 0);
+    // RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
+    // auto ioCtx = ctx->ioContext;
+    // int rc = 0;
+    // ZstoreController *ctrl = (ZstoreController *)ctx->ctrl;
+    // if (ctrl->verbose)
+    //     log_debug("ding ding: we are running spdk read");
+    // rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data,
+    // ioCtx.offset,
+    //                            ioCtx.size, ioCtx.cb, ioCtx.ctx, 0);
+    // assert(rc == 0);
 }
 
 // struct obj_handle *handle,

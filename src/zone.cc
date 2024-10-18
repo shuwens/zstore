@@ -1,4 +1,6 @@
 #include "include/zone.h"
+#include "include/configuration.h"
+#include "include/device.h"
 #include <isa-l.h>
 
 inline uint64_t Zone::offset2Bytes(uint64_t offset)
@@ -19,32 +21,36 @@ void Zone::Init(Device *device, uint64_t slba, uint64_t capacity, uint64_t size)
 // size: in bytes
 void Zone::Write(uint32_t offset, uint32_t size, void *ctx)
 {
-    RequestContext *reqCtx = (RequestContext *)ctx;
-    debug_warn("this %p slba %lu, offset %u, size %u, mPos %u\n", this, mSlba,
-               offset, size, mPos);
-    if (reqCtx->append) {
-        reqCtx->offset = mSize - 1;
-        mDevice->Append(offset2Bytes(0), size, ctx);
-    } else {
-        reqCtx->offset = offset;
-        mDevice->Write(offset2Bytes(offset), size, ctx);
-    }
-    mOffset += size / Configuration::GetBlockSize();
+    // RequestContext *reqCtx = (RequestContext *)ctx;
+    // debug_warn("this %p slba %lu, offset %u, size %u, mPos %u\n", this,
+    // mSlba,
+    //            offset, size, mPos);
+    // if (reqCtx->append) {
+    //     reqCtx->offset = mSize - 1;
+    //     mDevice->Append(offset2Bytes(0), size, ctx);
+    // } else {
+    //     reqCtx->offset = offset;
+    //     mDevice->Write(offset2Bytes(offset), size, ctx);
+    // }
+    // mOffset += size / Configuration::GetBlockSize();
 }
 
 void Zone::Read(uint32_t offset, uint32_t size, void *ctx)
 {
-    mDevice->Read(offset2Bytes(offset), size, ctx);
+    // mDevice->Read(offset2Bytes(offset), size, ctx);
 }
 
 void Zone::Reset(void *ctx)
 {
-    mOffset = 0;
-    mPos = 0;
-    mDevice->ResetZone(this, ctx);
+    // mOffset = 0;
+    // mPos = 0;
+    // mDevice->ResetZone(this, ctx);
 }
 
-void Zone::Seal(void *ctx) { mDevice->FinishZone(this, ctx); }
+void Zone::Seal(void *ctx)
+{
+    // mDevice->FinishZone(this, ctx);
+}
 
 Device *Zone::GetDevice() { return mDevice; }
 

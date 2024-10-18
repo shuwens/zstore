@@ -1,8 +1,8 @@
-#include "include/http_server.h"
+#include "include/configuration.h"
+#include "include/global.h"
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
-#include "src/include/global.h"
-#include "zstore_controller.cc"
+#include "spdk/thread.h"
 #include <bits/stdc++.h>
 #include <boost/asio/executor_work_guard.hpp>
 #include <cassert>
@@ -10,6 +10,8 @@
 #include <fmt/core.h>
 #include <sys/time.h>
 #include <unistd.h>
+
+ZstoreController *gZstoreController;
 
 int main(int argc, char **argv)
 {

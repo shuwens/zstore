@@ -1,8 +1,8 @@
 #pragma once
-#include "global.h"
+// #include "global.h"
 #include "utils.h"
-#include "zstore_controller.h"
-// #include <bits/stdc++.h>
+// #include "zstore_controller.h"
+#include "types.h"
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -22,10 +22,16 @@ inline uint64_t round_down(uint64_t value, uint64_t align)
     return value / align * align;
 }
 
-void completeOneEvent(void *arg, const struct spdk_nvme_cpl *completion);
-void complete(void *arg, const struct spdk_nvme_cpl *completion);
+int httpWorker(void *args);
+int ioWorker(void *args);
+int dummyWorker(void *args);
+int dispatchWorker(void *args);
+int dispatchObjectWorker(void *args);
+
+// void completeOneEvent(void *arg, const struct spdk_nvme_cpl *completion);
+// void complete(void *arg, const struct spdk_nvme_cpl *completion);
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args);
-void event_call(uint32_t core_id, spdk_event_fn fn, void *arg1, void *arg2);
+// void event_call(uint32_t core_id, spdk_event_fn fn, void *arg1, void *arg2);
 
 double GetTimestampInUs();
 double timestamp();
@@ -38,10 +44,11 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
 
 Result<DevTuple> GetDevTuple(ObjectKey object_key);
 
+class ZstoreController;
+class Device;
+
 Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
                                          uint64_t offset, HttpRequest request);
 
-Result<RequestContext *>
-MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
-                 MapEntry entry,
-                 std::function<void(HttpRequest, MapEntry)> closure);
+Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
+                                          HttpRequest request, MapEntry entry);

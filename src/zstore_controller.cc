@@ -1,10 +1,9 @@
 #include "include/zstore_controller.h"
-#include "common.cc"
-#include "device.cc"
 #include "include/common.h"
 #include "include/configuration.h"
 #include "include/device.h"
-#include "src/include/utils.h"
+#include "include/global.h"
+#include "include/http_server.h"
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
@@ -22,6 +21,7 @@
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -381,7 +381,7 @@ int ZstoreController::Init(bool object, int key_experiment)
     //     ->run();
 
     // Spawn a listening port
-    boost::asio::co_spawn(mIoc_, do_listen(*this, tcp::endpoint{address, port}),
+    boost::asio::co_spawn(mIoc_, do_listen(tcp::endpoint{address, port}, *this),
                           [](std::exception_ptr e) {
                               if (e)
                                   try {
@@ -459,6 +459,8 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 
     return mDevices[0]->GetIoQueue(0);
 }
+
+static auto quit(void *args) { exit(0); }
 
 ZstoreController::~ZstoreController()
 {
@@ -592,6 +594,15 @@ void tryDrainController(void *args)
         drainArgs->ctrl->GetContextPoolSize();
 
     drainArgs->ready = true;
+}
+
+static void busyWait(bool *ready)
+{
+    while (!*ready) {
+        if (spdk_get_thread() == nullptr) {
+            std::this_thread::sleep_for(std::chrono::seconds(0));
+        }
+    }
 }
 
 void ZstoreController::Drain()

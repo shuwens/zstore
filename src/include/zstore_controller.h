@@ -1,8 +1,9 @@
 #pragma once
-#include "common.h"
-#include "device.h"
-#include "global.h"
-#include "src/include/utils.h"
+// #include "device.h"
+// #include "global.h"
+#include "types.h"
+// #include "object.h"
+#include "utils.h"
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
@@ -15,12 +16,16 @@
 #include <cstring>
 #include <queue>
 #include <shared_mutex>
-#include <spdk/env.h> // Include SPDK's environment header
+#include <spdk/env.h>    // Include SPDK's environment header
+#include <spdk/thread.h> // Include SPDK's environment header
 #include <unistd.h>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
 using zstore_map = boost::concurrent_flat_map<ObjectKey, MapEntry>;
 using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKey>;
+
+class Device;
+class Zone;
 
 class ZstoreController
 {

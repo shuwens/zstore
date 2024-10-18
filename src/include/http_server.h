@@ -1,9 +1,9 @@
 #pragma once
 #include "boost_utils.h"
 #include "common.h"
-#include "object.h"
-#include "utils.h"
-#include <algorithm>
+#include "types.h"
+#include "zstore_controller.h"
+// #include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -15,44 +15,42 @@
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
-#include <cassert>
-#include <cstdlib>
+// #include <cassert>
+// #include <cstdlib>
 #include <fmt/core.h>
 #include <functional>
 #include <iostream>
-#include <thread>
+// #include <thread>
 
 using namespace boost::asio::experimental::awaitable_operators;
 using HttpMsg = http::message_generator;
 
 // namespace beast = boost::beast;              // from <boost/beast.hpp>
-// using tcp_stream = boost::beast::tcp_stream; // from <boost/beast.hpp>
-// namespace http = beast::http;                // from <boost/beast/http.hpp>
-// namespace net = boost::asio;                 // from <boost/asio.hpp>
-// using tcp = boost::asio::ip::tcp;            // from <boost/asio/ip/tcp.hpp>
-// namespace asio = boost::asio;
+namespace http = boost::beast::http; // from <boost/beast/http.hpp>
+namespace net = boost::asio;         // from <boost/asio.hpp>
+using tcp = boost::asio::ip::tcp;    // from <boost/asio/ip/tcp.hpp>
 
-void callback_add(int arg1, int arg2, std::move_only_function<void(int)> cb)
-{
-    std::thread([=, f = std::move(cb)]() mutable {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        std::move(f)(arg1 + arg2);
-    }).detach();
-}
-template <typename Token> auto async_add(int arg1, int arg2, Token &&token)
-{
-    auto init = [](auto completion_handler, int arg1, int arg2) {
-        callback_add(arg1, arg2, std::move(completion_handler));
-    };
+// void callback_add(int arg1, int arg2, std::move_only_function<void(int)> cb)
+// {
+//     std::thread([=, f = std::move(cb)]() mutable {
+//         std::this_thread::sleep_for(std::chrono::seconds(1));
+//         std::move(f)(arg1 + arg2);
+//     }).detach();
+// }
+// template <typename Token> auto async_add(int arg1, int arg2, Token &&token)
+// {
+//     auto init = [](auto completion_handler, int arg1, int arg2) {
+//         callback_add(arg1, arg2, std::move(completion_handler));
+//     };
+//
+//     return net::async_initiate<Token, void(int)>(init, token, arg1, arg2);
+// }
+// auto awaitable_add(int arg1, int arg2) -> boost::asio::awaitable<int>
+// {
+//     co_return co_await async_add(arg1, arg2, net::use_awaitable);
+// }
 
-    return net::async_initiate<Token, void(int)>(init, token, arg1, arg2);
-}
-auto awaitable_add(int arg1, int arg2) -> boost::asio::awaitable<int>
-{
-    co_return co_await async_add(arg1, arg2, net::use_awaitable);
-}
-
-using tcp_stream = typename beast::tcp_stream::rebind_executor<
+using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
     net::use_awaitable_t<>::executor_with_default<net::any_io_executor>>::other;
 
 //------------------------------------------------------------------------------
@@ -138,27 +136,27 @@ using tcp_stream = typename beast::tcp_stream::rebind_executor<
 //         }
 //     }
 
-void callback_on_request(HttpRequest req,
-                         std::move_only_function<void(HttpMsg)> cb)
-{
-    std::thread([=, f = std::move(cb)]() mutable {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        std::move(f)(handle_request(std::move(req)));
-    }).detach();
-}
+// void callback_on_request(HttpRequest req,
+//                          std::move_only_function<void(HttpMsg)> cb)
+// {
+//     std::thread([=, f = std::move(cb)]() mutable {
+//         std::this_thread::sleep_for(std::chrono::seconds(1));
+//         std::move(f)(handle_request(std::move(req)));
+//     }).detach();
+// }
+//
+// template <typename Token, typename HttpRequest>
+// HttpMsg async_on_request(HttpRequest req, Token &&token)
+// {
+//     auto init = [](auto completion_handler, HttpRequest req) {
+//         callback_on_request(req, std::move(completion_handler));
+//     };
+//
+//     return net::async_initiate<Token, void(HttpMsg)>(init, token, req);
+// }
 
-template <typename Token, typename HttpRequest>
-HttpMsg async_on_request(HttpRequest req, Token &&token)
-{
-    auto init = [](auto completion_handler, HttpRequest req) {
-        callback_on_request(req, std::move(completion_handler));
-    };
-
-    return net::async_initiate<Token, void(HttpMsg)>(init, token, req);
-}
-
-auto awaitable_on_request(HttpRequest req, ZstoreController &zctrl_)
-    -> boost::asio::awaitable<HttpMsg>
+auto awaitable_on_request(HttpRequest req,
+                          ZstoreController &zctrl_) -> net::awaitable<HttpMsg>
 {
     // Handle the request
     if (req.method() == http::verb::get) {
@@ -244,7 +242,7 @@ net::awaitable<void> do_session(tcp_stream stream, ZstoreController &zctrl)
     }
 
     // Send a TCP shutdown
-    beast::error_code ec;
+    boost::beast::error_code ec;
     stream.socket().shutdown(tcp::socket::shutdown_send, ec);
 
     // At this point the connection is closed gracefully
@@ -255,7 +253,7 @@ net::awaitable<void> do_session(tcp_stream stream, ZstoreController &zctrl)
 //------------------------------------------------------------------------------
 
 // Accepts incoming connections and launches the sessions
-net::awaitable<void> do_listen(ZstoreController &zctrl, tcp::endpoint endpoint)
+net::awaitable<void> do_listen(tcp::endpoint endpoint, ZstoreController &zctrl)
 {
     // Open the acceptor
     auto acceptor = net::use_awaitable.as_default_on(

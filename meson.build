@@ -23,6 +23,7 @@ cc = meson.get_compiler('c')
 
 add_project_arguments('-fPIC', language: 'cpp')
 add_project_arguments('-Wno-unused-parameter', language: 'cpp')
+add_project_arguments('-fsized-deallocation', language: 'cpp')
 
 if get_option('buildtype') == 'release'
 	add_project_arguments('-g', language: 'c')
@@ -181,10 +182,19 @@ endforeach
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
+zstore_src = [
+	'src/common.cc',
+	'src/device.cc',
+	'src/object.cc',
+	'src/zstore_controller.cc',
+	'src/main.cc',
+	'src/zone.cc',
+]
+
 executable(
 	'zstore',
-	files('src/main.cc'),
-	# dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+	zstore_src,
+	# dekpendencies: [zstore_deps, libs] + [dependency('_spdk')],
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	# include_directories: incdir,
