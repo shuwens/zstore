@@ -432,15 +432,15 @@ int ZstoreController::Init(bool object, int key_experiment)
     return rc;
 }
 
-void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
-{
-    thread_send_msg(GetIoThread(0), zoneRead, ctx);
-}
+// void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
+// {
+//     thread_send_msg(GetIoThread(0), zoneRead, ctx);
+// }
 
-void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
-{
-    thread_send_msg(GetIoThread(0), zoneRead, ctx);
-}
+// void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
+// {
+//     thread_send_msg(GetIoThread(0), zoneRead, ctx);
+// }
 
 // TODO: assume we only have one device, we should check all device in the end
 bool ZstoreController::CheckIoQpair(std::string msg)
@@ -535,29 +535,29 @@ void ZstoreController::cleanup(uint32_t task_count)
 Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
                                     std::function<void(HttpRequest)> closure)
 {
-    RequestContext *slot = mRequestContextPool->GetRequestContext(true);
-    slot->ctrl = this;
-    assert(slot->ctrl == this);
-
-    auto ioCtx = slot->ioContext;
-    ioCtx.ns = dev->GetNamespace();
-    ioCtx.qpair = dev->GetIoQueue(0);
-    ioCtx.data = slot->dataBuffer;
-    ioCtx.offset = Configuration::GetZslba() + offset;
-    ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    ioCtx.cb = complete;
-    ioCtx.ctx = slot;
-    ioCtx.flags = 0;
-    slot->ioContext = ioCtx;
-
-    slot->request = std::move(req_);
-    // slot->read_fn = closure;
-    assert(slot->ioContext.cb != nullptr);
-    assert(slot->ctrl != nullptr);
-    {
-        // std::unique_lock lock(mRequestQueueMutex);
-        EnqueueRead(slot);
-    }
+    // RequestContext *slot = mRequestContextPool->GetRequestContext(true);
+    // slot->ctrl = this;
+    // assert(slot->ctrl == this);
+    //
+    // auto ioCtx = slot->ioContext;
+    // ioCtx.ns = dev->GetNamespace();
+    // ioCtx.qpair = dev->GetIoQueue(0);
+    // ioCtx.data = slot->dataBuffer;
+    // ioCtx.offset = Configuration::GetZslba() + offset;
+    // ioCtx.size = Configuration::GetDataBufferSizeInSector();
+    // ioCtx.cb = complete;
+    // ioCtx.ctx = slot;
+    // ioCtx.flags = 0;
+    // slot->ioContext = ioCtx;
+    //
+    // slot->request = std::move(req_);
+    // // slot->read_fn = closure;
+    // assert(slot->ioContext.cb != nullptr);
+    // assert(slot->ctrl != nullptr);
+    // {
+    //     // std::unique_lock lock(mRequestQueueMutex);
+    //     EnqueueRead(slot);
+    // }
 }
 
 net::awaitable<void> ZstoreController::EnqueueRead(RequestContext *ctx)

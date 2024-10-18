@@ -3,6 +3,7 @@
 #include "include/zstore_controller.h"
 #include "object.cc"
 #include "spdk/thread.h"
+#include <boost/asio/use_awaitable.hpp>
 #include <cassert>
 #include <cstdlib>
 #include <isa-l.h>
@@ -174,7 +175,53 @@ int ioWorker(void *args)
     }
 }
 
-void zoneRead(void *arg1)
+void spdk_nvme_zone_read_wrapper(
+    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
+    uint32_t flags,
+    std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
+{
+    auto fn =
+        new std::move_only_function<void(void)>([=, cb = std::move(cb)]() {
+            spdk_nvme_ns_cmd_read(
+                ns, qpair, data, offset, size,
+                [](void *arg, const spdk_nvme_cpl *completion) {
+                    auto cb = std::move(
+                        *reinterpret_cast<std::move_only_function<void(
+                            const spdk_nvme_cpl *completion)> *>(arg));
+                    std::move(cb)(completion);
+                },
+                (void *)(&cb), flags);
+        });
+    spdk_thread_send_msg(
+        thread,
+        [](void *fn2) {
+            auto rc =
+                reinterpret_cast<std::move_only_function<void(void)> *>(fn2);
+            (*rc)();
+            delete rc;
+        },
+        &fn);
+}
+
+auto spdk_nvme_zone_read_async(
+    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
+    uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
+{
+    auto init = [](auto completion_handler, spdk_thread *thread,
+                   spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
+                   uint64_t offset, uint32_t size, uint32_t flags) {
+        spdk_nvme_zone_read_wrapper(thread, ns, qpair, data, offset, size,
+                                    flags, std::move(completion_handler));
+    };
+
+    return net::async_initiate<decltype(net::use_awaitable),
+                               void(const spdk_nvme_cpl *)>(
+        net::use_awaitable, init, thread, ns, qpair, data, offset, size, flags);
+}
+
+auto zoneRead(void *arg1) -> net::awaitable<void>
 {
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
@@ -182,14 +229,40 @@ void zoneRead(void *arg1)
     assert(ctx->ctrl != nullptr);
 
     ctx->ctrl->CheckIoQpair("Zone read");
-    rc = spdk_nvme_ns_cmd_read(ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
-                               ioCtx.size, ioCtx.cb, ioCtx.ctx, ioCtx.flags);
+    auto cpl = co_await spdk_nvme_zone_read_async(
+        ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+        ioCtx.size, ioCtx.flags);
 
-    if (rc != 0) {
-        log_error("starting I/O failed {}", rc);
-    } else {
-        // worker->ns_ctx->current_queue_depth++;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        log_error("I/O error status: {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        // fprintf(stderr, "I/O failed, aborting run\n");
+        // assert(0);
+        // exit(1);
+        log_debug("Unimplemented: put context back in pool");
     }
+
+    if (ctx->is_write) {
+        // TODO: 1. update entry with LBA
+        // TODO: 2. what do we return in response
+        ctx->write_complete = true;
+        ctx->lba = cpl->cdw0;
+        // slot->write_fn(slot->request, slot->entry);
+    } else {
+        // For read, we swap the read date into the request body
+        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+        // slot->request.body() = body;
+        //
+        // slot->read_fn(slot->request);
+    }
+
+    ctx->ctrl->mTotalCounts++;
+    assert(ctx->ctrl != nullptr);
+
+    // TODO: this should move to reclaim context and in controller
+    ctx->available = true;
+    ctx->Clear();
+    ctx->ctrl->mRequestContextPool->ReturnRequestContext(ctx);
 }
 
 static void issueIo(void *args)
@@ -605,6 +678,7 @@ MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
+    slot->io_thread = zctrl_->GetIoThread(0);
     // Request is read
     slot->is_write = false;
     // slot->target_dev = false;

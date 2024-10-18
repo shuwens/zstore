@@ -77,6 +77,7 @@ struct RequestContext {
 
     // Used inside a Segment write/read
     ZstoreController *ctrl;
+    struct spdk_thread *io_thread;
     uint32_t zoneId;
     uint32_t offset;
 
