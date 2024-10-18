@@ -377,11 +377,15 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
+    auto const threads = 4;
     // std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, *this)
     //     ->run();
 
+    // The io_context is required for all I/O
+    net::io_context ioc{threads};
+
     // Spawn a listening port
-    boost::asio::co_spawn(mIoc_, do_listen(tcp::endpoint{address, port}, *this),
+    boost::asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
                           [](std::exception_ptr e) {
                               if (e)
                                   try {
@@ -392,14 +396,20 @@ int ZstoreController::Init(bool object, int key_experiment)
                                           << "\n";
                                   }
                           });
+    // Run the I/O service on the requested number of threads
+    std::vector<std::thread> v;
+    v.reserve(threads - 1);
+    for (auto i = threads - 1; i > 0; --i)
+        v.emplace_back([&ioc] { ioc.run(); });
+    ioc.run();
 
-    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
-         ++threadId) {
-        // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
-        // NULL);
-        mHttpThread[threadId].controller = this;
-    }
-    initHttpThread();
+    // for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
+    //      ++threadId) {
+    //     // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
+    //     // NULL);
+    //     mHttpThread[threadId].controller = this;
+    // }
+    // initHttpThread();
 
     log_info("Initialization complete. Launching workers.");
 

@@ -54,6 +54,10 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController(std::ref(ioc));
     gZstoreController->Init(false, key_experiment);
 
+    log_debug("XXXX");
+
+    // gZstoreController->mIoc_.run();
+
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
 

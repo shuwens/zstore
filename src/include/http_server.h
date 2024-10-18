@@ -178,13 +178,18 @@ auto awaitable_on_request(HttpRequest req,
             auto dev = zctrl_.GetDevice(entry.first_tgt());
             // log_debug("111 ");
 
-            auto slot = MakeReadRequest(&zctrl_, dev, entry.first_lba(), req);
-            assert(slot.has_value());
+            auto slot =
+                MakeReadRequest(&zctrl_, dev, entry.first_lba(), req).value();
             {
-                std::unique_lock lock(zctrl_.GetRequestQueueMutex());
+                // std::unique_lock lock(zctrl_.GetRequestQueueMutex());
                 // co_await zctrl_.EnqueueRead(slot.value());
-                co_await zoneRead(slot.value());
+                co_await zoneRead(slot);
             }
+
+            // TODO: this should move to reclaim context and in controller
+            // ctx->available = true;
+            slot->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(slot);
 
             // co_return co_await async_on_request(std::move(req),
             //                                     net::use_awaitable);

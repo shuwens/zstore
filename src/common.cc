@@ -176,7 +176,7 @@ void spdk_nvme_zone_read_wrapper(
 {
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
-        log_debug("before spdk cmd read");
+        // log_debug("before spdk cmd read");
         int rc = spdk_nvme_ns_cmd_read(
             ns, qpair, data, offset, size,
             [](void *arg, const spdk_nvme_cpl *completion) {
@@ -185,7 +185,7 @@ void spdk_nvme_zone_read_wrapper(
                 delete cb3;
             },
             (void *)(cb_heap), flags);
-        log_debug("11111 {}", rc);
+        // log_debug("11111 {}", rc);
     });
     thread_send_msg(
         thread,
@@ -205,7 +205,7 @@ auto spdk_nvme_zone_read_async(
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
-        log_debug("2222");
+        // log_debug("2222");
         spdk_nvme_zone_read_wrapper(thread, ns, qpair, data, offset, size,
                                     flags, std::move(completion_handler));
     };
@@ -221,13 +221,13 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
     auto ioCtx = ctx->ioContext;
     int rc = 0;
     assert(ctx->ctrl != nullptr);
-    log_debug("11111");
+    // log_debug("11111");
 
     ctx->ctrl->CheckIoQpair("Zone read");
     auto cpl = co_await spdk_nvme_zone_read_async(
         ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
         ioCtx.size, ioCtx.flags);
-    log_debug("11111");
+    // log_debug("11111");
 
     if (spdk_nvme_cpl_is_error(cpl)) {
         log_error("I/O error status: {}",
@@ -237,7 +237,7 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
         // exit(1);
         log_debug("Unimplemented: put context back in pool");
     }
-    log_debug("11111");
+    // log_debug("11111");
 
     if (ctx->is_write) {
         // TODO: 1. update entry with LBA
@@ -255,11 +255,6 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
-
-    // TODO: this should move to reclaim context and in controller
-    ctx->available = true;
-    ctx->Clear();
-    ctx->ctrl->mRequestContextPool->ReturnRequestContext(ctx);
 }
 
 static void issueIo(void *args)
@@ -498,7 +493,7 @@ void RequestContext::Clear()
     // associatedRequests.clear(); // = nullptr;
     // associatedStripe = nullptr;
     // associatedRead = nullptr;
-    ctrl = nullptr;
+    // ctrl = nullptr;
 
     successBytes = 0;
     targetBytes = 0;
@@ -662,7 +657,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
     assert(slot->ctrl == zctrl_);
-    log_debug("11111");
+    // log_debug("11111");
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();
@@ -683,7 +678,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     // slot->read_fn = closure;
     // assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
-    log_debug("11111");
+    // log_debug("11111");
 
     return slot;
 }
