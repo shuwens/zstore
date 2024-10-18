@@ -193,12 +193,11 @@ void spdk_nvme_zone_read_wrapper(
     thread_send_msg(
         thread,
         [](void *fn2) {
-            auto rc =
-                reinterpret_cast<std::move_only_function<void(void)> *>(fn2);
+            auto rc = reinterpret_cast<decltype(fn)>(fn2);
             (*rc)();
             delete rc;
         },
-        &fn);
+        fn);
     log_debug("555");
 }
 
