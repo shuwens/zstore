@@ -11,7 +11,7 @@
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
 #include <boost/unordered/concurrent_flat_map.hpp>
-#include <boost/unordered/concurrent_flat_set.hpp>
+// #include <boost/unordered/concurrent_flat_set.hpp>
 #include <cstring>
 #include <queue>
 #include <shared_mutex>
@@ -20,7 +20,7 @@
 
 namespace net = boost::asio; // from <boost/asio.hpp>
 using zstore_map = boost::concurrent_flat_map<ObjectKey, MapEntry>;
-using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKey>;
+// using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKey>;
 
 class ZstoreController
 {
@@ -49,7 +49,7 @@ class ZstoreController
     //
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
-    zstore_bloom_filter mBF;
+    // zstore_bloom_filter mBF;
     // std::shared_mutex mBFMutex;
 
     // Object APIs
