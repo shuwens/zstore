@@ -3,6 +3,7 @@
 #include "utils.h"
 // #include "zstore_controller.h"
 #include "types.h"
+#include <boost/asio.hpp>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -11,6 +12,8 @@
 #include <spdk/event.h>
 #include <spdk/nvme.h>
 #include <spdk/thread.h>
+
+namespace net = boost::asio; // from <boost/asio.hpp>
 
 inline uint64_t round_up(uint64_t value, uint64_t align)
 {
@@ -32,6 +35,8 @@ int dispatchObjectWorker(void *args);
 // void complete(void *arg, const struct spdk_nvme_cpl *completion);
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args);
 // void event_call(uint32_t core_id, spdk_event_fn fn, void *arg1, void *arg2);
+
+auto zoneRead(void *arg1) -> net::awaitable<void>;
 
 double GetTimestampInUs();
 double timestamp();

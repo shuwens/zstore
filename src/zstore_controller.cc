@@ -562,16 +562,16 @@ Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
     // }
 }
 
-net::awaitable<void> ZstoreController::EnqueueRead(RequestContext *ctx)
-{
-    mReadQueue.push(ctx);
-}
+// net::awaitable<void> ZstoreController::EnqueueRead(RequestContext *ctx)
+// {
+//     mReadQueue.push(ctx);
+// }
 
-void ZstoreController::EnqueueWrite(RequestContext *ctx)
-{
-    mReadQueue.push(ctx);
-    // mWriteQueue.push(ctx);
-}
+// void ZstoreController::EnqueueWrite(RequestContext *ctx)
+// {
+//     mReadQueue.push(ctx);
+//     // mWriteQueue.push(ctx);
+// }
 
 std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
 {

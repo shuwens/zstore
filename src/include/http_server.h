@@ -182,7 +182,8 @@ auto awaitable_on_request(HttpRequest req,
             assert(slot.has_value());
             {
                 std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-                co_await zctrl_.EnqueueRead(slot.value());
+                // co_await zctrl_.EnqueueRead(slot.value());
+                co_await zoneRead(slot.value());
             }
 
             // co_return co_await async_on_request(std::move(req),
