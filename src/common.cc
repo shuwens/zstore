@@ -174,22 +174,19 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    log_debug("3333");
-    auto fn =
-        new std::move_only_function<void(void)>([=, cb = std::move(cb)]() {
-            log_debug("before spdk cmd read");
-            int rc = spdk_nvme_ns_cmd_read(
-                ns, qpair, data, offset, size,
-                [](void *arg, const spdk_nvme_cpl *completion) {
-                    auto cb = std::move(
-                        *reinterpret_cast<std::move_only_function<void(
-                            const spdk_nvme_cpl *completion)> *>(arg));
-                    std::move(cb)(completion);
-                },
-                (void *)(&cb), flags);
-            log_debug("11111 {}", rc);
-        });
-    log_debug("444");
+    auto cb_heap = new decltype(cb)(std::move(cb));
+    auto fn = new std::move_only_function<void(void)>([=]() {
+        log_debug("before spdk cmd read");
+        int rc = spdk_nvme_ns_cmd_read(
+            ns, qpair, data, offset, size,
+            [](void *arg, const spdk_nvme_cpl *completion) {
+                auto cb3 = reinterpret_cast<decltype(cb_heap)>(arg);
+                (*cb3)(completion);
+                delete cb3;
+            },
+            (void *)(cb_heap), flags);
+        log_debug("11111 {}", rc);
+    });
     thread_send_msg(
         thread,
         [](void *fn2) {
@@ -198,7 +195,6 @@ void spdk_nvme_zone_read_wrapper(
             delete rc;
         },
         fn);
-    log_debug("555");
 }
 
 auto spdk_nvme_zone_read_async(
