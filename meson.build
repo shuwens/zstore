@@ -4,13 +4,18 @@ project(
 	'c',
 	version: '0.1',
 	default_options: [
-		'cpp_std=c++20',
+		'cpp_std=c++23',
+		'default_library=static',
 		'warning_level=2',
 		'b_colorout=always',
 		# 'b_sanitize=address,undefined',
 		# 'b_sanitize=thread',
 		'b_lto=true',
 		'b_thinlto_cache=true',
+		# 'b_sanitize=address,undefined',
+		# 'b_asneeded=false',
+		# 'b_lto=false',
+		# 'b_lundef=false',
 	],
 )
 fs = import('fs')
@@ -197,20 +202,20 @@ executable(
 # )
 
 # nvmf multipath signle drive
-executable(
-	'mpsd_append',
-	files('examples/multipath/mp_one_drive_append.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'mpsd_read',
-	files('examples/multipath/mp_one_drive_read.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'mpsd_append',
+# 	files('examples/multipath/mp_one_drive_append.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'mpsd_read',
+# 	files('examples/multipath/mp_one_drive_read.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 # executable(
 # 	'check_read',
 # 	files('src/examples/check_read.cc'),
@@ -220,43 +225,43 @@ executable(
 # )
 
 # nvmf arbitration
-executable(
-	'test_read',
-	files('examples/arbitration/arbitration_read.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'test_append',
-	files('examples/arbitration/arbitration_append.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'test_read',
+# 	files('examples/arbitration/arbitration_read.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'test_append',
+# 	files('examples/arbitration/arbitration_append.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 # localand rdma
-executable(
-	'arbitration',
-	files('examples/arbitration/arbitration.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'rdma_read',
-	files('examples/arbitration/arbitration_rdma_read.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'rdma_append',
-	files('examples/arbitration/arbitration_rdma_append.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'arbitration',
+# 	files('examples/arbitration/arbitration.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'rdma_read',
+# 	files('examples/arbitration/arbitration_rdma_read.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'rdma_append',
+# 	files('examples/arbitration/arbitration_rdma_append.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 # HTTP server
 executable(
@@ -269,6 +274,13 @@ executable(
 executable(
 	'http_small',
 	files('examples/boost/http_server_small.cpp'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'http_awaitable',
+	files('examples/boost/http_server_awaitable.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,

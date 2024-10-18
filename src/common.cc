@@ -43,13 +43,15 @@ void complete(void *arg, const struct spdk_nvme_cpl *completion)
     if (slot->is_write) {
         // TODO: 1. update entry with LBA
         // TODO: 2. what do we return in response
-        slot->write_fn(slot->request, slot->entry);
+        slot->write_complete = true;
+        slot->lba = completion->cdw0;
+        // slot->write_fn(slot->request, slot->entry);
     } else {
         // For read, we swap the read date into the request body
-        std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-        slot->request.body() = body;
-
-        slot->read_fn(slot->request);
+        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+        // slot->request.body() = body;
+        //
+        // slot->read_fn(slot->request);
     }
 
     ctrl->mTotalCounts++;
@@ -607,7 +609,7 @@ MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
     slot->is_write = false;
     // slot->target_dev = false;
     slot->request = std::move(request);
-    slot->read_fn = closure;
+    // slot->read_fn = closure;
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
 
@@ -637,7 +639,7 @@ MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
     // Write request
     slot->is_write = true;
     slot->request = std::move(request);
-    slot->write_fn = closure;
+    // slot->write_fn = closure;
     slot->entry = std::move(entry);
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);

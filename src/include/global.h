@@ -103,9 +103,10 @@ struct RequestContext {
 
     // closure
     bool is_write;
+    bool write_complete;
     MapEntry entry;
-    std::function<void(HttpRequest)> read_fn;
-    std::function<void(HttpRequest, MapEntry)> write_fn;
+    // std::function<void(HttpRequest)> read_fn;
+    // std::function<void(HttpRequest, MapEntry)> write_fn;
 
     void Clear();
     void Queue();

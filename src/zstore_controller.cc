@@ -5,13 +5,31 @@
 #include "include/configuration.h"
 #include "include/device.h"
 #include "src/include/utils.h"
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/use_awaitable.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
 #include <boost/beast/http/message.hpp>
+#include <boost/beast/version.hpp>
+#include <boost/config.hpp>
 #include <cassert>
+#include <cstdlib>
+#include <fmt/core.h>
 #include <shared_mutex>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
+#include <string>
 #include <utility>
+#include <vector>
 
+namespace beast = boost::beast;   // from <boost/beast.hpp>
+namespace http = beast::http;     // from <boost/beast/http.hpp>
+namespace net = boost::asio;      // from <boost/asio.hpp>
+using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
+                                  //
 void ZstoreController::initHttpThread()
 {
     struct spdk_cpuset cpumask;
@@ -359,8 +377,21 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
-    std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, *this)
-        ->run();
+    // std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, *this)
+    //     ->run();
+
+    // Spawn a listening port
+    boost::asio::co_spawn(mIoc_, do_listen(*this, tcp::endpoint{address, port}),
+                          [](std::exception_ptr e) {
+                              if (e)
+                                  try {
+                                      std::rethrow_exception(e);
+                                  } catch (std::exception &e) {
+                                      std::cerr
+                                          << "Error in acceptor: " << e.what()
+                                          << "\n";
+                                  }
+                          });
 
     for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
          ++threadId) {
@@ -520,7 +551,7 @@ Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
     slot->ioContext = ioCtx;
 
     slot->request = std::move(req_);
-    slot->read_fn = closure;
+    // slot->read_fn = closure;
     assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
     {
@@ -529,7 +560,7 @@ Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
     }
 }
 
-void ZstoreController::EnqueueRead(RequestContext *ctx)
+net::awaitable<void> ZstoreController::EnqueueRead(RequestContext *ctx)
 {
     mReadQueue.push(ctx);
 }

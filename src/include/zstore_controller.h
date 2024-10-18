@@ -3,6 +3,7 @@
 #include "device.h"
 #include "global.h"
 #include "src/include/utils.h"
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
@@ -12,6 +13,7 @@
 #include <boost/unordered/concurrent_flat_map.hpp>
 #include <boost/unordered/concurrent_flat_set.hpp>
 #include <cstring>
+#include <queue>
 #include <shared_mutex>
 #include <spdk/env.h> // Include SPDK's environment header
 #include <unistd.h>
@@ -135,8 +137,8 @@ class ZstoreController
 
     void Drain();
 
+    net::awaitable<void> EnqueueRead(RequestContext *ctx);
     void EnqueueWrite(RequestContext *ctx);
-    void EnqueueRead(RequestContext *ctx);
     std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
     int GetWriteQueueSize() { return mWriteQueue.size(); };
     std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
@@ -152,7 +154,7 @@ class ZstoreController
 
     // void UpdateIndexNeedLock(uint64_t lba, PhysicalAddr phyAddr);
     // void UpdateIndex(uint64_t lba, PhysicalAddr phyAddr);
-    int GetNumInflightRequests();
+    // int GetNumInflightRequests();
 
     void WriteInDispatchThread(RequestContext *ctx);
     void ReadInDispatchThread(RequestContext *ctx);
@@ -177,7 +179,7 @@ class ZstoreController
     chrono_tp stime;
 
     RequestContextPool *mRequestContextPool;
-    std::unordered_set<RequestContext *> mInflightRequestContext;
+    // std::unordered_set<RequestContext *> mInflightRequestContext;
 
     bool verbose;
     bool isDraining;

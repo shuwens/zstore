@@ -2,7 +2,7 @@
 #include "global.h"
 #include "utils.h"
 #include "zstore_controller.h"
-#include <bits/stdc++.h>
+// #include <bits/stdc++.h>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -38,9 +38,8 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
 
 Result<DevTuple> GetDevTuple(ObjectKey object_key);
 
-Result<RequestContext *>
-MakeReadRequest(ZstoreController *zctrl_, Device *dev, uint64_t offset,
-                HttpRequest request, std::function<void(HttpRequest)> closure);
+Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
+                                         uint64_t offset, HttpRequest request);
 
 Result<RequestContext *>
 MakeWriteRequest(ZstoreController *zctrl_, Device *dev, HttpRequest request,
