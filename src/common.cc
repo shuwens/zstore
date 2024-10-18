@@ -195,8 +195,7 @@ void spdk_nvme_zone_read_wrapper(
     spdk_thread_send_msg(
         GetIoThread(0),
         [](void *fn2) {
-            auto rc =
-                reinterpret_cast<std::move_only_function<void(void)> *>(fn2);
+            auto rc = reinterpret_cast<decltype(fn)>(fn2);
             (*rc)();
             delete rc;
         },
