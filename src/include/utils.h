@@ -200,3 +200,21 @@ inline int result_to_rc(Result<int> res)
     else
         return res.error().value();
 }
+
+inline auto
+tdiff_us(std::chrono::time_point<std::chrono::high_resolution_clock> end,
+         std::chrono::time_point<std::chrono::high_resolution_clock> start)
+{
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+                  .count();
+    return std::abs(us);
+}
+
+inline auto
+tdiff_ns(std::chrono::time_point<std::chrono::high_resolution_clock> end,
+         std::chrono::time_point<std::chrono::high_resolution_clock> start)
+{
+    auto us = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
+                  .count();
+    return std::abs(us);
+}

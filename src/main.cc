@@ -77,7 +77,7 @@ int main(int argc, char **argv)
                     std::chrono::high_resolution_clock::now();
                 gZstoreController->mTotalCounts = 0;
             }
-            sleep(1);
+            sleep(30);
         }
     } else {
         sleep(10);

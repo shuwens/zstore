@@ -15,6 +15,9 @@ struct Timer {
     chrono_tp t2;
     chrono_tp t3;
     chrono_tp t4;
+    chrono_tp t5;
+    chrono_tp t6;
+    bool check;
 };
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>

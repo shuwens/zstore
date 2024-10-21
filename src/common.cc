@@ -174,28 +174,35 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    auto cb_heap = new decltype(cb)(std::move(cb));
+    // auto cb_heap = new decltype(cb)(std::move(cb));
+
+    auto cb_heap = new std::tuple<
+        std::move_only_function<void(const spdk_nvme_cpl *completion)>,
+        Timer &>(decltype(cb)(std::move(cb)), timer);
+
     auto fn = new std::move_only_function<void(void)>([=, &timer]() {
+        timer.t4 = std::chrono::high_resolution_clock::now();
+
         // log_debug("before spdk cmd read");
         int rc = spdk_nvme_ns_cmd_read(
             ns, qpair, data, offset, size,
             [](void *arg, const spdk_nvme_cpl *completion) mutable {
-                auto cb3 = reinterpret_cast<decltype(cb_heap)>(arg);
-                timer.t4 = std::chrono::high_resolution_clock::now();
-                log_debug("t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, ",
-                          tdiff_us(timer.t2, timer.t1),
-                          tdiff_us(timer.t3, timer.t2),
-                          tdiff_us(timer.t4, timer.t3));
-                delete cb3;
+                // auto tuple_ = static_cast<
+                //     std::tuple<void(const spdk_nvme_cpl *completion), Timer
+                //     &>>( arg);
+                auto tuple_ = reinterpret_cast<decltype(cb_heap)>(arg);
+                auto &cb3 = std::get<0>(*tuple_);
+                auto timer = std::get<1>(*tuple_);
+                (cb3)(completion);
+                timer.t5 = std::chrono::high_resolution_clock::now();
+                delete tuple_;
             },
             (void *)(cb_heap), flags);
-        // log_debug("11111 {}", rc);
     });
     thread_send_msg(
         thread,
         [](void *fn2) {
             auto rc = reinterpret_cast<decltype(fn)>(fn2);
-            timer.t3 = std::chrono::high_resolution_clock::now();
             (*rc)();
             delete rc;
         },
@@ -203,16 +210,16 @@ void spdk_nvme_zone_read_wrapper(
 }
 
 auto spdk_nvme_zone_read_async(
-    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    Timer timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
 {
-    timer.t1 = std::chrono::high_resolution_clock::now();
-    auto init = [](auto completion_handler, Timer &timer, spdk_thread *thread,
+    timer.t2 = std::chrono::high_resolution_clock::now();
+    auto init = [](auto completion_handler, Timer timer, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
         // log_debug("2222");
-        timer.t2 = std::chrono::high_resolution_clock::now();
+        timer.t3 = std::chrono::high_resolution_clock::now();
         spdk_nvme_zone_read_wrapper(timer, thread, ns, qpair, data, offset,
                                     size, flags, std::move(completion_handler));
     };
@@ -225,18 +232,27 @@ auto spdk_nvme_zone_read_async(
 
 auto zoneRead(void *arg1) -> net::awaitable<void>
 {
-    Timer timer;
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
     assert(ctx->ctrl != nullptr);
-    // log_debug("11111");
+    log_debug("11111");
 
+    Timer timer;
+    timer.t1 = std::chrono::high_resolution_clock::now();
     // ctx->ctrl->CheckIoQpair("Zone read");
     auto cpl = co_await spdk_nvme_zone_read_async(
         timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
         ioCtx.size, ioCtx.flags);
     // log_debug("11111");
+    timer.t6 = std::chrono::high_resolution_clock::now();
+    // del timer;
+
+    // if (ctx->ctrl->mTotalCounts % 1000 == 0)
+    log_debug("t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, t5-t4 {}us, t6-t5 {}us",
+              tdiff_us(timer.t2, timer.t1), tdiff_us(timer.t3, timer.t2),
+              tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
+              tdiff_us(timer.t6, timer.t5));
 
     if (spdk_nvme_cpl_is_error(cpl)) {
         log_error("I/O error status: {}",

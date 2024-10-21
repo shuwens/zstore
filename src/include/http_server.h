@@ -140,7 +140,7 @@ auto awaitable_on_request(HttpRequest req,
         //         // std::unique_lock lock(zctrl_.GetRequestQueueMutex());
         //         // co_await zctrl_.EnqueueRead(slot.value());
 
-        // co_await zoneRead(slot);
+        co_await zoneRead(slot);
 
         //     }
         //
