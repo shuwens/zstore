@@ -10,6 +10,12 @@
 #include <vector>
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
+struct Timer {
+    chrono_tp t1;
+    chrono_tp t2;
+    chrono_tp t3;
+    chrono_tp t4;
+};
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
 typedef http::request<http::string_body> HttpRequest;

@@ -123,33 +123,35 @@ auto awaitable_on_request(HttpRequest req,
         auto rc = zctrl_.GetObject(object_key, entry).value();
         assert(rc == true);
 
-        if (!zctrl_.isDraining &&
-            zctrl_.mRequestContextPool->availableContexts.size() > 0) {
-            if (!zctrl_.start) {
-                zctrl_.start = true;
-                zctrl_.stime = std::chrono::high_resolution_clock::now();
-            }
+        // if (!zctrl_.isDraining &&
+        //     zctrl_.mRequestContextPool->availableContexts.size() > 0) {
+        //     if (!zctrl_.start) {
+        //         zctrl_.start = true;
+        //         zctrl_.stime = std::chrono::high_resolution_clock::now();
+        //     }
+        //
+        // entry.first_tgt());
+        auto dev = zctrl_.GetDevice(entry.first_tgt());
+        // log_debug("111 ");
+        //
+        auto slot =
+            MakeReadRequest(&zctrl_, dev, entry.first_lba(), req).value();
+        //     {
+        //         // std::unique_lock lock(zctrl_.GetRequestQueueMutex());
+        //         // co_await zctrl_.EnqueueRead(slot.value());
 
-            // entry.first_tgt());
-            auto dev = zctrl_.GetDevice(entry.first_tgt());
-            // log_debug("111 ");
+        // co_await zoneRead(slot);
 
-            auto slot =
-                MakeReadRequest(&zctrl_, dev, entry.first_lba(), req).value();
-            {
-                // std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-                // co_await zctrl_.EnqueueRead(slot.value());
-                co_await zoneRead(slot);
-            }
-
-            // TODO: this should move to reclaim context and in controller
-            // ctx->available = true;
-            slot->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(slot);
-
-            // co_return co_await async_on_request(std::move(req),
-            //                                     net::use_awaitable);
-        }
+        //     }
+        //
+        //     // TODO: this should move to reclaim context and in controller
+        //     // ctx->available = true;
+        slot->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(slot);
+        //
+        //     // co_return co_await async_on_request(std::move(req),
+        //     //                                     net::use_awaitable);
+        // }
         co_return handle_request(std::move(req));
 
     } else {

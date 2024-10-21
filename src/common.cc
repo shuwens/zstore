@@ -169,19 +169,23 @@ int ioWorker(void *args)
 }
 
 void spdk_nvme_zone_read_wrapper(
-    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
     auto cb_heap = new decltype(cb)(std::move(cb));
-    auto fn = new std::move_only_function<void(void)>([=]() {
+    auto fn = new std::move_only_function<void(void)>([=, &timer]() {
         // log_debug("before spdk cmd read");
         int rc = spdk_nvme_ns_cmd_read(
             ns, qpair, data, offset, size,
-            [](void *arg, const spdk_nvme_cpl *completion) {
+            [](void *arg, const spdk_nvme_cpl *completion) mutable {
                 auto cb3 = reinterpret_cast<decltype(cb_heap)>(arg);
-                (*cb3)(completion);
+                timer.t4 = std::chrono::high_resolution_clock::now();
+                log_debug("t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, ",
+                          tdiff_us(timer.t2, timer.t1),
+                          tdiff_us(timer.t3, timer.t2),
+                          tdiff_us(timer.t4, timer.t3));
                 delete cb3;
             },
             (void *)(cb_heap), flags);
@@ -191,6 +195,7 @@ void spdk_nvme_zone_read_wrapper(
         thread,
         [](void *fn2) {
             auto rc = reinterpret_cast<decltype(fn)>(fn2);
+            timer.t3 = std::chrono::high_resolution_clock::now();
             (*rc)();
             delete rc;
         },
@@ -198,34 +203,38 @@ void spdk_nvme_zone_read_wrapper(
 }
 
 auto spdk_nvme_zone_read_async(
-    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
 {
-    auto init = [](auto completion_handler, spdk_thread *thread,
+    timer.t1 = std::chrono::high_resolution_clock::now();
+    auto init = [](auto completion_handler, Timer &timer, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
         // log_debug("2222");
-        spdk_nvme_zone_read_wrapper(thread, ns, qpair, data, offset, size,
-                                    flags, std::move(completion_handler));
+        timer.t2 = std::chrono::high_resolution_clock::now();
+        spdk_nvme_zone_read_wrapper(timer, thread, ns, qpair, data, offset,
+                                    size, flags, std::move(completion_handler));
     };
 
     return net::async_initiate<decltype(net::use_awaitable),
                                void(const spdk_nvme_cpl *)>(
-        init, net::use_awaitable, thread, ns, qpair, data, offset, size, flags);
+        init, net::use_awaitable, timer, thread, ns, qpair, data, offset, size,
+        flags);
 }
 
 auto zoneRead(void *arg1) -> net::awaitable<void>
 {
+    Timer timer;
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
     int rc = 0;
     assert(ctx->ctrl != nullptr);
     // log_debug("11111");
 
-    ctx->ctrl->CheckIoQpair("Zone read");
+    // ctx->ctrl->CheckIoQpair("Zone read");
     auto cpl = co_await spdk_nvme_zone_read_async(
-        ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+        timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
         ioCtx.size, ioCtx.flags);
     // log_debug("11111");
 
