@@ -377,13 +377,13 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
-    auto const num_threads = 4;
+    // auto const num_threads = 8;
 
     // The io_context is required for all I/O
-    net::io_context ioc{num_threads};
+    // net::io_context ioc{num_threads};
 
     // Spawn a listening port
-    boost::asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
+    boost::asio::co_spawn(mIoc_, do_listen(tcp::endpoint{address, port}, *this),
                           [](std::exception_ptr e) {
                               if (e)
                                   try {
@@ -395,21 +395,38 @@ int ZstoreController::Init(bool object, int key_experiment)
                                   }
                           });
 
-    // Run the I/O service on the requested number of threads
-    // std::vector<std::thread> v;
-    // v.reserve(threads - 1);
-    // for (auto i = threads - 1; i > 0; --i)
-    //     v.emplace_back([&ioc] { ioc.run(); });
-    // ioc.run();
-
-    // asio::io_context::work work(ioc);
+    // A mutex ensures orderly access to std::cout from multiple threads.
+    // std::mutex iomutex;
+    // std::vector<std::thread> threads(num_threads);
+    // std::vector<std::jthread> threads(num_threads);
+    // for (unsigned i = 0; i < num_threads; ++i) {
+    //     threads[i] = std::jthread([&ioc, i, &threads] {
+    //         // Create a cpu_set_t object representing a set of CPUs. Clear it
+    //         // and mark only CPU i as set.
+    //         cpu_set_t cpuset;
+    //         CPU_ZERO(&cpuset);
+    //         CPU_SET(i + 4, &cpuset);
+    //         std::string name = "zstore_ioc" + std::to_string(i + 4);
+    //         int rc =
+    //             pthread_setname_np(threads[i].native_handle(), name.c_str());
+    //         if (rc != 0) {
+    //             std::cerr << "Error calling pthread_setname: " << rc << "\n";
+    //         }
+    //         rc = pthread_setaffinity_np(threads[i].native_handle(),
+    //                                     sizeof(cpu_set_t), &cpuset);
+    //         if (rc != 0) {
+    //             std::cerr << "Error calling pthread_setaffinity_np: " << rc
+    //                       << "\n";
+    //         }
+    //         ioc.run();
+    //     });
+    // }
 
     // size_t count = 3;
-    std::vector<std::jthread> threads;
-    for (int i = 0; i < num_threads; ++i) {
-        // threads.emplace_back(std::bind(&asio::io_context::run, &ioc));
-        threads.emplace_back([&]() { ioc.run(); });
-    }
+    // for (int i = 0; i < num_threads; ++i) {
+    //     // threads.emplace_back(std::bind(&asio::io_context::run, &ioc));
+    //     threads.emplace_back([&]() { ioc.run(); });
+    // }
 
     // std::vector<std::thread> threads(num_threads);
     // threads.reserve(num_threads);
@@ -433,12 +450,12 @@ int ZstoreController::Init(bool object, int key_experiment)
     // for (unsigned i = 0; i < num_threads; ++i)
     //     threads.emplace_back([&ioc] { ioc.run(); });
 
-    // for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
-    //      ++threadId) {
-    //     mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
-    //     NULL); mHttpThread[threadId].controller = this;
-    // }
-    // initHttpThread();
+    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
+         ++threadId) {
+        mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
+        mHttpThread[threadId].controller = this;
+    }
+    initHttpThread();
 
     log_info("Initialization complete. Launching workers.");
 

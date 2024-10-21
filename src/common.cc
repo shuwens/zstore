@@ -247,11 +247,12 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
         ioCtx.size, ioCtx.flags);
     timer.t6 = std::chrono::high_resolution_clock::now();
 
-    if (ctx->ctrl->mTotalCounts % 1000 == 0)
-        log_debug("t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, t5-t4 {}us, t6-t5 {}us",
-                  tdiff_us(timer.t2, timer.t1), tdiff_us(timer.t3, timer.t2),
-                  tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
-                  tdiff_us(timer.t6, timer.t5));
+    // if (ctx->ctrl->mTotalCounts % 1000 == 0)
+    //     log_debug("t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, t5-t4 {}us, t6-t5
+    //     {}us",
+    //               tdiff_us(timer.t2, timer.t1), tdiff_us(timer.t3, timer.t2),
+    //               tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
+    //               tdiff_us(timer.t6, timer.t5));
 
     if (spdk_nvme_cpl_is_error(cpl)) {
         log_error("I/O error status: {}",

@@ -161,7 +161,7 @@ class Configuration
     int gMetadataSize = 64;
     bool gDeviceSupportMetadata = true;
 
-    uint32_t gDataBufferSizeInSector = 16; // 1- 32
+    uint32_t gDataBufferSizeInSector = 1; // 1- 32
     // int gZoneCapacity = 0;
 
     // Configured parameters
