@@ -119,9 +119,14 @@ auto awaitable_on_request(HttpRequest req,
         // NOTE: READ path: see section 3.4
         auto object_key = req.target();
 
-        MapEntry entry;
-        auto rc = zctrl_.GetObject(object_key, entry).value();
-        assert(rc == true);
+        // MapEntry entry;
+        // auto rc = zctrl_.GetObject(object_key, entry).value();
+        // assert(rc == true);
+
+        // hardcode entry value for benchmarking
+        auto entry =
+            createMapEntry(zctrl_.GetDevTuple(object_key).value(), 0, 0, 0)
+                .value();
 
         // if (!zctrl_.isDraining &&
         //     zctrl_.mRequestContextPool->availableContexts.size() > 0) {
@@ -131,27 +136,32 @@ auto awaitable_on_request(HttpRequest req,
         //     }
         //
         // entry.first_tgt());
-        auto dev = zctrl_.GetDevice(entry.first_tgt());
-        // log_debug("111 ");
-        //
-        auto slot =
-            MakeReadRequest(&zctrl_, dev, entry.first_lba(), req).value();
-        //     {
-        //         // std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-        //         // co_await zctrl_.EnqueueRead(slot.value());
 
-        co_await zoneRead(slot);
+        // log_debug("entry: {} {} {}", entry.first_tgt(), entry.second_tgt(),
+        //           entry.third_tgt());
 
-        //     }
-        //
-        //     // TODO: this should move to reclaim context and in controller
-        //     // ctx->available = true;
-        slot->Clear();
-        zctrl_.mRequestContextPool->ReturnRequestContext(slot);
-        //
-        //     // co_return co_await async_on_request(std::move(req),
-        //     //                                     net::use_awaitable);
-        // }
+        auto dev1 = zctrl_.GetDevice(entry.first_tgt());
+        auto dev2 = zctrl_.GetDevice(entry.second_tgt());
+        auto dev3 = zctrl_.GetDevice(entry.third_tgt());
+
+        auto s1 =
+            MakeReadRequest(&zctrl_, dev1, entry.first_lba(), req).value();
+        auto s2 =
+            MakeReadRequest(&zctrl_, dev2, entry.second_lba(), req).value();
+        auto s3 =
+            MakeReadRequest(&zctrl_, dev3, entry.third_lba(), req).value();
+
+        co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
+
+        s1->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+
+        s2->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+
+        s3->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+
         co_return handle_request(std::move(req));
 
     } else {

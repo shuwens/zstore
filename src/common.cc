@@ -19,44 +19,6 @@
 
 std::shared_mutex g_shared_mutex_;
 
-// void complete(void *arg, const struct spdk_nvme_cpl *completion)
-// {
-//     RequestContext *slot = (RequestContext *)arg;
-//     ZstoreController *ctrl = (ZstoreController *)slot->ctrl;
-//
-//     if (spdk_nvme_cpl_is_error(completion)) {
-//         log_error("I/O error status: {}",
-//                   spdk_nvme_cpl_get_status_string(&completion->status));
-//         // fprintf(stderr, "I/O failed, aborting run\n");
-//         // assert(0);
-//         // exit(1);
-//         log_debug("Unimplemented: put context back in pool");
-//     }
-//
-//     auto ioCtx = slot->ioContext;
-//     if (slot->is_write) {
-//         // TODO: 1. update entry with LBA
-//         // TODO: 2. what do we return in response
-//         slot->write_complete = true;
-//         slot->lba = completion->cdw0;
-//         // slot->write_fn(slot->request, slot->entry);
-//     } else {
-//         // For read, we swap the read date into the request body
-//         // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-//         // slot->request.body() = body;
-//         //
-//         // slot->read_fn(slot->request);
-//     }
-//
-//     ctrl->mTotalCounts++;
-//     assert(ctrl != nullptr);
-//
-//     // TODO: this should move to reclaim context and in controller
-//     slot->available = true;
-//     slot->Clear();
-//     ctrl->mRequestContextPool->ReturnRequestContext(slot);
-// }
-
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
 {
     if (spdk_thread_send_msg(thread, fn, args) < 0) {
@@ -64,43 +26,6 @@ void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
                   spdk_thread_get_name(thread));
         exit(-1);
     }
-}
-
-int handleDummyRequest(void *args)
-{
-    bool busy = false;
-    // ZstoreController *ctrl = (ZstoreController *)args;
-    //
-    // if (!ctrl->isDraining &&
-    //     ctrl->mRequestContextPool->availableContexts.size() > 0) {
-    //     if (!ctrl->start) {
-    //         ctrl->start = true;
-    //         ctrl->stime = std::chrono::high_resolution_clock::now();
-    //     }
-    //
-    //     RequestContext *slot =
-    //         ctrl->mRequestContextPool->GetRequestContext(true);
-    //     slot->ctrl = ctrl;
-    //     assert(slot->ctrl == ctrl);
-    //
-    //     auto ioCtx = slot->ioContext;
-    //     ioCtx.ns = ctrl->GetDevice(slot->target_dev)->GetNamespace();
-    //     ioCtx.qpair = ctrl->GetIoQpair();
-    //     ioCtx.data = slot->dataBuffer;
-    //     ioCtx.offset = Configuration::GetZslba() + ctrl->mTotalCounts;
-    //     ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    //     ioCtx.cb = complete;
-    //     ioCtx.ctx = slot;
-    //     ioCtx.flags = 0;
-    //     slot->ioContext = ioCtx;
-    //
-    //     assert(slot->ioContext.cb != nullptr);
-    //     assert(slot->ctrl != nullptr);
-    //     ctrl->EnqueueRead(slot);
-    //     busy = true;
-    // }
-
-    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
 }
 
 int handleHttpRequest(void *args)
@@ -122,20 +47,6 @@ int httpWorker(void *args)
     spdk_set_thread(thread);
     spdk_poller *p;
     p = spdk_poller_register(handleHttpRequest, ctrl, 0);
-    ctrl->SetHttpPoller(p);
-    while (true) {
-        spdk_thread_poll(thread, 0, 0);
-    }
-}
-
-int dummyWorker(void *args)
-{
-    IoThread *httpThread = (IoThread *)args;
-    struct spdk_thread *thread = httpThread->thread;
-    ZstoreController *ctrl = httpThread->controller;
-    spdk_set_thread(thread);
-    spdk_poller *p;
-    p = spdk_poller_register(handleDummyRequest, ctrl, 0);
     ctrl->SetHttpPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);
@@ -169,34 +80,20 @@ int ioWorker(void *args)
 }
 
 void spdk_nvme_zone_read_wrapper(
-    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    // auto cb_heap = new decltype(cb)(std::move(cb));
+    auto cb_heap = new decltype(cb)(std::move(cb));
 
-    auto cb_heap = new std::pair<
-        std::move_only_function<void(const spdk_nvme_cpl *completion)>,
-        Timer &>(decltype(cb)(std::move(cb)), timer);
-
-    auto fn = new std::move_only_function<void(void)>([=, &timer]() {
-        timer.t4 = std::chrono::high_resolution_clock::now();
-
-        // log_debug("before spdk cmd read");
+    auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(
             ns, qpair, data, offset, size,
             [](void *arg, const spdk_nvme_cpl *completion) mutable {
-                // auto tuple_ = static_cast<
-                //     std::tuple<void(const spdk_nvme_cpl *completion), Timer
-                //     &>>( arg);
-                auto tuple_ = reinterpret_cast<decltype(cb_heap)>(arg);
-                auto &cb3 = tuple_->first;
-                // auto &timer = std::get<1>(*tuple_);
-                tuple_->second.t5 = std::chrono::high_resolution_clock::now();
-                (cb3)(completion);
-                // timer.t5 = std::chrono::high_resolution_clock::now();
-                delete tuple_;
+                auto cb3 = reinterpret_cast<decltype(cb_heap)>(arg);
+                (*cb3)(completion);
+                delete cb3;
             },
             (void *)(cb_heap), flags);
     });
@@ -211,24 +108,20 @@ void spdk_nvme_zone_read_wrapper(
 }
 
 auto spdk_nvme_zone_read_async(
-    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
 {
-    timer.t2 = std::chrono::high_resolution_clock::now();
-    auto init = [](auto completion_handler, Timer *timer, spdk_thread *thread,
+    auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
-        // log_debug("2222");
-        timer->t3 = std::chrono::high_resolution_clock::now();
-        spdk_nvme_zone_read_wrapper(*timer, thread, ns, qpair, data, offset,
-                                    size, flags, std::move(completion_handler));
+        spdk_nvme_zone_read_wrapper(thread, ns, qpair, data, offset, size,
+                                    flags, std::move(completion_handler));
     };
 
     return net::async_initiate<decltype(net::use_awaitable),
                                void(const spdk_nvme_cpl *)>(
-        init, net::use_awaitable, &timer, thread, ns, qpair, data, offset, size,
-        flags);
+        init, net::use_awaitable, thread, ns, qpair, data, offset, size, flags);
 }
 
 auto zoneRead(void *arg1) -> net::awaitable<void>
@@ -237,23 +130,10 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
     auto ioCtx = ctx->ioContext;
     int rc = 0;
     assert(ctx->ctrl != nullptr);
-    // log_debug("11111");
 
-    Timer timer;
-    timer.t1 = std::chrono::high_resolution_clock::now();
-    // ctx->ctrl->CheckIoQpair("Zone read");
     auto cpl = co_await spdk_nvme_zone_read_async(
-        timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+        ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
         ioCtx.size, ioCtx.flags);
-    timer.t6 = std::chrono::high_resolution_clock::now();
-
-    // if (ctx->ctrl->mTotalCounts % 1000 == 0)
-    //     log_debug("t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, t5-t4 {}us, t6-t5
-    //     {}us",
-    //               tdiff_us(timer.t2, timer.t1), tdiff_us(timer.t3, timer.t2),
-    //               tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
-    //               tdiff_us(timer.t6, timer.t5));
-
     if (spdk_nvme_cpl_is_error(cpl)) {
         log_error("I/O error status: {}",
                   spdk_nvme_cpl_get_status_string(&cpl->status));
@@ -262,7 +142,6 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
         // exit(1);
         log_debug("Unimplemented: put context back in pool");
     }
-    // log_debug("11111");
 
     if (ctx->is_write) {
         // TODO: 1. update entry with LBA
@@ -280,28 +159,6 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
-}
-
-static void issueIo(void *args)
-{
-    // ZstoreController *zc = (ZstoreController *)args;
-    // RequestContext *slot = zc->mRequestContextPool->GetRequestContext(true);
-    //
-    // auto ioCtx = slot->ioContext;
-    // ioCtx.ns = zc->GetDevice()->GetNamespace();
-    // ioCtx.qpair = zc->GetIoQpair();
-    // ioCtx.data = slot->dataBuffer;
-    // ioCtx.offset = 0;
-    // ioCtx.size = Configuration::GetDataBufferSize;
-    // ioCtx.cb = complete;
-    // ioCtx.ctx = slot;
-    // ioCtx.flags = 0;
-    //
-    // slot->ctrl = zc;
-    // assert(slot->ctrl == zc);
-    // assert(slot->ctrl != nullptr);
-    //
-    // thread_send_msg(zc->GetIoThread(0), zoneRead, slot);
 }
 
 int handleSubmit(void *args)
@@ -672,8 +529,8 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
 Result<DevTuple> GetDevTuple(ObjectKey object_key)
 {
     return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
-                           std::make_pair("Zstore3", "Dev1"),
-                           std::make_pair("Zstore4", "Dev1"));
+                           std::make_pair("Zstore2", "Dev2"),
+                           std::make_pair("Zstore2", "Dev1"));
 }
 
 Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,

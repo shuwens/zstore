@@ -232,7 +232,7 @@ int ZstoreController::PopulateMap(bool bogus, int key_experiment)
             auto entry = createMapEntry(
                              std::make_tuple(std::make_pair("Zstore2", "Dev1"),
                                              std::make_pair("Zstore2", "Dev2"),
-                                             std::make_pair("Zstore3", "Dev1")),
+                                             std::make_pair("Zstore2", "Dev1")),
                              i + zone_offset, i + zone_offset, i + zone_offset)
                              .value();
             // assert(rc.has_value());
@@ -745,6 +745,6 @@ Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)
 {
     return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
-                           std::make_pair("Zstore3", "Dev1"),
-                           std::make_pair("Zstore4", "Dev1"));
+                           std::make_pair("Zstore2", "Dev2"),
+                           std::make_pair("Zstore2", "Dev1"));
 }
