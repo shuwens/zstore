@@ -377,15 +377,13 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
-    // auto const threads = 4;
-    // std::make_shared<listener>(mIoc_, tcp::endpoint{address, port}, *this)
-    //     ->run();
+    auto const num_threads = 4;
 
     // The io_context is required for all I/O
-    // net::io_context ioc{threads};
+    net::io_context ioc{num_threads};
 
     // Spawn a listening port
-    boost::asio::co_spawn(mIoc_, do_listen(tcp::endpoint{address, port}, *this),
+    boost::asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
                           [](std::exception_ptr e) {
                               if (e)
                                   try {
@@ -396,6 +394,7 @@ int ZstoreController::Init(bool object, int key_experiment)
                                           << "\n";
                                   }
                           });
+
     // Run the I/O service on the requested number of threads
     // std::vector<std::thread> v;
     // v.reserve(threads - 1);
@@ -403,13 +402,43 @@ int ZstoreController::Init(bool object, int key_experiment)
     //     v.emplace_back([&ioc] { ioc.run(); });
     // ioc.run();
 
-    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
-         ++threadId) {
-        // mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
-        // NULL);
-        mHttpThread[threadId].controller = this;
+    // asio::io_context::work work(ioc);
+
+    // size_t count = 3;
+    std::vector<std::jthread> threads;
+    for (int i = 0; i < num_threads; ++i) {
+        // threads.emplace_back(std::bind(&asio::io_context::run, &ioc));
+        threads.emplace_back([&]() { ioc.run(); });
     }
-    initHttpThread();
+
+    // std::vector<std::thread> threads(num_threads);
+    // threads.reserve(num_threads);
+    // for (unsigned i = 0; i < num_threads; ++i) {
+    //     threads[i] = std::thread([&ioc, i, &threads] {
+    //         // Create a cpu_set_t object representing a set of CPUs. Clear it
+    //         // and mark only CPU i as set.
+    //         cpu_set_t cpuset;
+    //         CPU_ZERO(&cpuset);
+    //         CPU_SET(i, &cpuset);
+    //         int rc = pthread_setaffinity_np(threads[i].native_handle(),
+    //                                         sizeof(cpu_set_t), &cpuset);
+    //         if (rc != 0) {
+    //             std::cerr << "Error calling pthread_setaffinity_np: " << rc
+    //                       << "\n";
+    //         }
+    //         ioc.run();
+    //     });
+    // }
+
+    // for (unsigned i = 0; i < num_threads; ++i)
+    //     threads.emplace_back([&ioc] { ioc.run(); });
+
+    // for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
+    //      ++threadId) {
+    //     mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
+    //     NULL); mHttpThread[threadId].controller = this;
+    // }
+    // initHttpThread();
 
     log_info("Initialization complete. Launching workers.");
 
@@ -431,8 +460,8 @@ int ZstoreController::Init(bool object, int key_experiment)
         //     continue;
         // }
 
-        // TODO: right now we sort of just pick read and write zone, this should
-        // be done smartly
+        // TODO: right now we sort of just pick read and write zone,
+        // this should be done smartly
         // FIXME bug
         // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
     }
@@ -452,7 +481,8 @@ int ZstoreController::Init(bool object, int key_experiment)
 //     thread_send_msg(GetIoThread(0), zoneRead, ctx);
 // }
 
-// TODO: assume we only have one device, we should check all device in the end
+// TODO: assume we only have one device, we should check all device in the
+// end
 bool ZstoreController::CheckIoQpair(std::string msg)
 {
     assert(mDevices[0] != nullptr);
@@ -486,7 +516,8 @@ ZstoreController::~ZstoreController()
     cleanup_ns_worker_ctx();
     //
     //     std::vector<uint64_t> deltas1;
-    //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size(); i++)
+    //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size();
+    //     i++)
     //     {
     //         deltas1.push_back(
     //             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -494,13 +525,14 @@ ZstoreController::~ZstoreController()
     //                 zctrlr->mWorker->ns_ctx->stimes[i])
     //                 .count());
     //     }
-    //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(), 0.0);
-    //     auto mean1 = sum1 / deltas1.size();
-    //     auto sq_sum1 = std::inner_product(deltas1.begin(), deltas1.end(),
+    //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(),
+    //     0.0); auto mean1 = sum1 / deltas1.size(); auto sq_sum1 =
+    //     std::inner_product(deltas1.begin(), deltas1.end(),
     //                                       deltas1.begin(), 0.0);
     //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
     //     mean1); log_info("qd: {}, mean {}, std {}",
-    //              zctrlr->mWorker->ns_ctx->io_completed, mean1, stdev1);
+    //              zctrlr->mWorker->ns_ctx->io_completed, mean1,
+    //              stdev1);
     //
     //     // clearnup
     //     deltas1.clear();
@@ -547,8 +579,8 @@ void ZstoreController::cleanup(uint32_t task_count)
 Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
                                     std::function<void(HttpRequest)> closure)
 {
-    // RequestContext *slot = mRequestContextPool->GetRequestContext(true);
-    // slot->ctrl = this;
+    // RequestContext *slot =
+    // mRequestContextPool->GetRequestContext(true); slot->ctrl = this;
     // assert(slot->ctrl == this);
     //
     // auto ioCtx = slot->ioContext;
@@ -675,7 +707,6 @@ Result<bool> ZstoreController::PutObject(const ObjectKey &key,
 
 Result<bool> ZstoreController::GetObject(const ObjectKey &key, MapEntry &entry)
 {
-
     return mMap.cvisit(key, [&entry](const auto &x) {
         // entry = x.second->value;
         entry = x.second;

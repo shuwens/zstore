@@ -63,20 +63,22 @@ int main(int argc, char **argv)
 
         // FIXME only tput on Zstore2Dev1
         while (1) {
-            auto etime = std::chrono::high_resolution_clock::now();
-            auto delta = std::chrono::duration_cast<std::chrono::microseconds>(
-                             etime - gZstoreController->stime)
-                             .count();
-            auto tput =
-                gZstoreController->mTotalCounts * g_micro_to_second / delta;
-
-            log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-                     gZstoreController->mTotalCounts, delta, tput);
-            {
-                gZstoreController->stime =
-                    std::chrono::high_resolution_clock::now();
-                gZstoreController->mTotalCounts = 0;
-            }
+            //     auto etime = std::chrono::high_resolution_clock::now();
+            //     auto delta =
+            //     std::chrono::duration_cast<std::chrono::microseconds>(
+            //                      etime - gZstoreController->stime)
+            //                      .count();
+            //     auto tput =
+            //         gZstoreController->mTotalCounts * g_micro_to_second /
+            //         delta;
+            //
+            //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+            //              gZstoreController->mTotalCounts, delta, tput);
+            //     {
+            //         gZstoreController->stime =
+            //             std::chrono::high_resolution_clock::now();
+            //         gZstoreController->mTotalCounts = 0;
+            //     }
             sleep(30);
         }
     } else {

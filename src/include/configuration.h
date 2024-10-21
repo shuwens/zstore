@@ -151,7 +151,7 @@ class Configuration
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 4;
+    int gNumHttpThreads = 1;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 2;
