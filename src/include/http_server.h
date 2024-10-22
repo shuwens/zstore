@@ -119,7 +119,9 @@ auto awaitable_on_request(HttpRequest req,
 
         // hardcode entry value for benchmarking
         auto entry =
-            createMapEntry(zctrl_.GetDevTuple(object_key).value(), 0, 0, 0)
+            createMapEntry(zctrl_.GetDevTuple(object_key).value(),
+                           zctrl_.mTotalCounts - 1, zctrl_.mTotalCounts,
+                           zctrl_.mTotalCounts + 1)
                 .value();
 
         // MapEntry entry;

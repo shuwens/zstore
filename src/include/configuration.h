@@ -57,6 +57,8 @@ class Configuration
 
     static int GetNumHttpThreads() { return GetInstance().gNumHttpThreads; }
 
+    static int GetSamplingRate() { return GetInstance().gSamplingRate; }
+
     static bool Verbose() { return GetInstance().gVerbose; }
     static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload; }
     static bool UseObject() { return GetInstance().gUseObject; }
@@ -173,6 +175,9 @@ class Configuration
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 
-    const int current_zone = 0;
+    // 0 means no sampling, 1000 means 1/1000
+    int gSamplingRate = 0;
+
+    const int current_zone = 49;
     // uint32_t gTotalIO = 4'000'000;
 };

@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     opts.name = "Zstore";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = "0x7f";
+    opts.core_mask = "0xff";
     // opts.core_mask = "0x7"; // b, 7, f
     opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
