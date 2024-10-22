@@ -25,6 +25,9 @@
 #include <utility>
 #include <vector>
 
+// int zone_offset = 1808277;
+int zone_offset = 0;
+
 namespace beast = boost::beast;   // from <boost/beast.hpp>
 namespace http = beast::http;     // from <boost/beast/http.hpp>
 namespace net = boost::asio;      // from <boost/asio.hpp>
@@ -42,15 +45,9 @@ void ZstoreController::initHttpThread()
             spdk_thread_create("HttpThread", &cpumask);
         assert(mHttpThread[threadId].thread != nullptr);
         mHttpThread[threadId].controller = this;
-        int rc;
-        if (Configuration::UseDummyWorkload())
-            rc = spdk_env_thread_launch_pinned(
-                Configuration::GetHttpThreadCoreId(threadId), dummyWorker,
-                &mHttpThread[threadId]);
-        else
-            rc = spdk_env_thread_launch_pinned(
-                Configuration::GetHttpThreadCoreId(threadId), httpWorker,
-                &mHttpThread[threadId]);
+        int rc = spdk_env_thread_launch_pinned(
+            Configuration::GetHttpThreadCoreId(threadId), httpWorker,
+            &mHttpThread[threadId]);
         log_info("Http thread name {} id {} on core {}",
                  spdk_thread_get_name(mHttpThread[threadId].thread),
                  spdk_thread_get_id(mHttpThread[threadId].thread),
@@ -61,24 +58,6 @@ void ZstoreController::initHttpThread()
         }
     }
 }
-
-// void ZstoreController::initCompletionThread()
-// {
-//     struct spdk_cpuset cpumask;
-//     spdk_cpuset_zero(&cpumask);
-//     spdk_cpuset_set_cpu(&cpumask, Configuration::GetCompletionThreadCoreId(),
-//                         true);
-//     log_info("Create {} (id {}) on Core {}",
-//              spdk_thread_get_name(mCompletionThread),
-//              spdk_thread_get_id(mCompletionThread),
-//              Configuration::GetCompletionThreadCoreId());
-//     int rc = spdk_env_thread_launch_pinned(
-//         Configuration::GetCompletionThreadCoreId(), completionWorker, this);
-//     if (rc < 0) {
-//         log_error("Failed to launch completion thread, error: {}",
-//                   spdk_strerror(rc));
-//     }
-// }
 
 void ZstoreController::initDispatchThread()
 {
@@ -225,7 +204,6 @@ void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
 
 int ZstoreController::PopulateMap(bool bogus, int key_experiment)
 {
-    int zone_offset = 1808277;
     if (key_experiment == 1) {
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
@@ -377,9 +355,9 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     auto const address = net::ip::make_address("127.0.0.1");
     auto const port = 2000;
-    // auto const num_threads = 8;
 
     // The io_context is required for all I/O
+    // auto const num_threads = 6;
     // net::io_context ioc{num_threads};
 
     // Spawn a listening port
@@ -395,9 +373,6 @@ int ZstoreController::Init(bool object, int key_experiment)
                                   }
                           });
 
-    // A mutex ensures orderly access to std::cout from multiple threads.
-    // std::mutex iomutex;
-    // std::vector<std::thread> threads(num_threads);
     // std::vector<std::jthread> threads(num_threads);
     // for (unsigned i = 0; i < num_threads; ++i) {
     //     threads[i] = std::jthread([&ioc, i, &threads] {
@@ -405,7 +380,7 @@ int ZstoreController::Init(bool object, int key_experiment)
     //         // and mark only CPU i as set.
     //         cpu_set_t cpuset;
     //         CPU_ZERO(&cpuset);
-    //         CPU_SET(i + 4, &cpuset);
+    //         CPU_SET(i + 2, &cpuset);
     //         std::string name = "zstore_ioc" + std::to_string(i + 4);
     //         int rc =
     //             pthread_setname_np(threads[i].native_handle(), name.c_str());
@@ -421,34 +396,6 @@ int ZstoreController::Init(bool object, int key_experiment)
     //         ioc.run();
     //     });
     // }
-
-    // size_t count = 3;
-    // for (int i = 0; i < num_threads; ++i) {
-    //     // threads.emplace_back(std::bind(&asio::io_context::run, &ioc));
-    //     threads.emplace_back([&]() { ioc.run(); });
-    // }
-
-    // std::vector<std::thread> threads(num_threads);
-    // threads.reserve(num_threads);
-    // for (unsigned i = 0; i < num_threads; ++i) {
-    //     threads[i] = std::thread([&ioc, i, &threads] {
-    //         // Create a cpu_set_t object representing a set of CPUs. Clear it
-    //         // and mark only CPU i as set.
-    //         cpu_set_t cpuset;
-    //         CPU_ZERO(&cpuset);
-    //         CPU_SET(i, &cpuset);
-    //         int rc = pthread_setaffinity_np(threads[i].native_handle(),
-    //                                         sizeof(cpu_set_t), &cpuset);
-    //         if (rc != 0) {
-    //             std::cerr << "Error calling pthread_setaffinity_np: " << rc
-    //                       << "\n";
-    //         }
-    //         ioc.run();
-    //     });
-    // }
-
-    // for (unsigned i = 0; i < num_threads; ++i)
-    //     threads.emplace_back([&ioc] { ioc.run(); });
 
     for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
          ++threadId) {

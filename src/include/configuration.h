@@ -151,7 +151,7 @@ class Configuration
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 2;
+    int gNumHttpThreads = 4;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 2;
@@ -173,6 +173,6 @@ class Configuration
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 
-    const int current_zone = 46;
+    const int current_zone = 0;
     // uint32_t gTotalIO = 4'000'000;
 };

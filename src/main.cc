@@ -38,7 +38,8 @@ int main(int argc, char **argv)
     opts.name = "Zstore";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = "0xf";
+    opts.core_mask = "0x7f";
+    // opts.core_mask = "0x7"; // b, 7, f
     opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
         return 1;
@@ -54,33 +55,30 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController(std::ref(ioc));
     gZstoreController->Init(false, key_experiment);
 
-    log_debug("XXXX");
-
-    // gZstoreController->mIoc_.run();
-
     if (!Configuration::UseDummyWorkload()) {
         log_info("Starting HTTP server with port 2000!\n");
 
+        gZstoreController->mIoc_.run();
         // FIXME only tput on Zstore2Dev1
-        while (1) {
-            //     auto etime = std::chrono::high_resolution_clock::now();
-            //     auto delta =
-            //     std::chrono::duration_cast<std::chrono::microseconds>(
-            //                      etime - gZstoreController->stime)
-            //                      .count();
-            //     auto tput =
-            //         gZstoreController->mTotalCounts * g_micro_to_second /
-            //         delta;
-            //
-            //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-            //              gZstoreController->mTotalCounts, delta, tput);
-            //     {
-            //         gZstoreController->stime =
-            //             std::chrono::high_resolution_clock::now();
-            //         gZstoreController->mTotalCounts = 0;
-            //     }
-            sleep(30);
-        }
+        // while (1) {
+        //     auto etime = std::chrono::high_resolution_clock::now();
+        //     auto delta =
+        //     std::chrono::duration_cast<std::chrono::microseconds>(
+        //                      etime - gZstoreController->stime)
+        //                      .count();
+        //     auto tput =
+        //         gZstoreController->mTotalCounts * g_micro_to_second /
+        //         delta;
+        //
+        //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+        //              gZstoreController->mTotalCounts, delta, tput);
+        //     {
+        //         gZstoreController->stime =
+        //             std::chrono::high_resolution_clock::now();
+        //         gZstoreController->mTotalCounts = 0;
+        //     }
+        // sleep(30);
+        // }
     } else {
         sleep(10);
     }
