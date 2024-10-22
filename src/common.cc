@@ -1,21 +1,7 @@
 #include "include/common.h"
 #include "include/configuration.h"
 #include "include/device.h"
-#include "include/global.h"
 #include "include/zstore_controller.h"
-#include "spdk/thread.h"
-#include <boost/asio/use_awaitable.hpp>
-#include <cassert>
-#include <cstdlib>
-#include <isa-l.h>
-#include <sched.h>
-#include <shared_mutex>
-#include <spdk/event.h>
-#include <spdk/nvme.h>
-#include <spdk/nvme_zns.h>
-#include <sys/time.h>
-#include <tuple>
-#include <utility>
 
 std::shared_mutex g_shared_mutex_;
 

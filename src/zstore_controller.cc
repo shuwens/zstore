@@ -4,26 +4,8 @@
 #include "include/device.h"
 #include "include/global.h"
 #include "include/http_server.h"
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/use_awaitable.hpp>
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/http/message.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/config.hpp>
-#include <cassert>
-#include <cstdlib>
-#include <fmt/core.h>
-#include <shared_mutex>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
-#include <string>
-#include <thread>
-#include <utility>
-#include <vector>
 
 int zone_offset = 1808277;
 // int zone_offset = 0;

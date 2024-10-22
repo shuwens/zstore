@@ -1,5 +1,4 @@
 #pragma once
-// #include "device.h"
 #include "utils.h"
 #include <boost/beast/http.hpp>
 #include <fmt/chrono.h>
@@ -17,7 +16,7 @@ struct Timer {
     chrono_tp t4;
     chrono_tp t5;
     chrono_tp t6;
-    bool check;
+    // bool check;
 };
 
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
