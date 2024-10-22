@@ -2,68 +2,171 @@
 #include "include/configuration.h"
 #include "include/device.h"
 #include "include/zstore_controller.h"
+#include "spdk/nvme_zns.h"
 
 std::shared_mutex g_shared_mutex_;
 
-void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
+// Zone append operations.
+//
+// Inst wrapper for zone append provides instrumentation for latency tracking.
+
+void spdk_nvme_zone_append_wrapper(
+    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
+    uint32_t flags,
+    std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    if (spdk_thread_send_msg(thread, fn, args) < 0) {
-        log_error("Thread send message failed: thread_name {}.",
-                  spdk_thread_get_name(thread));
-        exit(-1);
+    auto cb_heap = new decltype(cb)(std::move(cb));
+    auto fn = new std::move_only_function<void(void)>([=]() {
+        int rc = spdk_nvme_zns_zone_append(
+            ns, qpair, data, offset, size,
+            [](void *arg, const spdk_nvme_cpl *completion) mutable {
+                auto cb3 = reinterpret_cast<decltype(cb_heap)>(arg);
+                (*cb3)(completion);
+                delete cb3;
+            },
+            (void *)(cb_heap), flags);
+        // assert(rc == 0);
+    });
+    thread_send_msg(
+        thread,
+        [](void *fn2) {
+            auto rc = reinterpret_cast<decltype(fn)>(fn2);
+            (*rc)();
+            delete rc;
+        },
+        fn);
+}
+
+auto spdk_nvme_zone_append_async(
+    struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
+    uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
+{
+    auto init = [](auto completion_handler, spdk_thread *thread,
+                   spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
+                   uint64_t offset, uint32_t size, uint32_t flags) {
+        spdk_nvme_zone_append_wrapper(thread, ns, qpair, data, offset, size,
+                                      flags, std::move(completion_handler));
+    };
+
+    return net::async_initiate<decltype(net::use_awaitable),
+                               void(const spdk_nvme_cpl *)>(
+        init, net::use_awaitable, thread, ns, qpair, data, offset, size, flags);
+}
+
+// Instrumentation for zone append
+void spdk_nvme_zone_append_wrapper_inst(
+    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
+    uint32_t flags,
+    std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
+{
+    auto cb_heap = new std::pair<
+        std::move_only_function<void(const spdk_nvme_cpl *completion)>,
+        Timer &>(decltype(cb)(std::move(cb)), timer);
+    auto fn = new std::move_only_function<void(void)>([=, &timer]() {
+        timer.t4 = std::chrono::high_resolution_clock::now();
+        int rc = spdk_nvme_zns_zone_append(
+            ns, qpair, data, offset, size,
+            [](void *arg, const spdk_nvme_cpl *completion) mutable {
+                auto tuple_ = reinterpret_cast<decltype(cb_heap)>(arg);
+                auto &cb3 = tuple_->first;
+                tuple_->second.t5 = std::chrono::high_resolution_clock::now();
+                (cb3)(completion);
+                delete tuple_;
+            },
+            (void *)(cb_heap), flags);
+        // assert(rc == 0);
+    });
+    thread_send_msg(
+        thread,
+        [](void *fn2) {
+            auto rc = reinterpret_cast<decltype(fn)>(fn2);
+            (*rc)();
+            delete rc;
+        },
+        fn);
+}
+
+auto spdk_nvme_zone_append_async_inst(
+    Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
+    struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
+    uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
+{
+    timer.t2 = std::chrono::high_resolution_clock::now();
+    auto init = [](auto completion_handler, Timer *timer, spdk_thread *thread,
+                   spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
+                   uint64_t offset, uint32_t size, uint32_t flags) {
+        timer->t3 = std::chrono::high_resolution_clock::now();
+        spdk_nvme_zone_append_wrapper_inst(*timer, thread, ns, qpair, data,
+                                           offset, size, flags,
+                                           std::move(completion_handler));
+    };
+
+    return net::async_initiate<decltype(net::use_awaitable),
+                               void(const spdk_nvme_cpl *)>(
+        init, net::use_awaitable, &timer, thread, ns, qpair, data, offset, size,
+        flags);
+}
+
+auto zoneAppend(void *arg1) -> net::awaitable<void>
+{
+    RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
+    auto ioCtx = ctx->ioContext;
+    int rc = 0;
+    assert(ctx->ctrl != nullptr);
+
+    Timer timer;
+    const spdk_nvme_cpl *cpl;
+    if (Configuration::GetSamplingRate() > 0) {
+        timer.t1 = std::chrono::high_resolution_clock::now();
+        cpl = co_await spdk_nvme_zone_append_async_inst(
+            timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data,
+            ioCtx.offset, ioCtx.size, ioCtx.flags);
+        timer.t6 = std::chrono::high_resolution_clock::now();
+
+        if (ctx->ctrl->mTotalCounts % Configuration::GetSamplingRate() == 0)
+            log_debug(
+                "t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, t5-t4 {}us, t6-t5 {}us ",
+                tdiff_us(timer.t2, timer.t1), tdiff_us(timer.t3, timer.t2),
+                tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
+                tdiff_us(timer.t6, timer.t5));
+    } else {
+        cpl = co_await spdk_nvme_zone_append_async(
+            ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
+            ioCtx.size, ioCtx.flags);
     }
-}
-
-int handleHttpRequest(void *args)
-{
-    bool busy = false;
-    ZstoreController *ctrl = (ZstoreController *)args;
-    while (ctrl->mIoc_.poll()) {
-        busy = true;
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        log_error("I/O error status: {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        // fprintf(stderr, "I/O failed, aborting run\n");
+        // assert(0);
+        // exit(1);
+        log_debug("Unimplemented: put context back in pool");
     }
 
-    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-}
-
-int httpWorker(void *args)
-{
-    IoThread *httpThread = (IoThread *)args;
-    struct spdk_thread *thread = httpThread->thread;
-    ZstoreController *ctrl = httpThread->controller;
-    spdk_set_thread(thread);
-    spdk_poller *p;
-    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
-    ctrl->SetHttpPoller(p);
-    while (true) {
-        spdk_thread_poll(thread, 0, 0);
+    if (ctx->is_write) {
+        // TODO: 1. update entry with LBA
+        // TODO: 2. what do we return in response
+        ctx->write_complete = true;
+        ctx->append_lba = cpl->cdw0;
+        // slot->write_fn(slot->request, slot->entry);
+    } else {
+        // For read, we swap the read date into the request body
+        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+        // slot->request.body() = body;
+        //
+        // slot->read_fn(slot->request);
     }
+
+    ctx->ctrl->mTotalCounts++;
+    assert(ctx->ctrl != nullptr);
 }
 
-static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
-                                     void *poll_group_ctx)
-{
-}
-
-int handleIoCompletions(void *args)
-{
-    struct spdk_nvme_poll_group *pollGroup =
-        (struct spdk_nvme_poll_group *)args;
-    int r = 0;
-    r = spdk_nvme_poll_group_process_completions(pollGroup, 0,
-                                                 dummy_disconnect_handler);
-    return r > 0 ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
-}
-
-int ioWorker(void *args)
-{
-    IoThread *ioThread = (IoThread *)args;
-    struct spdk_thread *thread = ioThread->thread;
-    spdk_set_thread(thread);
-    spdk_poller_register(handleIoCompletions, ioThread->group, 0);
-    while (true) {
-        spdk_thread_poll(thread, 0, 0);
-    }
-}
+// Zone read operations.
+//
+// Inst wrapper for zone read provides instrumentation for latency tracking.
 
 void spdk_nvme_zone_read_wrapper(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
@@ -218,6 +321,66 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
+}
+
+void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
+{
+    if (spdk_thread_send_msg(thread, fn, args) < 0) {
+        log_error("Thread send message failed: thread_name {}.",
+                  spdk_thread_get_name(thread));
+        exit(-1);
+    }
+}
+
+int handleHttpRequest(void *args)
+{
+    bool busy = false;
+    ZstoreController *ctrl = (ZstoreController *)args;
+    while (ctrl->mIoc_.poll()) {
+        busy = true;
+    }
+
+    return busy ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
+int httpWorker(void *args)
+{
+    IoThread *httpThread = (IoThread *)args;
+    struct spdk_thread *thread = httpThread->thread;
+    ZstoreController *ctrl = httpThread->controller;
+    spdk_set_thread(thread);
+    spdk_poller *p;
+    p = spdk_poller_register(handleHttpRequest, ctrl, 0);
+    ctrl->SetHttpPoller(p);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
+}
+
+static void dummy_disconnect_handler(struct spdk_nvme_qpair *qpair,
+                                     void *poll_group_ctx)
+{
+}
+
+int handleIoCompletions(void *args)
+{
+    struct spdk_nvme_poll_group *pollGroup =
+        (struct spdk_nvme_poll_group *)args;
+    int r = 0;
+    r = spdk_nvme_poll_group_process_completions(pollGroup, 0,
+                                                 dummy_disconnect_handler);
+    return r > 0 ? SPDK_POLLER_BUSY : SPDK_POLLER_IDLE;
+}
+
+int ioWorker(void *args)
+{
+    IoThread *ioThread = (IoThread *)args;
+    struct spdk_thread *thread = ioThread->thread;
+    spdk_set_thread(thread);
+    spdk_poller_register(handleIoCompletions, ioThread->group, 0);
+    while (true) {
+        spdk_thread_poll(thread, 0, 0);
+    }
 }
 
 int handleSubmit(void *args)
@@ -618,7 +781,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     // Request is read
     slot->is_write = false;
     // slot->target_dev = false;
-    slot->request = std::move(request);
+    // slot->request = std::move(request);
     // slot->read_fn = closure;
     // assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
@@ -628,7 +791,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 }
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          HttpRequest request, MapEntry entry)
+                                          HttpRequest request)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
@@ -647,9 +810,9 @@ Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
 
     // Write request
     slot->is_write = true;
-    slot->request = std::move(request);
+    // slot->request = std::move(request);
     // slot->write_fn = closure;
-    slot->entry = std::move(entry);
+    // slot->entry = std::move(entry);
     // assert(slot->ioContext.cb != nullptr);
     assert(slot->ctrl != nullptr);
 

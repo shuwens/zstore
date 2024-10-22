@@ -2,19 +2,13 @@
 #include "types.h"
 #include "utils.h"
 #include <boost/asio/awaitable.hpp>
-// #include <boost/asio/dispatch.hpp>
-// #include <boost/asio/strand.hpp>
-// #include <boost/beast/core.hpp>
-// #include <boost/beast/http.hpp>
-// #include <boost/beast/version.hpp>
-// #include <boost/config.hpp>
 #include <boost/unordered/concurrent_flat_map.hpp>
 #include <boost/unordered/concurrent_flat_set.hpp>
 #include <cstring>
 #include <queue>
 #include <shared_mutex>
-#include <spdk/env.h>    // Include SPDK's environment header
-#include <spdk/thread.h> // Include SPDK's environment header
+#include <spdk/env.h>
+#include <spdk/thread.h>
 #include <unistd.h>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
@@ -125,13 +119,13 @@ class ZstoreController
                            enum spdk_nvme_qprio qprio);
 
     // TODO:
-    void Append(uint64_t zslba, uint32_t size, void *data, void *cb_args);
+    // void Append(uint64_t zslba, uint32_t size, void *data, void *cb_args);
     //
     // void Write(uint64_t offset, uint32_t size, void *data,
     //            zns_raid_request_complete cb_fn, void *cb_args);
     //
-    Result<void> Read(uint64_t offset, Device *dev, HttpRequest request,
-                      std::function<void(HttpRequest)> fn);
+    // Result<void> Read(uint64_t offset, Device *dev, HttpRequest request,
+    //                   std::function<void(HttpRequest)> fn);
     //
     // void Execute(uint64_t offset, uint32_t size, void *data, bool
     // is_write,
@@ -139,8 +133,8 @@ class ZstoreController
 
     void Drain();
 
-    net::awaitable<void> EnqueueRead(RequestContext *ctx);
-    void EnqueueWrite(RequestContext *ctx);
+    // net::awaitable<void> EnqueueRead(RequestContext *ctx);
+    // void EnqueueWrite(RequestContext *ctx);
     std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
     int GetWriteQueueSize() { return mWriteQueue.size(); };
     std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
@@ -166,12 +160,12 @@ class ZstoreController
     void Flush();
     void Dump();
 
-    bool Append(RequestContext *ctx, uint32_t offset);
+    // bool Append(RequestContext *ctx, uint32_t offset);
     // bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
     void Reset(RequestContext *ctx);
     bool IsResetDone();
-    void WriteComplete(RequestContext *ctx);
-    void ReadComplete(RequestContext *ctx);
+    // void WriteComplete(RequestContext *ctx);
+    // void ReadComplete(RequestContext *ctx);
 
     void AddZone(Zone *zone);
     const std::vector<Zone *> &GetZones();

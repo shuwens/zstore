@@ -522,33 +522,34 @@ void ZstoreController::cleanup(uint32_t task_count)
     // spdk_mempool_free(mTaskPool);
 }
 
-Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest req_,
-                                    std::function<void(HttpRequest)> closure)
-{
-    // RequestContext *slot =
-    // mRequestContextPool->GetRequestContext(true); slot->ctrl = this;
-    // assert(slot->ctrl == this);
-    //
-    // auto ioCtx = slot->ioContext;
-    // ioCtx.ns = dev->GetNamespace();
-    // ioCtx.qpair = dev->GetIoQueue(0);
-    // ioCtx.data = slot->dataBuffer;
-    // ioCtx.offset = Configuration::GetZslba() + offset;
-    // ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    // ioCtx.cb = complete;
-    // ioCtx.ctx = slot;
-    // ioCtx.flags = 0;
-    // slot->ioContext = ioCtx;
-    //
-    // slot->request = std::move(req_);
-    // // slot->read_fn = closure;
-    // assert(slot->ioContext.cb != nullptr);
-    // assert(slot->ctrl != nullptr);
-    // {
-    //     // std::unique_lock lock(mRequestQueueMutex);
-    //     EnqueueRead(slot);
-    // }
-}
+// Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest
+// req_,
+//                                     std::function<void(HttpRequest)> closure)
+// {
+// RequestContext *slot =
+// mRequestContextPool->GetRequestContext(true); slot->ctrl = this;
+// assert(slot->ctrl == this);
+//
+// auto ioCtx = slot->ioContext;
+// ioCtx.ns = dev->GetNamespace();
+// ioCtx.qpair = dev->GetIoQueue(0);
+// ioCtx.data = slot->dataBuffer;
+// ioCtx.offset = Configuration::GetZslba() + offset;
+// ioCtx.size = Configuration::GetDataBufferSizeInSector();
+// ioCtx.cb = complete;
+// ioCtx.ctx = slot;
+// ioCtx.flags = 0;
+// slot->ioContext = ioCtx;
+//
+// slot->request = std::move(req_);
+// // slot->read_fn = closure;
+// assert(slot->ioContext.cb != nullptr);
+// assert(slot->ctrl != nullptr);
+// {
+//     // std::unique_lock lock(mRequestQueueMutex);
+//     EnqueueRead(slot);
+// }
+// }
 
 // net::awaitable<void> ZstoreController::EnqueueRead(RequestContext *ctx)
 // {

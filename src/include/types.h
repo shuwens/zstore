@@ -96,15 +96,13 @@ struct RequestContext {
     } ioContext;
     uint32_t bufferSize; // for recording partial writes
 
-    HttpRequest request;
-    bool keep_alive;
+    // HttpRequest request;
+    // bool keep_alive;
 
-    // closure
+    // For write append
     bool is_write;
     bool write_complete;
-    MapEntry entry;
-    // std::function<void(HttpRequest)> read_fn;
-    // std::function<void(HttpRequest, MapEntry)> write_fn;
+    uint64_t append_lba;
 
     void Clear();
     void Queue();

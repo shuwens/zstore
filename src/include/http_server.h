@@ -3,20 +3,8 @@
 #include "common.h"
 #include "types.h"
 #include "zstore_controller.h"
-// #include <boost/asio.hpp>
-// #include <boost/asio/awaitable.hpp>
-// #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
-// #include <boost/asio/ip/tcp.hpp>
-// #include <boost/asio/use_awaitable.hpp>
-// #include <boost/beast/core.hpp>
-// #include <boost/beast/http.hpp>
-// #include <boost/beast/http/message.hpp>
-// #include <boost/beast/version.hpp>
-// #include <boost/config.hpp>
-// #include <fmt/core.h>
 #include <functional>
-// #include <iostream>
 
 using namespace boost::asio::experimental::awaitable_operators;
 
@@ -29,83 +17,6 @@ using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
     net::use_awaitable_t<>::executor_with_default<net::any_io_executor>>::other;
 
 //------------------------------------------------------------------------------
-
-//         if (req_.method() == http::verb::get) {
-//             // NOTE: READ path: see section 3.4
-//             auto object_key = req_.target();
-//
-//             if (zctrl_.SearchBF(object_key).value()) {
-//                 log_info("Object {} is recently modified", object_key);
-//                 log_error("Unimplemented!!!");
-//             }
-//
-//         } else if (req_.method() == http::verb::post ||
-//                    req_.method() == http::verb::put) {
-//             // NOTE: Write path: see section 3.3
-//
-//             auto object_key = req_.target();
-//             auto object_value = req_.body();
-//             // log_debug("key {}, value {}", req_.target(), req_.body());
-//
-//             // TODO:  populate the map with consistent hashes
-//             auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
-//             auto entry = zctrl_.CreateObject(object_key, dev_tuple);
-//             assert(entry.has_value());
-//
-//             if (!zctrl_.isDraining &&
-//                 zctrl_.mRequestContextPool->availableContexts.size() > 0)
-//                 { if (!zctrl_.start) {
-//                     zctrl_.start = true;
-//                     zctrl_.stime =
-//                     std::chrono::high_resolution_clock::now();
-//                 }
-//                 // if (zctrl_.verbose)
-//                 // log_debug("222");
-//
-//                 auto closure_ = [this, self = shared_from_this()](
-//                                     HttpRequest req_, MapEntry entry) {
-//                     auto object_key = req_.target();
-//
-//                     // update lba in map
-//                     auto rc = zctrl_.PutObject(object_key,
-//                     entry).value();
-//                     // FIXME:we need to handle the failure
-//                     // assert(rc == true);
-//                     // if (rc == false)
-//                     //     log_debug("Inserting object {} failed",
-//                     object_key);
-//
-//                     // update and broadcast BF
-//                     auto rc2 = zctrl_.UpdateBF(object_key);
-//                     assert(rc2.has_value());
-//
-//                     // send ack back to client
-//                     http::message_generator msg =
-//                         handle_request(std::move(req_));
-//                     bool keep_alive = msg.keep_alive();
-//                     beast::async_write(stream_, std::move(msg),
-//                                        beast::bind_front_handler(
-//                                            &session::on_write,
-//                                            shared_from_this(),
-//                                            keep_alive));
-//                 };
-//
-//                 auto slot = MakeWriteRequest(
-//                     &zctrl_, zctrl_.GetDevice(entry.value().first_tgt()),
-//                     req_, entry.value(), closure_);
-//
-//                 assert(slot.has_value());
-//                 {
-//                     std::unique_lock lock(zctrl_.GetRequestQueueMutex());
-//                     zctrl_.EnqueueWrite(slot.value());
-//                 }
-//                 if (zctrl_.verbose)
-//                     log_debug("666");
-//             }
-//         } else {
-//             log_error("Request is not a supported operation\n");
-//         }
-//     }
 
 /* This function implements the core logic of async
  */
@@ -124,38 +35,90 @@ auto awaitable_on_request(HttpRequest req,
                            zctrl_.mTotalCounts + 1)
                 .value();
 
+        if (zctrl_.SearchBF(object_key).value()) {
+            log_info("Object {} is recently modified", object_key);
+            log_error("Unimplemented!!!");
+        }
+
         // MapEntry entry;
         // auto rc = zctrl_.GetObject(object_key, entry).value();
         // assert(rc == true);
         if (!zctrl_.isDraining &&
-            zctrl_.mRequestContextPool->availableContexts.size() > 3) {
-
-            // if (!zctrl_.isDraining &&
-            //     zctrl_.mRequestContextPool->availableContexts.size() > 0) {
-            //     if (!zctrl_.start) {
-            //         zctrl_.start = true;
-            //         zctrl_.stime = std::chrono::high_resolution_clock::now();
-            //     }
-            //
-            // entry.first_tgt());
-
+            zctrl_.mRequestContextPool->availableContexts.size() > 1) {
             // log_debug("entry: {} {} {}", entry.first_tgt(),
             // entry.second_tgt(),
             //           entry.third_tgt());
 
             auto dev1 = zctrl_.GetDevice(entry.first_tgt());
-            auto dev2 = zctrl_.GetDevice(entry.second_tgt());
-            auto dev3 = zctrl_.GetDevice(entry.third_tgt());
+            // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
+            // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
 
             auto s1 =
                 MakeReadRequest(&zctrl_, dev1, entry.first_lba(), req).value();
-            auto s2 =
-                MakeReadRequest(&zctrl_, dev2, entry.second_lba(), req).value();
-            auto s3 =
-                MakeReadRequest(&zctrl_, dev3, entry.third_lba(), req).value();
+            // auto s2 =
+            //     MakeReadRequest(&zctrl_, dev2, entry.second_lba(),
+            //     req).value();
+            // auto s3 =
+            //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
+            //     req).value();
+
+            co_await zoneRead(s1);
+            // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
+
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            // s2->Clear();
+            // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+            // s3->Clear();
+            // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+
+            co_return handle_request(std::move(req));
+        } else {
+            log_error("Draining or not enough contexts");
+        }
+
+    } else if (req.method() == http::verb::post ||
+               req.method() == http::verb::put) {
+        // NOTE: Write path: see section 3.3
+        auto object_key = req.target();
+        auto object_value = req.body();
+        // log_debug("key {}, value {}", req_.target(), req_.body());
+
+        // TODO:  populate the map with consistent hashes
+        auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
+        auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
+
+        if (!zctrl_.isDraining &&
+            zctrl_.mRequestContextPool->availableContexts.size() > 3) {
+            if (!zctrl_.start) {
+                zctrl_.start = true;
+                zctrl_.stime = std::chrono::high_resolution_clock::now();
+            }
+
+            // update lba in map
+            auto rc = zctrl_.PutObject(object_key, entry).value();
+            // FIXME:we need to handle the failure
+            // assert(rc == true);
+            // if (rc == false)
+            //     log_debug("Inserting object {} failed ", object_key);
+
+            // update and broadcast BF
+            auto rc2 = zctrl_.UpdateBF(object_key);
+            assert(rc2.has_value());
+
+            auto dev1 = zctrl_.GetDevice(entry.first_tgt());
+            auto dev2 = zctrl_.GetDevice(entry.second_tgt());
+            auto dev3 = zctrl_.GetDevice(entry.third_tgt());
+
+            // auto slot = MakeWriteRequest(
+            //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req, entry);
+
+            auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
+            auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
+            auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
 
             // co_await zoneRead(s1);
-            co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
+            co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
@@ -163,16 +126,15 @@ auto awaitable_on_request(HttpRequest req,
             zctrl_.mRequestContextPool->ReturnRequestContext(s2);
             s3->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+
+            // if (zctrl_.verbose)
+            //     log_debug("666");
+            co_return handle_request(std::move(req));
         }
-        co_return handle_request(std::move(req));
     } else {
-        // log_debug("HTTP method is not implemented yet!!!");
-        // HttpMsg msg = handle_request(std::move(req));
-        // co_return msg;
+        log_error("Request is not a supported operation\n");
         co_return handle_request(std::move(req));
     }
-
-    // co_return co_await async_add(arg1, arg2, net::use_awaitable);
 }
 
 // Handles an HTTP server connection
