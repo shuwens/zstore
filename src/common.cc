@@ -16,8 +16,14 @@ void spdk_nvme_zone_append_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
+    log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
+        // rc = spdk_nvme_zns_zone_append(entry->nvme.ns, worker->ns_ctx->qpair,
+        //                                task->buf, zslba,
+        //                                entry->io_size_blocks, io_complete,
+        //                                task, 0);
+
         int rc = spdk_nvme_zns_zone_append(
             ns, qpair, data, offset, size,
             [](void *arg, const spdk_nvme_cpl *completion) mutable {
@@ -26,7 +32,7 @@ void spdk_nvme_zone_append_wrapper(
                 delete cb3;
             },
             (void *)(cb_heap), flags);
-        // assert(rc == 0);
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -43,6 +49,7 @@ auto spdk_nvme_zone_append_async(
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
 {
+    log_debug("1111");
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
@@ -133,6 +140,7 @@ auto zoneAppend(void *arg1) -> net::awaitable<void>
                 tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
                 tdiff_us(timer.t6, timer.t5));
     } else {
+        log_debug("1111");
         cpl = co_await spdk_nvme_zone_append_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
             ioCtx.size, ioCtx.flags);
@@ -174,8 +182,8 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
+    log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
-
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(
             ns, qpair, data, offset, size,

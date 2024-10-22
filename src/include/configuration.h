@@ -153,7 +153,7 @@ class Configuration
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 1;
+    int gNumHttpThreads = 2;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 2;
@@ -178,6 +178,6 @@ class Configuration
     // 0 means no sampling, 1000 means 1/1000
     int gSamplingRate = 0;
 
-    const int current_zone = 49;
+    const int current_zone = 50;
     // uint32_t gTotalIO = 4'000'000;
 };
