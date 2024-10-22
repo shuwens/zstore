@@ -143,7 +143,6 @@ class Configuration
     // Hardcode because they won't change
     const uint64_t gZoneDist = 0x80000; // zone size
 
-    bool gVerbose = false;
     bool gUseObject = false;
     bool gUseDummyWorkload = false;
     bool gUseHttp = true;
@@ -153,7 +152,7 @@ class Configuration
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 2;
+    int gNumHttpThreads = 1;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 2;
@@ -178,6 +177,9 @@ class Configuration
     // 0 means no sampling, 1000 means 1/1000
     int gSamplingRate = 0;
 
-    const int current_zone = 50;
+    const int current_zone = 80;
+
+    bool gVerbose = false; // this will turn on all logs
+    bool gDebug = false;   // this will turn on all checks
     // uint32_t gTotalIO = 4'000'000;
 };

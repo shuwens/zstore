@@ -16,7 +16,7 @@ void spdk_nvme_zone_append_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    log_debug("1111: offset {}, size {}", offset, size);
+    // log_debug("APPEND: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         // rc = spdk_nvme_zns_zone_append(entry->nvme.ns, worker->ns_ctx->qpair,
@@ -49,7 +49,7 @@ auto spdk_nvme_zone_append_async(
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags) -> net::awaitable<const spdk_nvme_cpl *>
 {
-    log_debug("1111");
+    // log_debug("1111");
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
@@ -140,7 +140,7 @@ auto zoneAppend(void *arg1) -> net::awaitable<void>
                 tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
                 tdiff_us(timer.t6, timer.t5));
     } else {
-        log_debug("1111");
+        // log_debug("1111");
         cpl = co_await spdk_nvme_zone_append_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
             ioCtx.size, ioCtx.flags);
@@ -154,19 +154,10 @@ auto zoneAppend(void *arg1) -> net::awaitable<void>
         log_debug("Unimplemented: put context back in pool");
     }
 
-    if (ctx->is_write) {
-        // TODO: 1. update entry with LBA
-        // TODO: 2. what do we return in response
-        ctx->write_complete = true;
-        ctx->append_lba = cpl->cdw0;
-        // slot->write_fn(slot->request, slot->entry);
-    } else {
-        // For read, we swap the read date into the request body
-        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-        // slot->request.body() = body;
-        //
-        // slot->read_fn(slot->request);
-    }
+    // TODO: 1. update entry with LBA
+    // TODO: 2. what do we return in response
+    ctx->write_complete = true;
+    ctx->append_lba = cpl->cdw0;
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
@@ -182,7 +173,7 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    log_debug("1111: offset {}, size {}", offset, size);
+    // log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(
@@ -313,19 +304,12 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
         log_debug("Unimplemented: put context back in pool");
     }
 
-    if (ctx->is_write) {
-        // TODO: 1. update entry with LBA
-        // TODO: 2. what do we return in response
-        ctx->write_complete = true;
-        ctx->lba = cpl->cdw0;
-        // slot->write_fn(slot->request, slot->entry);
-    } else {
-        // For read, we swap the read date into the request body
-        // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-        // slot->request.body() = body;
-        //
-        // slot->read_fn(slot->request);
-    }
+    // For read, we swap the read date into the request body
+    // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+    // slot->request.body() = body;
+    //
+    // slot->read_fn(slot->request);
+    // }
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
@@ -596,16 +580,12 @@ void RequestContext::Clear()
     cb_args = nullptr;
     curOffset = 0;
     ioOffset = 0;
-    // status = WRITE_COMPLETE; // added for clean operation
 
     timestamp = ~0ull;
-
-    // append = false;
 
     // associatedRequests.clear(); // = nullptr;
     // associatedStripe = nullptr;
     // associatedRead = nullptr;
-    // ctrl = nullptr;
 
     successBytes = 0;
     targetBytes = 0;
@@ -771,8 +751,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
-    assert(slot->ctrl == zctrl_);
-    // log_debug("11111");
+    // assert(slot->ctrl == zctrl_);
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();
@@ -780,20 +759,11 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba() + offset;
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    // ioCtx.cb = complete;
-    // ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
     slot->io_thread = zctrl_->GetIoThread(0);
-    // Request is read
     slot->is_write = false;
-    // slot->target_dev = false;
-    // slot->request = std::move(request);
-    // slot->read_fn = closure;
-    // assert(slot->ioContext.cb != nullptr);
-    assert(slot->ctrl != nullptr);
-    // log_debug("11111");
 
     return slot;
 }
@@ -803,7 +773,7 @@ Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
-    assert(slot->ctrl == zctrl_);
+    // assert(slot->ctrl == zctrl_);
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();
@@ -811,18 +781,11 @@ Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZslba();
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
-    // ioCtx.cb = complete;
-    // ioCtx.ctx = slot;
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
-    // Write request
     slot->is_write = true;
-    // slot->request = std::move(request);
-    // slot->write_fn = closure;
-    // slot->entry = std::move(entry);
-    // assert(slot->ioContext.cb != nullptr);
-    assert(slot->ctrl != nullptr);
+    slot->io_thread = zctrl_->GetIoThread(0);
 
     return slot;
 }

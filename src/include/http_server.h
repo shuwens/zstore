@@ -41,8 +41,10 @@ auto awaitable_on_request(HttpRequest req,
         // assert(rc == true);
         if (!zctrl_.isDraining &&
             zctrl_.mRequestContextPool->availableContexts.size() > 1) {
-            log_debug("entry: {} {} {}", entry.first_tgt(), entry.second_tgt(),
-                      entry.third_tgt());
+
+            if (zctrl_.verbose)
+                log_debug("entry: {} {} {}", entry.first_tgt(),
+                          entry.second_tgt(), entry.third_tgt());
 
             auto dev1 = zctrl_.GetDevice(entry.first_tgt());
             // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
@@ -77,13 +79,17 @@ auto awaitable_on_request(HttpRequest req,
         // NOTE: Write path: see section 3.3
         auto object_key = req.target();
         auto object_value = req.body();
-        // log_debug("key {}, value {}", req_.target(), req_.body());
+
+        if (zctrl_.verbose)
+            log_debug("key {}, value {}", req.target(), req.body());
 
         // TODO:  populate the map with consistent hashes
         auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
         auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
-        log_debug("entry: {} {} {}", entry.first_tgt(), entry.second_tgt(),
-                  entry.third_tgt());
+
+        if (zctrl_.verbose)
+            log_debug("entry: {} {} {}", entry.first_tgt(), entry.second_tgt(),
+                      entry.third_tgt());
 
         if (!zctrl_.isDraining &&
             zctrl_.mRequestContextPool->availableContexts.size() > 3) {
@@ -92,7 +98,8 @@ auto awaitable_on_request(HttpRequest req,
             //     zctrl_.stime = std::chrono::high_resolution_clock::now();
             // }
 
-            log_debug("1111");
+            if (zctrl_.verbose)
+                log_debug("1111");
             // update lba in map
             auto rc = zctrl_.PutObject(object_key, entry).value();
             // FIXME:we need to handle the failure
@@ -100,12 +107,14 @@ auto awaitable_on_request(HttpRequest req,
             // if (rc == false)
             //     log_debug("Inserting object {} failed ", object_key);
 
-            log_debug("2222");
+            if (zctrl_.verbose)
+                log_debug("2222");
             // update and broadcast BF
             auto rc2 = zctrl_.UpdateBF(object_key);
             assert(rc2.has_value());
 
-            log_debug("3333");
+            if (zctrl_.verbose)
+                log_debug("3333");
             auto dev1 = zctrl_.GetDevice(entry.first_tgt());
             auto dev2 = zctrl_.GetDevice(entry.second_tgt());
             auto dev3 = zctrl_.GetDevice(entry.third_tgt());
@@ -113,16 +122,19 @@ auto awaitable_on_request(HttpRequest req,
             // auto slot = MakeWriteRequest(
             //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req, entry);
 
-            log_debug("44444");
+            if (zctrl_.verbose)
+                log_debug("44444");
             auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
             auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
             auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
 
-            log_debug("5555");
-            co_await zoneAppend(s1);
-            // co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+            if (zctrl_.verbose)
+                log_debug("5555");
+            // co_await zoneAppend(s1);
+            co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
-            log_debug("6666");
+            if (zctrl_.verbose)
+                log_debug("6666");
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
             s2->Clear();
