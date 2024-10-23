@@ -11,31 +11,38 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - name: Setup dependencies
-        run: |
-          sudo apt update -y
-          sudo apt install -y build-essential python3-pip libacl1-dev libattr1-dev libgtkmm-3.0-dev libnautilus-extension-dev gettext ninja-build
-          pip3 install --user meson
-      - name: Setup meson
-        run: |
-          mkdir build
-          cd build && meson ..
-      - name: Build
-        working-directory: ./build
-        run: meson compile
-      - name: Test distributable
-        working-directory: ./build
-        run: meson dist
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Install cross compile tools
         run: |
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
           echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
           sudo apt-get update
-          sudo apt-get install llvm-18 clang-18 lld-18 -y
+          sudo apt-get install llvm-18 clang-18 lld-18 libnuma-dev -y
       - name: install deps
         run: make install-deps
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: python -m pip install meson=="1.4.0" ninja
+      - name: Configure Project
+        run: meson setup builddir/
+        env:
+          CC: gcc
+      - name: Run Tests
+        run: meson test -C builddir/ -v
+      - name: Upload Test Log
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ubuntu_latest_Meson_Testlog
+          path: builddir/meson-logs/testlog.txt
+
+      - uses: actions/checkout@v4
       - name: install boost
         run: make install-boost
       - name: setup
