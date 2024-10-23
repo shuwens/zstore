@@ -1,0 +1,29 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "next" ]
+  pull_request:
+    branches: [ "next" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install cross compile tools
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
+        echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install llvm-18 clang-18 lld-18 -y
+
+    - name: install deps
+      run: make install-deps
+    - name: install boost
+      run: make install-boost
+    - name: setup
+      run: make setup
