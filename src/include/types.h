@@ -24,10 +24,7 @@ typedef http::request<http::string_body> HttpRequest;
 typedef http::response<http::string_body> HttpResponse;
 
 typedef std::string ObjectKey;
-typedef std::tuple<std::pair<std::string, std::string>,
-                   std::pair<std::string, std::string>,
-                   std::pair<std::string, std::string>>
-    DevTuple;
+typedef std::tuple<std::string, std::string, std::string> DevTuple;
 
 // typedef std::pair<std::pair<std::string, std::string>, u64> TargetLbaPair;
 typedef std::pair<std::string, u64> TargetLbaPair;

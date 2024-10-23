@@ -16,7 +16,7 @@ void spdk_nvme_zone_append_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    // log_debug("APPEND: offset {}, size {}", offset, size);
+    log_debug("APPEND: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         // rc = spdk_nvme_zns_zone_append(entry->nvme.ns, worker->ns_ctx->qpair,
@@ -173,7 +173,7 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    // log_debug("1111: offset {}, size {}", offset, size);
+    log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(
@@ -725,22 +725,16 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
                                 int32_t lba3)
 {
 
-    auto data = std::make_tuple(
-        std::make_pair(std::get<0>(tuple).first + std::get<0>(tuple).second,
-                       lba1),
-        std::make_pair(std::get<1>(tuple).first + std::get<1>(tuple).second,
-                       lba2),
-        std::make_pair(std::get<2>(tuple).first + std::get<2>(tuple).second,
-                       lba3));
+    auto data = std::make_tuple(std::make_pair(std::get<0>(tuple), lba1),
+                                std::make_pair(std::get<1>(tuple), lba2),
+                                std::make_pair(std::get<2>(tuple), lba3));
     MapEntry entry = {.data = data};
     return entry;
 }
 
 Result<DevTuple> GetDevTuple(ObjectKey object_key)
 {
-    return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
-                           std::make_pair("Zstore2", "Dev2"),
-                           std::make_pair("Zstore2", "Dev1"));
+    return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore2Dev1");
     // return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
     //                        std::make_pair("Zstore3", "Dev1"),
     //                        std::make_pair("Zstore4", "Dev1"));

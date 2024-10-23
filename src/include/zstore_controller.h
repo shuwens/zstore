@@ -21,12 +21,13 @@ class Zone;
 class ZstoreController
 {
   public:
-    int PopulateDevHash(int key_experiment);
-    int PopulateMap(bool bogus, int key_experiment);
+    int PopulateDevHash();
+    int PopulateMap(bool bogus);
     // Result<void> PopulateMap(bool bogus, int key_experiment);
     // Result<void> PopulateDevHash(int key_experiment);
 
     Result<DevTuple> GetDevTuple(ObjectKey object_key);
+    Result<DevTuple> GetDevTupleForRandomReads(ObjectKey object_key);
 
     int pivot;
 
@@ -38,7 +39,6 @@ class ZstoreController
 
     // ZStore Map: this maps key to tuple of ZNS target and lba
     zstore_map mMap;
-    // std::shared_mutex mMapMutex;
 
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
@@ -46,7 +46,6 @@ class ZstoreController
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
     zstore_bloom_filter mBF;
-    // std::shared_mutex mBFMutex;
 
     // Object APIs
     Result<bool> SearchBF(const ObjectKey &key);
@@ -83,6 +82,7 @@ class ZstoreController
     bool CheckIoQpair(std::string msg);
     int GetQueueDepth() { return mQueueDepth; };
     void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
+    void setKeyExperiment(int key) { mKeyExperiment = key; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
     void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
@@ -200,12 +200,21 @@ class ZstoreController
             return mDevices[3];
         } else if (target_dev == "Zstore4Dev1") {
             return mDevices[4];
-        } else if (target_dev == "Zstore4Dev1") {
+        } else if (target_dev == "Zstore4Dev2") {
             return mDevices[5];
         } else {
             log_error("target device does not exist {}", target_dev);
         }
     };
+
+    int mKeyExperiment;
+    // 1: Random Read
+    // 2: Sequential write (append) and read
+    // 3: Target failure
+    // 4: gateway failure
+    // 5: Target and gateway failure
+    // 6: GC
+    // 7: Checkpoint
 
   private:
     // number of devices

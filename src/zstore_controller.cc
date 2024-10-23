@@ -184,77 +184,72 @@ void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
     // struct spdk_nvme_detach_ctx *detach_ctx = NULL;
 }
 
-int ZstoreController::PopulateMap(bool bogus, int key_experiment)
+int ZstoreController::PopulateMap(bool bogus)
 {
-    if (key_experiment == 1) {
+    if (mKeyExperiment == 1) {
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
             auto entry = createMapEntry(
-                             std::make_tuple(std::make_pair("Zstore2", "Dev1"),
-                                             std::make_pair("Zstore2", "Dev2"),
-                                             std::make_pair("Zstore2", "Dev1")),
+                             std::make_tuple("Zstore2Dev1", "Zstore2Dev2",
+                                             "Zstore2Dev1"),
                              i + zone_offset, i + zone_offset, i + zone_offset)
                              .value();
             // assert(rc.has_value());
             mMap.insert({"/db/" + std::to_string(i), entry});
         }
-    } else if (key_experiment == 2) {
-        // Random Append
+    } else if (mKeyExperiment == 2) {
+        // Sequential write (append) and read
         // for (int i = 0; i < 2'000'000; i++) {
         //     mMap.insert({"/db/" + std::to_string(i),
         //                  createMapEntry("device", i).value()});
         // }
-    } else if (key_experiment == 3) {
+    } else if (mKeyExperiment == 3) {
         // Target failure
-    } else if (key_experiment == 4) {
+    } else if (mKeyExperiment == 4) {
         // gateway failure
-    } else if (key_experiment == 5) {
+    } else if (mKeyExperiment == 5) {
         // Target and gateway failure
-    } else if (key_experiment == 6) {
+    } else if (mKeyExperiment == 6) {
         // GC
-    } else if (key_experiment == 7) {
+    } else if (mKeyExperiment == 7) {
         // Checkpoint
     }
     // else if (key_experiment == 1) {}
     return 0;
 }
 
-int ZstoreController::PopulateDevHash(int key_experiment)
+// this yields a list of devices for a given object key
+//
+// right now we create 120 (6*5*4) tuples, to consider ordering of every tuple
+int ZstoreController::PopulateDevHash()
 {
     std::unique_lock lock(mDevHashMutex);
-
-    assert(0 < key_experiment);
-    assert(key_experiment < 10);
 
     // permutate Zstore2-Zstore4, Dev1-2
     std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
     std::vector<std::string> dev_list({"Dev1", "Dev2"});
-    std::vector<std::pair<std::string, std::string>> tgt_dev_vec;
+    std::vector<std::string> tgt_dev_vec;
 
     for (int i = 0; i < tgt_list.size(); i++) {
         for (int j = 0; j < dev_list.size(); j++) {
-            tgt_dev_vec.push_back({std::make_pair(tgt_list[i], dev_list[j])});
+            tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
         }
     }
 
-    std::vector<std::pair<std::string, std::string>> entry;
     for (int i = 0; i < tgt_dev_vec.size(); i++) {
         for (int j = 0; j < tgt_dev_vec.size(); j++) {
-            if (i == j)
+            if (i == j) {
                 continue;
-            else {
-                entry.push_back(tgt_dev_vec[i]);
-                if (entry.size() == 3) {
-                    mDevHash.push_back({std::make_tuple(
-                        tgt_dev_vec[0], tgt_dev_vec[1], tgt_dev_vec[2])});
-
-                    entry.clear();
-                }
             }
-            // tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
+            for (int k = 0; k < tgt_dev_vec.size(); k++) {
+                if (i == k || j == k) {
+                    continue;
+                }
+                mDevHash.push_back({std::make_tuple(
+                    tgt_dev_vec[i], tgt_dev_vec[j], tgt_dev_vec[k])});
+            }
         }
     }
-
     // for (int i = 0; i < mDevHash.size(); i++) {
     //     log_debug("DevHash: {}", i);
     //     log_debug("DevHash: {}", mDevHash[i]);
@@ -276,6 +271,8 @@ int ZstoreController::Init(bool object, int key_experiment)
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
 
+    setKeyExperiment(key_experiment);
+
     // FIXME use number of target and number of devices
     // we add one device for now
     // RDMA
@@ -284,9 +281,8 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     std::vector<std::pair<std::string, std::string>> ip_port_pairs{
         std::make_pair("12.12.12.2", "5520"),
-        // std::make_pair("12.12.12.3", "5520"),
-        // std::make_pair("12.12.12.4", "5520")
-    };
+        std::make_pair("12.12.12.3", "5520"),
+        std::make_pair("12.12.12.4", "5520")};
 
     for (auto &pair : ip_port_pairs) {
         if (register_controllers(g_devices, pair) != 0) {
@@ -358,21 +354,25 @@ int ZstoreController::Init(bool object, int key_experiment)
     // std::vector<std::jthread> threads(num_threads);
     // for (unsigned i = 0; i < num_threads; ++i) {
     //     threads[i] = std::jthread([&ioc, i, &threads] {
-    //         // Create a cpu_set_t object representing a set of CPUs. Clear it
+    //         // Create a cpu_set_t object representing a set of CPUs.
+    //         Clear it
     //         // and mark only CPU i as set.
     //         cpu_set_t cpuset;
     //         CPU_ZERO(&cpuset);
     //         CPU_SET(i + 2, &cpuset);
     //         std::string name = "zstore_ioc" + std::to_string(i + 4);
     //         int rc =
-    //             pthread_setname_np(threads[i].native_handle(), name.c_str());
+    //             pthread_setname_np(threads[i].native_handle(),
+    //             name.c_str());
     //         if (rc != 0) {
-    //             std::cerr << "Error calling pthread_setname: " << rc << "\n";
+    //             std::cerr << "Error calling pthread_setname: " << rc <<
+    //             "\n";
     //         }
     //         rc = pthread_setaffinity_np(threads[i].native_handle(),
     //                                     sizeof(cpu_set_t), &cpuset);
     //         if (rc != 0) {
-    //             std::cerr << "Error calling pthread_setaffinity_np: " << rc
+    //             std::cerr << "Error calling pthread_setaffinity_np: " <<
+    //             rc
     //                       << "\n";
     //         }
     //         ioc.run();
@@ -390,9 +390,9 @@ int ZstoreController::Init(bool object, int key_experiment)
 
     // auto ret = PopulateDevHash(key_experiment);
     // assert(ret.has_value());
-    rc = PopulateDevHash(key_experiment);
+    rc = PopulateDevHash();
 
-    rc = PopulateMap(true, key_experiment);
+    rc = PopulateMap(true);
     // assert(ret.has_value());
     pivot = 0;
 
@@ -524,7 +524,8 @@ void ZstoreController::cleanup(uint32_t task_count)
 
 // Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest
 // req_,
-//                                     std::function<void(HttpRequest)> closure)
+//                                     std::function<void(HttpRequest)>
+//                                     closure)
 // {
 // RequestContext *slot =
 // mRequestContextPool->GetRequestContext(true); slot->ctrl = this;
@@ -646,6 +647,30 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKey &key)
 
 // Map
 
+Result<DevTuple>
+ZstoreController::GetDevTupleForRandomReads(ObjectKey object_key)
+{
+    return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore2Dev1");
+}
+
+// Function to convert std::string to an unsigned int seed
+unsigned int stringToSeed(const std::string &str)
+{
+    unsigned int seed = 0;
+    for (char c : str) {
+        seed += static_cast<unsigned int>(c);
+    }
+    return seed;
+}
+
+Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)
+{
+    std::srand(stringToSeed(object_key)); // seed the random number generator
+                                          // with the hash of the object key
+    int random_index = std::rand() % mDevHash.size();
+    return mDevHash[random_index];
+}
+
 Result<bool> ZstoreController::PutObject(const ObjectKey &key,
                                          const MapEntry entry)
 {
@@ -660,11 +685,6 @@ Result<bool> ZstoreController::GetObject(const ObjectKey &key, MapEntry &entry)
     });
 }
 
-Result<void> ZstoreController::UpdateMap(ObjectKey key, MapEntry entry)
-{
-    mMap.visit(key, [=](auto &x) { x.second = entry; });
-}
-
 Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
 {
     auto entry = createMapEntry(tuple, 0, 0, 0);
@@ -672,9 +692,7 @@ Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
     return entry.value();
 }
 
-Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)
-{
-    return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
-                           std::make_pair("Zstore2", "Dev2"),
-                           std::make_pair("Zstore2", "Dev1"));
-}
+// Result<void> ZstoreController::UpdateMap(ObjectKey key, MapEntry entry)
+// {
+//     mMap.visit(key, [=](auto &x) { x.second = entry; });
+// }

@@ -60,7 +60,9 @@ class Configuration
     static int GetSamplingRate() { return GetInstance().gSamplingRate; }
 
     static bool Verbose() { return GetInstance().gVerbose; }
-    static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload; }
+    static bool Debugging() { return GetInstance().gDebug; }
+    // static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload;
+    // }
     static bool UseObject() { return GetInstance().gUseObject; }
     static bool UseHttp() { return GetInstance().gUseHttp; }
     static bool UseWorkStealing() { return GetInstance().gUseWorkStealing; }
@@ -143,12 +145,6 @@ class Configuration
     // Hardcode because they won't change
     const uint64_t gZoneDist = 0x80000; // zone size
 
-    bool gUseObject = false;
-    bool gUseDummyWorkload = false;
-    bool gUseHttp = true;
-    // TODO: use other spdk thread to work stealing
-    bool gUseWorkStealing = false;
-
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
     int gNumIoThreads = 1;
@@ -170,7 +166,7 @@ class Configuration
     int gContextPoolSize = 4096;
 
     // how many targets one gateway talks to
-    int gNumOfTargets = 1;
+    int gNumOfTargets = 3;
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 
@@ -181,5 +177,10 @@ class Configuration
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks
-    // uint32_t gTotalIO = 4'000'000;
+
+    bool gUseObject = false;
+    // bool gUseDummyWorkload = false;
+    bool gUseHttp = true;
+    // TODO: use other spdk thread to work stealing
+    bool gUseWorkStealing = false;
 };

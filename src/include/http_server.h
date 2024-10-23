@@ -20,31 +20,34 @@ using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
 auto awaitable_on_request(HttpRequest req,
                           ZstoreController &zctrl_) -> net::awaitable<HttpMsg>
 {
+    auto object_key = req.target();
     if (req.method() == http::verb::get) {
         // NOTE: READ path: see section 3.4
-        auto object_key = req.target();
 
-        // hardcode entry value for benchmarking
-        auto entry =
-            createMapEntry(zctrl_.GetDevTuple(object_key).value(),
-                           zctrl_.mTotalCounts - 1, zctrl_.mTotalCounts,
-                           zctrl_.mTotalCounts + 1)
-                .value();
+        MapEntry entry;
+        if (zctrl_.mKeyExperiment == 1) {
+            // random read
+            // hardcode entry value for benchmarking
+            entry = createMapEntry(zctrl_.GetDevTuple(object_key).value(),
+                                   zctrl_.mTotalCounts - 1, zctrl_.mTotalCounts,
+                                   zctrl_.mTotalCounts + 1)
+                        .value();
+        } else {
+            auto rc = zctrl_.GetObject(object_key, entry).value();
+            assert(rc == true);
+        }
 
         if (zctrl_.SearchBF(object_key).value()) {
             log_info("Object {} is recently modified", object_key);
             log_error("Unimplemented!!!");
         }
 
-        // MapEntry entry;
-        // auto rc = zctrl_.GetObject(object_key, entry).value();
-        // assert(rc == true);
         if (!zctrl_.isDraining &&
             zctrl_.mRequestContextPool->availableContexts.size() > 1) {
 
-            if (zctrl_.verbose)
-                log_debug("entry: {} {} {}", entry.first_tgt(),
-                          entry.second_tgt(), entry.third_tgt());
+            // if (zctrl_.verbose)
+            log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
+                      entry.second_tgt(), entry.third_tgt());
 
             auto dev1 = zctrl_.GetDevice(entry.first_tgt());
             // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
@@ -87,9 +90,9 @@ auto awaitable_on_request(HttpRequest req,
         auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
         auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
 
-        if (zctrl_.verbose)
-            log_debug("entry: {} {} {}", entry.first_tgt(), entry.second_tgt(),
-                      entry.third_tgt());
+        // if (zctrl_.verbose)
+        log_debug("Tuple to write: {} {} {}", entry.first_tgt(),
+                  entry.second_tgt(), entry.third_tgt());
 
         if (!zctrl_.isDraining &&
             zctrl_.mRequestContextPool->availableContexts.size() > 3) {
@@ -100,13 +103,6 @@ auto awaitable_on_request(HttpRequest req,
 
             if (zctrl_.verbose)
                 log_debug("1111");
-            // update lba in map
-            auto rc = zctrl_.PutObject(object_key, entry).value();
-            // FIXME:we need to handle the failure
-            // assert(rc == true);
-            // if (rc == false)
-            //     log_debug("Inserting object {} failed ", object_key);
-
             if (zctrl_.verbose)
                 log_debug("2222");
             // update and broadcast BF
@@ -141,6 +137,18 @@ auto awaitable_on_request(HttpRequest req,
             zctrl_.mRequestContextPool->ReturnRequestContext(s2);
             s3->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+
+            auto new_entry =
+                createMapEntry(std::make_tuple(entry.first_tgt(),
+                                               entry.second_tgt(),
+                                               entry.third_tgt()),
+                               s1->append_lba, s2->append_lba, s3->append_lba)
+                    .value();
+            // update lba in map
+            auto rc = zctrl_.PutObject(object_key, new_entry).value();
+            assert(rc == true);
+            // if (rc == false)
+            //     log_debug("Inserting object {} failed ", object_key);
 
             // if (zctrl_.verbose)
             //     log_debug("666");

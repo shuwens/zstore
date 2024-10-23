@@ -55,12 +55,11 @@ int main(int argc, char **argv)
     gZstoreController = new ZstoreController(std::ref(ioc));
     gZstoreController->Init(false, key_experiment);
 
-    if (!Configuration::UseDummyWorkload()) {
-        log_info("Starting HTTP server with port 2000!\n");
+    log_info("Starting HTTP server with port 2000!\n");
 
-        gZstoreController->mIoc_.run();
-        // FIXME only tput on Zstore2Dev1
-        // while (1) {
+    // gZstoreController->mIoc_.run();
+    // FIXME only tput on Zstore2Dev1
+    while (1) {
         //     auto etime = std::chrono::high_resolution_clock::now();
         //     auto delta =
         //     std::chrono::duration_cast<std::chrono::microseconds>(
@@ -77,10 +76,7 @@ int main(int argc, char **argv)
         //             std::chrono::high_resolution_clock::now();
         //         gZstoreController->mTotalCounts = 0;
         //     }
-        // sleep(30);
-        // }
-    } else {
-        sleep(10);
+        sleep(1);
     }
 
     gZstoreController->Drain();
