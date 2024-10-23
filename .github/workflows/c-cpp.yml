@@ -10,20 +10,33 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: Install cross compile tools
-      run: |
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
-        echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
-        sudo apt-get update
-        sudo apt-get install llvm-18 clang-18 lld-18 -y
-
-    - name: install deps
-      run: make install-deps
-    - name: install boost
-      run: make install-boost
-    - name: setup
-      run: make setup
+      - name: Setup dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential python3-pip libacl1-dev libattr1-dev libgtkmm-3.0-dev libnautilus-extension-dev gettext ninja-build
+          pip3 install --user meson
+      - name: Setup meson
+        run: |
+          mkdir build
+          cd build && meson ..
+      - name: Build
+        working-directory: ./build
+        run: meson compile
+      - name: Test distributable
+        working-directory: ./build
+        run: meson dist
+      - uses: actions/checkout@v4
+      - name: Install cross compile tools
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
+          echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee -a /etc/apt/sources.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install llvm-18 clang-18 lld-18 -y
+      - name: install deps
+        run: make install-deps
+      - name: install boost
+        run: make install-boost
+      - name: setup
+        run: make setup
