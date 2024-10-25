@@ -6,6 +6,7 @@
 #include "include/http_server.h"
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
+#include <thread>
 
 int zone_offset = 1808277;
 // int zone_offset = 0;
@@ -14,7 +15,7 @@ namespace beast = boost::beast;   // from <boost/beast.hpp>
 namespace http = beast::http;     // from <boost/beast/http.hpp>
 namespace net = boost::asio;      // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
-                                  //
+
 void ZstoreController::initHttpThread()
 {
     struct spdk_cpuset cpumask;
@@ -135,12 +136,14 @@ void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
         spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
     auto metadata_size = spdk_nvme_ns_get_md_size(ns);
 
-    log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
-             zone_size_bytes);
-    log_info("Zones: num {}, max open {}, active {}", num_zones, max_open_zones,
-             active_zones);
-    log_info("Max zones append size: {}, metadata size {}",
-             max_zone_append_size, metadata_size);
+    if (verbose) {
+        log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
+                 zone_size_bytes);
+        log_info("Zones: num {}, max open {}, active {}", num_zones,
+                 max_open_zones, active_zones);
+        log_info("Max zones append size: {}, metadata size {}",
+                 max_zone_append_size, metadata_size);
+    }
 }
 
 void ZstoreController::zns_dev_init(std::vector<Device *> &g_devices,
@@ -169,7 +172,7 @@ int ZstoreController::register_controllers(
     std::vector<Device *> &g_devices,
     const std::pair<std::string, std::string> &ip_addr_pair)
 {
-    log_info("Initializing NVMe Controllers");
+    // log_info("Initializing NVMe Controllers");
 
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
@@ -262,28 +265,24 @@ int ZstoreController::Init(bool object, int key_experiment)
     int rc = 0;
     verbose = Configuration::Verbose();
 
-    // TODO: set all parameters too
-    log_debug("mZone sizes {}", mZones.size());
-
-    log_debug("Configure Zstore with configuration");
     setQueuDepth(Configuration::GetQueueDepth());
     setContextPoolSize(Configuration::GetContextPoolSize());
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
-
     setKeyExperiment(key_experiment);
 
-    // FIXME use number of target and number of devices
-    // we add one device for now
-    // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    // TCP
+    // TODO: set all parameters too
+    log_debug("Configuration: sector size {}, queue size {}, context pool size "
+              "{}, targets {}, devices {}",
+              Configuration::GetBlockSize(), Configuration::GetQueueDepth(),
+              Configuration::GetContextPoolSize(),
+              Configuration::GetNumOfTargets(),
+              Configuration::GetNumOfDevices());
 
     std::vector<std::pair<std::string, std::string>> ip_port_pairs{
         std::make_pair("12.12.12.2", "5520"),
         std::make_pair("12.12.12.3", "5520"),
         std::make_pair("12.12.12.4", "5520")};
-
     for (auto &pair : ip_port_pairs) {
         if (register_controllers(g_devices, pair) != 0) {
             rc = 1;
@@ -324,7 +323,8 @@ int ZstoreController::Init(bool object, int key_experiment)
         mDevices[i]->ConnectIoPairs();
     }
 
-    CheckIoQpair("Starting all the threads");
+    if (Configuration::Debugging())
+        CheckIoQpair("Starting all the threads");
 
     log_debug("ZstoreController launching threads");
 
@@ -335,7 +335,7 @@ int ZstoreController::Init(bool object, int key_experiment)
     auto const port = 2000;
 
     // The io_context is required for all I/O
-    // auto const num_threads = 6;
+    // auto const num_threads = Configuration::GetNumHttpThreads();
     // net::io_context ioc{num_threads};
 
     // Spawn a listening port
@@ -355,30 +355,29 @@ int ZstoreController::Init(bool object, int key_experiment)
     // for (unsigned i = 0; i < num_threads; ++i) {
     //     threads[i] = std::jthread([&ioc, i, &threads] {
     //         // Create a cpu_set_t object representing a set of CPUs.
-    //         Clear it
-    //         // and mark only CPU i as set.
+    //         // Clear it and mark only CPU i as set.
     //         cpu_set_t cpuset;
     //         CPU_ZERO(&cpuset);
-    //         CPU_SET(i + 2, &cpuset);
+    //         CPU_SET(i + Configuration::GetIoThreadCoreId(), &cpuset);
     //         std::string name = "zstore_ioc" + std::to_string(i + 4);
     //         int rc =
-    //             pthread_setname_np(threads[i].native_handle(),
-    //             name.c_str());
+    //             pthread_setname_np(threads[i].native_handle(), name.c_str());
     //         if (rc != 0) {
-    //             std::cerr << "Error calling pthread_setname: " << rc <<
-    //             "\n";
+    //             log_error("HTTP server: Error calling pthread_setname: {}",
+    //             rc);
     //         }
     //         rc = pthread_setaffinity_np(threads[i].native_handle(),
     //                                     sizeof(cpu_set_t), &cpuset);
     //         if (rc != 0) {
-    //             std::cerr << "Error calling pthread_setaffinity_np: " <<
-    //             rc
-    //                       << "\n";
+    //             log_error(
+    //                 "HTTP server: Error calling pthread_setaffinity_np: {}",
+    //                 rc);
     //         }
     //         ioc.run();
     //     });
     // }
 
+    // This was using SPDK threads as HTTP threads
     for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
          ++threadId) {
         mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
@@ -391,9 +390,11 @@ int ZstoreController::Init(bool object, int key_experiment)
     // auto ret = PopulateDevHash(key_experiment);
     // assert(ret.has_value());
     rc = PopulateDevHash();
+    assert(rc == 0);
 
     rc = PopulateMap(true);
-    // assert(ret.has_value());
+    assert(rc == 0);
+
     pivot = 0;
 
     // Read zone headers
@@ -410,6 +411,7 @@ int ZstoreController::Init(bool object, int key_experiment)
         // this should be done smartly
         // FIXME bug
         // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
+        // mDevices[i]->GetZoneHeaders(zonesAndHeaders[i]);
     }
 
     log_info("ZstoreController Init finish");
@@ -650,7 +652,19 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKey &key)
 Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKey object_key)
 {
-    return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore2Dev1");
+    return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
+
+    // ok, ok, zone full
+    // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
+    // invalid op code, invalid op code, ok
+    // return std::make_tuple("Zstore3Dev2", "Zstore4Dev1", "Zstore4Dev2");
+
+    // full, invalid op code, invalid op code
+    // return std::make_tuple("Zstore3Dev1", "Zstore3Dev2", "Zstore4Dev1");
+
+    // zstore 2: dev 1, dev 2 80, 80
+    // zstore 3: dev 1, dev 2 115, 80
+    // zstore 4: dev 1, dev 2 invlida, invalida
 }
 
 // Function to convert std::string to an unsigned int seed

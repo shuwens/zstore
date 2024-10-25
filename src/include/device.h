@@ -2,6 +2,7 @@
 #include "spdk/nvme.h"
 #include <map>
 #include <set>
+#include <unordered_map>
 
 class Zone;
 
@@ -42,6 +43,7 @@ class Device
     uint32_t GetNumZones();
 
     void ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones);
+    void GetZoneHeaders(std::map<uint64_t, uint8_t *> &zones);
 
     void SetDeviceTransportAddress(const char *addr);
     char *GetDeviceTransportAddress() const;
@@ -60,6 +62,7 @@ class Device
     struct spdk_nvme_ctrlr *mController;
     struct spdk_nvme_ns *mNamespace;
 
+    // NOTE for now every device has only one I/O queue
     struct spdk_nvme_qpair **mIoQueues;
 
     uint64_t mZoneSize;     // in blocks
@@ -67,6 +70,7 @@ class Device
     uint32_t mNumZones;     // in blocks
 
     uint32_t mDeviceId;
+    std::unordered_map<uint32_t, uint64_t> mWriteHead;
 
     std::set<Zone *> mAvailableZones;
     Zone *mZones;

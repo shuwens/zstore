@@ -9,29 +9,31 @@
 
 ## Immediate TODOs
  * This list should be empty :)
- * read zone header broken, wtf
- * logs, maps, bloom filters
- * read object workflow:
- * write object worklfow
+ * read object workflow: handle request, read into object etc
+ * write object worklfow: handle request, write into object etc
+ * format the broken drives
+ * add length field
+ * add zone id for devices
+ * use objects in http
+
+## Short-term TODOs
  * key experiment tput/latency: read
  * key experiment tput/latency: append
  * key experiment tput/latency: target failure
  * key experiment tput/latency: gw failure
  * key experiment tput/latency: GC
  * key experiment tput/latency: checkpoint
-
-## Short-term TODOs
  * Need to have a test for object
  * consistent hashes for object keys to targets etc
  * crafting map for recovery: two devices 
  * crafting map for read and writes
 - [x] different object sizes
-- [ ] coroutine with different targets...
-- [ ] multiple devices
 - [ ] some functional or correctness tests
 - [ ] failure recover things 
 
 ## Long-term TODOs
+ * read zone header broken, we should be able to read this and store the zones
+   we need to write to in the future
  * Need to have a test for  overall system
 
 ## Longer-term TODOs

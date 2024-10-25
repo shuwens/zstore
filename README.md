@@ -17,4 +17,7 @@ https://codecapsule.com/2014/10/18/implementing-a-key-value-store-part-7-optimiz
 
 https://github.com/mikegreen/vault-benchmarking
 
+## monitoring
 
+sudo taskset -c --all-tasks -p (pgrep zstore)
+htop -p (pgrep zstore) -H

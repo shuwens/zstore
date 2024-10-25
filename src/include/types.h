@@ -124,3 +124,21 @@ struct RequestContextPool {
     RequestContext *GetRequestContext(bool force);
     void ReturnRequestContext(RequestContext *slot);
 };
+
+// From SimpleSZD
+/**
+ * @brief Holds general information about a ZNS device.
+ */
+typedef struct {
+    uint64_t
+        lba_size; /**< Size of one block, also known as logical block address.*/
+    uint64_t zone_size; /**<  Size of one zone in lbas.*/
+    uint64_t zone_cap;  /**< Size of user availabe space in one zone. */
+    uint64_t mdts;      /**<  Maximum data transfer size in bytes.*/
+    uint64_t zasl;      /**<  Maximum size of one append command in bytes.*/
+    uint64_t lba_cap;   /**<  Amount of lbas available on the device.*/
+    uint64_t min_lba;   /**< Minimum lba that is allowed to be written to.*/
+    uint64_t max_lba;   /**< Maximum lba that is allowed to be written to.*/
+    const char *name;   /**< Name used by SPDK to identify device.*/
+} DeviceInfo;
+extern const DeviceInfo DeviceInfo_default;

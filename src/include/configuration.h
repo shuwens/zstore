@@ -147,8 +147,10 @@ class Configuration
 
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
+    // NOTE this decides the number of threads *per device*, and the number of
+    // IO queues are the same of num_of_IO_threads * num_of_device
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 1;
+    int gNumHttpThreads = 2;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 2;
@@ -156,7 +158,7 @@ class Configuration
 
     int gBlockSize = 4096;
     int gMetadataSize = 64;
-    bool gDeviceSupportMetadata = true;
+    bool gDeviceSupportMetadata = false;
 
     uint32_t gDataBufferSizeInSector = 1; // 1- 32
     // int gZoneCapacity = 0;
@@ -173,7 +175,7 @@ class Configuration
     // 0 means no sampling, 1000 means 1/1000
     int gSamplingRate = 0;
 
-    const int current_zone = 80;
+    const int current_zone = 115;
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks

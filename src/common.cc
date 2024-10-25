@@ -173,7 +173,7 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    log_debug("1111: offset {}, size {}", offset, size);
+    // log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(
@@ -732,13 +732,13 @@ Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
     return entry;
 }
 
-Result<DevTuple> GetDevTuple(ObjectKey object_key)
-{
-    return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore2Dev1");
-    // return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
-    //                        std::make_pair("Zstore3", "Dev1"),
-    //                        std::make_pair("Zstore4", "Dev1"));
-}
+// Result<DevTuple> GetDevTuple(ObjectKey object_key)
+// {
+//     return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore2Dev1");
+//     // return std::make_tuple(std::make_pair("Zstore2", "Dev1"),
+//     //                        std::make_pair("Zstore3", "Dev1"),
+//     //                        std::make_pair("Zstore4", "Dev1"));
+// }
 
 Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
                                          uint64_t offset, HttpRequest request)

@@ -28,9 +28,10 @@ auto awaitable_on_request(HttpRequest req,
         if (zctrl_.mKeyExperiment == 1) {
             // random read
             // hardcode entry value for benchmarking
-            entry = createMapEntry(zctrl_.GetDevTuple(object_key).value(),
-                                   zctrl_.mTotalCounts - 1, zctrl_.mTotalCounts,
-                                   zctrl_.mTotalCounts + 1)
+            entry = createMapEntry(
+                        zctrl_.GetDevTupleForRandomReads(object_key).value(),
+                        zctrl_.mTotalCounts - 1, zctrl_.mTotalCounts,
+                        zctrl_.mTotalCounts + 1)
                         .value();
         } else {
             auto rc = zctrl_.GetObject(object_key, entry).value();
@@ -46,8 +47,8 @@ auto awaitable_on_request(HttpRequest req,
             zctrl_.mRequestContextPool->availableContexts.size() > 1) {
 
             // if (zctrl_.verbose)
-            log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
-                      entry.second_tgt(), entry.third_tgt());
+            // log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
+            //           entry.second_tgt(), entry.third_tgt());
 
             auto dev1 = zctrl_.GetDevice(entry.first_tgt());
             // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
@@ -86,8 +87,10 @@ auto awaitable_on_request(HttpRequest req,
         if (zctrl_.verbose)
             log_debug("key {}, value {}", req.target(), req.body());
 
+        auto dev_tuple = zctrl_.GetDevTupleForRandomReads(object_key).value();
+
         // TODO:  populate the map with consistent hashes
-        auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
+        // auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
         auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
 
         // if (zctrl_.verbose)
@@ -126,8 +129,15 @@ auto awaitable_on_request(HttpRequest req,
 
             if (zctrl_.verbose)
                 log_debug("5555");
-            // co_await zoneAppend(s1);
-            co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+
+            co_await zoneAppend(s1);
+            log_debug("s1");
+            // co_await zoneAppend(s2);
+            // log_debug("s2");
+            // co_await zoneAppend(s3);
+            // log_debug("s3");
+
+            // co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
             if (zctrl_.verbose)
                 log_debug("6666");
@@ -142,7 +152,8 @@ auto awaitable_on_request(HttpRequest req,
                 createMapEntry(std::make_tuple(entry.first_tgt(),
                                                entry.second_tgt(),
                                                entry.third_tgt()),
-                               s1->append_lba, s2->append_lba, s3->append_lba)
+                               s1->append_lba, 0, 0)
+                    // s1->append_lba, s2->append_lba, s3->append_lba)
                     .value();
             // update lba in map
             auto rc = zctrl_.PutObject(object_key, new_entry).value();
