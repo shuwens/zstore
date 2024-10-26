@@ -32,7 +32,7 @@ class ZstoreController
     int pivot;
 
     // ZStore Device Consistent Hashmap: this maintains a consistent hash map
-    // which maps object key to tupke of devices. Right now this is
+    // which maps object key to tuple of devices. Right now this is
     // pre-populated and just randomly
     std::vector<DevTuple> mDevHash;
     std::shared_mutex mDevHashMutex;
@@ -99,19 +99,21 @@ class ZstoreController
 
     // Setting up SPDK
     void register_ctrlr(std::vector<Device *> &g_devices,
-                        struct spdk_nvme_ctrlr *ctrlr, const char *traddr);
+                        struct spdk_nvme_ctrlr *ctrlr, const char *traddr,
+                        const uint32_t zone_id1, const uint32_t zone_id2);
     void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns);
 
     int register_workers();
-    // int register_controllers(Device *device);
     int register_controllers(
         std::vector<Device *> &g_devices,
-        const std::pair<std::string, std::string> &ip_addr_pair);
+        const std::tuple<std::string, std::string, u32, u32> &dev_tuple);
     void unregister_controllers(std::vector<Device *> &g_devices);
-    int associate_workers_with_ns(Device *device);
     void zstore_cleanup();
-    void zns_dev_init(std::vector<Device *> &g_devices, const std::string &ip,
-                      const std::string &port);
+    void zns_dev_init(
+        std::vector<Device *> &g_devices,
+        const std::tuple<std::string, std::string, u32, u32> &dev_tuple);
+
+    int associate_workers_with_ns(Device *device);
     void cleanup_ns_worker_ctx();
     void cleanup(uint32_t task_count);
 

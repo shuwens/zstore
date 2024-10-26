@@ -30,12 +30,16 @@ auto awaitable_on_request(HttpRequest req,
             // hardcode entry value for benchmarking
             entry = createMapEntry(
                         zctrl_.GetDevTupleForRandomReads(object_key).value(),
-                        zctrl_.mTotalCounts - 1, zctrl_.mTotalCounts,
-                        zctrl_.mTotalCounts + 1)
+                        zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
+                        zctrl_.mTotalCounts + 1, 1)
                         .value();
         } else {
             auto rc = zctrl_.GetObject(object_key, entry).value();
-            assert(rc == true);
+            // assert(rc == true);
+            if (rc == false) {
+                log_error("Object {} not found", object_key);
+                co_return handle_not_found_request(std::move(req));
+            }
         }
 
         if (zctrl_.SearchBF(object_key).value()) {
@@ -49,13 +53,13 @@ auto awaitable_on_request(HttpRequest req,
             // if (zctrl_.verbose)
             // log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
             //           entry.second_tgt(), entry.third_tgt());
-
-            auto dev1 = zctrl_.GetDevice(entry.first_tgt());
+            auto [first, _, _] = entry;
+            auto [tgt, lba, _] = first;
+            auto dev1 = zctrl_.GetDevice(tgt);
             // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
             // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
 
-            auto s1 =
-                MakeReadRequest(&zctrl_, dev1, entry.first_lba(), req).value();
+            auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
             // auto s2 =
             //     MakeReadRequest(&zctrl_, dev2, entry.second_lba(),
             //     req).value();
@@ -92,10 +96,13 @@ auto awaitable_on_request(HttpRequest req,
         // TODO:  populate the map with consistent hashes
         // auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
         auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
+        auto [first, second, third] = entry;
+        auto [tgt1, _, _] = first;
+        auto [tgt2, _, _] = second;
+        auto [tgt3, _, _] = third;
 
         // if (zctrl_.verbose)
-        log_debug("Tuple to write: {} {} {}", entry.first_tgt(),
-                  entry.second_tgt(), entry.third_tgt());
+        log_debug("Tuple to write: {} {} {}", tgt1, tgt2, tgt3);
 
         if (!zctrl_.isDraining &&
             zctrl_.mRequestContextPool->availableContexts.size() > 3) {
@@ -114,9 +121,9 @@ auto awaitable_on_request(HttpRequest req,
 
             if (zctrl_.verbose)
                 log_debug("3333");
-            auto dev1 = zctrl_.GetDevice(entry.first_tgt());
-            auto dev2 = zctrl_.GetDevice(entry.second_tgt());
-            auto dev3 = zctrl_.GetDevice(entry.third_tgt());
+            auto dev1 = zctrl_.GetDevice(tgt1);
+            auto dev2 = zctrl_.GetDevice(tgt2);
+            auto dev3 = zctrl_.GetDevice(tgt3);
 
             // auto slot = MakeWriteRequest(
             //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req, entry);
@@ -149,11 +156,12 @@ auto awaitable_on_request(HttpRequest req,
             zctrl_.mRequestContextPool->ReturnRequestContext(s3);
 
             auto new_entry =
-                createMapEntry(std::make_tuple(entry.first_tgt(),
-                                               entry.second_tgt(),
-                                               entry.third_tgt()),
-                               s1->append_lba, 0, 0)
-                    // s1->append_lba, s2->append_lba, s3->append_lba)
+                createMapEntry(
+                    std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
+                                    std::make_pair(tgt2, dev2->GetZoneId()),
+                                    std::make_pair(tgt3, dev3->GetZoneId())),
+                    s1->append_lba, 1, 0, 1, 0, 1)
+                    // s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
                     .value();
             // update lba in map
             auto rc = zctrl_.PutObject(object_key, new_entry).value();

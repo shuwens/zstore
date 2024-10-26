@@ -98,33 +98,29 @@ void ZstoreController::initIoThread()
 
 void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
                                       struct spdk_nvme_ctrlr *ctrlr,
-                                      const char *traddr)
+                                      const char *traddr, const u32 zone_id1,
+                                      const u32 zone_id2)
 {
     struct spdk_nvme_ns *ns;
-    // union spdk_nvme_cap_register cap = spdk_nvme_ctrlr_get_regs_cap(ctrlr);
-    // const struct spdk_nvme_ctrlr_data *cdata =
-    // spdk_nvme_ctrlr_get_data(ctrlr);
-    for (int nsid = 1; nsid < Configuration::GetNumOfDevices() + 1; nsid++) {
-        Device *device = new Device();
-        // for (nsid = spdk_nvme_ctrlr_get_first_active_ns(ctrlr); nsid != 0;
-        //      nsid = spdk_nvme_ctrlr_get_next_active_ns(ctrlr, nsid)) {
-        ns = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
-        if (ns == NULL) {
-            continue;
-        }
 
-        if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
-            log_info("ns {} is not zns ns", nsid);
-            // continue;
-        } else {
-            // log_info("ns {} is zns ns", nsid);
-        }
-
-        // register_ns(ctrlr, ns);
-        device->Init(ctrlr, nsid);
-        device->SetDeviceTransportAddress(traddr);
-        g_devices.emplace_back(device);
+    // device 1
+    Device *device1 = new Device();
+    ns = spdk_nvme_ctrlr_get_ns(ctrlr, 1);
+    if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+        log_info("ns {} is not zns ns", 1);
     }
+    device1->Init(ctrlr, 1, zone_id1);
+    device1->SetDeviceTransportAddress(traddr);
+    g_devices.emplace_back(device1);
+
+    Device *device2 = new Device();
+    ns = spdk_nvme_ctrlr_get_ns(ctrlr, 2);
+    if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+        log_info("ns {} is not zns ns", 2);
+    }
+    device2->Init(ctrlr, 2, zone_id2);
+    device2->SetDeviceTransportAddress(traddr);
+    g_devices.emplace_back(device2);
 
     // TODO log and store stats
     auto zone_size_sectors = spdk_nvme_zns_ns_get_zone_size_sectors(ns);
@@ -146,13 +142,15 @@ void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
     }
 }
 
-void ZstoreController::zns_dev_init(std::vector<Device *> &g_devices,
-                                    const std::string &ip,
-                                    const std::string &port)
+void ZstoreController::zns_dev_init(
+    std::vector<Device *> &g_devices,
+    const std::tuple<std::string, std::string, u32, u32> &dev_tuple)
 {
     char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid = {};
+
+    auto [ip, port, zone_id1, zone_id2] = dev_tuple;
     snprintf(trid.traddr, sizeof(trid.traddr), "%s", ip.c_str());
     snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
     snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
@@ -165,19 +163,19 @@ void ZstoreController::zns_dev_init(std::vector<Device *> &g_devices,
     // NOTE: disable keep alive timeout
     opts.keep_alive_timeout_ms = 0;
     register_ctrlr(g_devices, spdk_nvme_connect(&trid, &opts, sizeof(opts)),
-                   trid.traddr);
+                   trid.traddr, zone_id1, zone_id2);
 }
 
 int ZstoreController::register_controllers(
     std::vector<Device *> &g_devices,
-    const std::pair<std::string, std::string> &ip_addr_pair)
+    const std::tuple<std::string, std::string, u32, u32> &dev_tuple)
 {
     // log_info("Initializing NVMe Controllers");
 
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(g_devices, ip_addr_pair.first, ip_addr_pair.second);
+    zns_dev_init(g_devices, dev_tuple);
 
     return 0;
 }
@@ -192,11 +190,13 @@ int ZstoreController::PopulateMap(bool bogus)
     if (mKeyExperiment == 1) {
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
-            auto entry = createMapEntry(
-                             std::make_tuple("Zstore2Dev1", "Zstore2Dev2",
-                                             "Zstore2Dev1"),
-                             i + zone_offset, i + zone_offset, i + zone_offset)
-                             .value();
+            auto entry =
+                createMapEntry(
+                    std::make_tuple(std::make_pair("Zstore2Dev1", 80),
+                                    std::make_pair("Zstore2Dev2", 80),
+                                    std::make_pair("Zstore3Dev1", 115)),
+                    i + zone_offset, 1, i + zone_offset, 1, i + zone_offset, 1)
+                    .value();
             // assert(rc.has_value());
             mMap.insert({"/db/" + std::to_string(i), entry});
         }
@@ -227,17 +227,25 @@ int ZstoreController::PopulateMap(bool bogus)
 int ZstoreController::PopulateDevHash()
 {
     std::unique_lock lock(mDevHashMutex);
+    std::vector<std::pair<TargetDev, u32>> tgt_dev_vec;
 
     // permutate Zstore2-Zstore4, Dev1-2
-    std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
-    std::vector<std::string> dev_list({"Dev1", "Dev2"});
-    std::vector<std::string> tgt_dev_vec;
+    // std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
+    // std::vector<std::string> dev_list({"Dev1", "Dev2"});
+    // for (int i = 0; i < tgt_list.size(); i++) {
+    //     for (int j = 0; j < dev_list.size(); j++) {
+    //         tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
+    //     }
+    // }
 
-    for (int i = 0; i < tgt_list.size(); i++) {
-        for (int j = 0; j < dev_list.size(); j++) {
-            tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
-        }
-    }
+    // this seems to be stupid, but we are just manually adding the target
+    // device and the zone we write to here
+    tgt_dev_vec.push_back({std::make_pair("Zstore2Dev1", 80)});
+    tgt_dev_vec.push_back({std::make_pair("Zstore2Dev2", 80)});
+    tgt_dev_vec.push_back({std::make_pair("Zstore3Dev1", 115)});
+    tgt_dev_vec.push_back({std::make_pair("Zstore3Dev2", 80)});
+    tgt_dev_vec.push_back({std::make_pair("Zstore4Dev1", 80)});
+    tgt_dev_vec.push_back({std::make_pair("Zstore4Dev2", 80)});
 
     for (int i = 0; i < tgt_dev_vec.size(); i++) {
         for (int j = 0; j < tgt_dev_vec.size(); j++) {
@@ -279,12 +287,12 @@ int ZstoreController::Init(bool object, int key_experiment)
               Configuration::GetNumOfTargets(),
               Configuration::GetNumOfDevices());
 
-    std::vector<std::pair<std::string, std::string>> ip_port_pairs{
-        std::make_pair("12.12.12.2", "5520"),
-        std::make_pair("12.12.12.3", "5520"),
-        std::make_pair("12.12.12.4", "5520")};
-    for (auto &pair : ip_port_pairs) {
-        if (register_controllers(g_devices, pair) != 0) {
+    std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
+        std::make_tuple("12.12.12.2", "5520", 80, 80),
+        std::make_tuple("12.12.12.3", "5520", 80, 80),
+        std::make_tuple("12.12.12.4", "5520", 80, 80)};
+    for (auto &dev_tuple : ip_port_devs) {
+        if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
             zstore_cleanup();
             return rc;
@@ -652,7 +660,9 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKey &key)
 Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKey object_key)
 {
-    return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
+    return std::make_tuple(std::make_pair("Zstore2Dev1", 80),
+                           std::make_pair("Zstore2Dev2", 80),
+                           std::make_pair("Zstore3Dev1", 115));
 
     // ok, ok, zone full
     // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
@@ -701,7 +711,7 @@ Result<bool> ZstoreController::GetObject(const ObjectKey &key, MapEntry &entry)
 
 Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
 {
-    auto entry = createMapEntry(tuple, 0, 0, 0);
+    auto entry = createMapEntry(tuple, 0, 1, 0, 1, 0, 1);
     assert(entry.has_value());
     return entry.value();
 }

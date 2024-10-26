@@ -12,8 +12,6 @@
  * read object workflow: handle request, read into object etc
  * write object worklfow: handle request, write into object etc
  * format the broken drives
- * add length field
- * add zone id for devices
  * use objects in http
 
 ## Short-term TODOs
@@ -24,7 +22,6 @@
  * key experiment tput/latency: GC
  * key experiment tput/latency: checkpoint
  * Need to have a test for object
- * consistent hashes for object keys to targets etc
  * crafting map for recovery: two devices 
  * crafting map for read and writes
 - [x] different object sizes

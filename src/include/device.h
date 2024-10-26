@@ -10,7 +10,7 @@ class Device
 {
   public:
     ~Device();
-    void Init(struct spdk_nvme_ctrlr *ctrlr, int nsid);
+    void Init(struct spdk_nvme_ctrlr *ctrlr, int nsid, uint32_t zone_id);
     void InitZones(uint32_t numNeededZones, uint32_t numReservedZones);
     void EraseWholeDevice();
     void ConnectIoPairs();
@@ -40,6 +40,7 @@ class Device
 
     uint64_t GetZoneCapacity();
     uint64_t GetZoneSize();
+    uint32_t GetZoneId() { return mZoneId; };
     uint32_t GetNumZones();
 
     void ReadZoneHeaders(std::map<uint64_t, uint8_t *> &zones);
@@ -74,6 +75,8 @@ class Device
 
     std::set<Zone *> mAvailableZones;
     Zone *mZones;
+
+    uint32_t mZoneId;
 
     // debug
     std::map<uint32_t, uint64_t> mReadCounts;

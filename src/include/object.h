@@ -2,22 +2,38 @@
 #include "types.h"
 #include <cstdint>
 #include <cstring>
+#include <cstring> // For std::memcpy
+#include <openssl/sha.h>
+#include <vector> // For std::vector
 
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID
 
+enum class LogEntryType : uint8_t {
+    kData = 0,
+    kHeader = 1,
+    kSpliter = 2,
+    kInvalid = 3,
+};
+
 struct LogEntry {
-    uint64_t next_offset;  // Offset to the next log entry on disk (0 if no next
-                           // entry)
+    LogEntry()
+        : type(LogEntryType::kInvalid), next_offset(0), seqnum(0),
+          chunk_seqnum(0), next(0), key_size(0)
+    {
+    }
+    LogEntryType type; // 1 byte
+    // Offset to the next log entry on disk (0 if no next // entry)
+    uint64_t next_offset;  // 8 bytes
     uint64_t seqnum;       // 8 bytes
     uint64_t chunk_seqnum; // 8 bytes
     uint64_t next;         // 8 bytes
     uint16_t key_size;     // 2 bytes
 
-    // last seen entry from map
-    MapEntry last_seen;
+    // deprecated: last seen entry from map
+    // MapEntry last_seen;
 
-    char key[];
+    char key_hash[65];
 
     // Function to compute the size of the log entry (for writing/reading)
     static size_t size(uint32_t value_size)
@@ -27,12 +43,12 @@ struct LogEntry {
 };
 
 struct ZstoreObject {
-    // ZstoreObject() : keylen(0), key(nullptr), datalen(0), body(nullptr) {}
+    ZstoreObject() : entry(), datalen(0), body(nullptr), key_size(0) {}
     struct LogEntry entry;
     uint64_t datalen;
     void *body;
     uint16_t key_size; // 2 bytes
-    char key[];
+    char key_hash[65];
 
     static size_t size(uint16_t key_size, uint64_t datalen)
     {
@@ -44,12 +60,13 @@ struct ZstoreObject {
 
 // -----------------------------------------------------
 
-bool write_to_buffer(ZstoreObject *obj, char *buffer, size_t buffer_size);
+// https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c/10632725
+void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
+                        char outputBuffer[65]);
+void sha256_string(char *string, char outputBuffer[65]);
 
-ZstoreObject *read_from_buffer(const char *buffer, size_t buffer_size);
+// -----------------------------------------------------
 
-ZstoreObject *ReadObject(uint64_t offset, void *ctx);
-
-// Result<struct ZstoreObject *> AppendObject(uint64_t offset,
-//                                            struct obj_object *doc, void
-//                                            *ctx);
+bool ReadBufferToZstoreObject(const uint8_t *buffer, size_t buffer_size,
+                              ZstoreObject &obj);
+std::vector<uint8_t> WriteZstoreObjectToBuffer(const ZstoreObject &obj);

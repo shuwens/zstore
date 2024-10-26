@@ -8,39 +8,33 @@
 #include <tuple>
 #include <vector>
 
-using chrono_tp = std::chrono::high_resolution_clock::time_point;
-struct Timer {
-    chrono_tp t1;
-    chrono_tp t2;
-    chrono_tp t3;
-    chrono_tp t4;
-    chrono_tp t5;
-    chrono_tp t6;
-    // bool check;
-};
-
+// HTTP stuff
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
 typedef http::request<http::string_body> HttpRequest;
 typedef http::response<http::string_body> HttpResponse;
 
+// Basic Zstore types
 typedef std::string ObjectKey;
-typedef std::tuple<std::string, std::string, std::string> DevTuple;
+typedef std::string TargetDev;
+typedef u64 Lba;
+typedef u32 Length;
 
-// typedef std::pair<std::pair<std::string, std::string>, u64> TargetLbaPair;
-typedef std::pair<std::string, u64> TargetLbaPair;
+// Device types
+typedef std::tuple<TargetDev, Lba, Length> TargetLbaTuple;
+typedef std::tuple<std::pair<TargetDev, u32>, std::pair<TargetDev, u32>,
+                   std::pair<TargetDev, u32>>
+    DevTuple;
 
-struct MapEntry {
-    std::tuple<TargetLbaPair, TargetLbaPair, TargetLbaPair> data;
-
-    std::string &first_tgt() { return std::get<0>(data).first; }
-    u64 &first_lba() { return std::get<0>(data).second; }
-
-    std::string &second_tgt() { return std::get<1>(data).first; }
-    u64 &second_lba() { return std::get<1>(data).second; }
-
-    std::string &third_tgt() { return std::get<2>(data).first; }
-    u64 &third_lba() { return std::get<2>(data).second; }
-};
+// This is the most important data structure of Zstore as it holds the mapping
+// of object key to object location on the storage device.
+//
+// There are a couple of future improvements that can be made:
+// - we can use a sha256 hash of the object key to reduce the size of the key
+// - we can use the index of target device instead of the target device name
+// - when we GC or renew epoch, it seems like we will need to create a blocking
+// operation on the map
+// https://www.boost.org/doc/libs/1_86_0/libs/unordered/doc/html/unordered.html#concurrent_blocking_operations
+using MapEntry = std::tuple<TargetLbaTuple, TargetLbaTuple, TargetLbaTuple>;
 
 class ZstoreController;
 
@@ -100,6 +94,7 @@ struct RequestContext {
     bool is_write;
     bool write_complete;
     uint64_t append_lba;
+    std::string response_body;
 
     void Clear();
     void Queue();
@@ -142,3 +137,14 @@ typedef struct {
     const char *name;   /**< Name used by SPDK to identify device.*/
 } DeviceInfo;
 extern const DeviceInfo DeviceInfo_default;
+
+using chrono_tp = std::chrono::high_resolution_clock::time_point;
+struct Timer {
+    chrono_tp t1;
+    chrono_tp t2;
+    chrono_tp t3;
+    chrono_tp t4;
+    chrono_tp t5;
+    chrono_tp t6;
+    // bool check;
+};

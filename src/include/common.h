@@ -43,8 +43,8 @@ double gettimediff(struct timeval s, struct timeval e);
 
 // Object and Map related
 
-Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
-                                int32_t lba3);
+Result<MapEntry> createMapEntry(DevTuple tuple, u64 lba1, u32 len1, u64 lba2,
+                                u32 len2, u64 lba3, u32 len3);
 
 Result<DevTuple> GetDevTuple(ObjectKey object_key);
 

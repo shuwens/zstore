@@ -5,8 +5,9 @@
 #include <spdk/likely.h>
 #include <spdk/nvme_zns.h>
 
-void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid)
+void Device::Init(struct spdk_nvme_ctrlr *ctrlr, int nsid, u32 zone_id)
 {
+    mZoneId = zone_id;
     mController = ctrlr;
     mNamespace = spdk_nvme_ctrlr_get_ns(ctrlr, nsid);
 

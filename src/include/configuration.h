@@ -150,7 +150,7 @@ class Configuration
     // NOTE this decides the number of threads *per device*, and the number of
     // IO queues are the same of num_of_IO_threads * num_of_device
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 2;
+    int gNumHttpThreads = 1;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 2;
@@ -175,7 +175,8 @@ class Configuration
     // 0 means no sampling, 1000 means 1/1000
     int gSamplingRate = 0;
 
-    const int current_zone = 115;
+    // const int current_zone = 115;
+    const int current_zone = 80;
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks

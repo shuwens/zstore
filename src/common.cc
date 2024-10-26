@@ -3,6 +3,7 @@
 #include "include/device.h"
 #include "include/zstore_controller.h"
 #include "spdk/nvme_zns.h"
+#include <tuple>
 
 std::shared_mutex g_shared_mutex_;
 
@@ -305,11 +306,8 @@ auto zoneRead(void *arg1) -> net::awaitable<void>
     }
 
     // For read, we swap the read date into the request body
-    // std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
-    // slot->request.body() = body;
-    //
-    // slot->read_fn(slot->request);
-    // }
+    std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+    ctx->response_body = body;
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
@@ -589,6 +587,8 @@ void RequestContext::Clear()
 
     successBytes = 0;
     targetBytes = 0;
+
+    response_body = "";
 }
 
 double RequestContext::GetElapsedTime() { return ctime - stime; }
@@ -721,14 +721,13 @@ void RequestContextPool::ReturnRequestContext(RequestContext *slot)
     }
 }
 
-Result<MapEntry> createMapEntry(DevTuple tuple, int32_t lba1, int32_t lba2,
-                                int32_t lba3)
+Result<MapEntry> createMapEntry(DevTuple tuple, u64 lba1, u32 len1, u64 lba2,
+                                u32 len2, u64 lba3, u32 len3)
 {
-
-    auto data = std::make_tuple(std::make_pair(std::get<0>(tuple), lba1),
-                                std::make_pair(std::get<1>(tuple), lba2),
-                                std::make_pair(std::get<2>(tuple), lba3));
-    MapEntry entry = {.data = data};
+    auto [tgt1, tgt2, tgt3] = tuple;
+    MapEntry entry = std::make_tuple(std::make_tuple(tgt1.first, lba1, len1),
+                                     std::make_tuple(tgt2.first, lba2, len2),
+                                     std::make_tuple(tgt3.first, lba3, len3));
     return entry;
 }
 
