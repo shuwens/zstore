@@ -17,7 +17,7 @@ void spdk_nvme_zone_append_wrapper(
     uint32_t flags,
     std::move_only_function<void(const spdk_nvme_cpl *completion)> cb)
 {
-    log_debug("APPEND: offset {}, size {}", offset, size);
+    // log_debug("APPEND: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         // rc = spdk_nvme_zns_zone_append(entry->nvme.ns, worker->ns_ctx->qpair,
@@ -750,7 +750,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.ns = dev->GetNamespace();
     ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
-    ioCtx.offset = Configuration::GetZslba() + offset;
+    ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId() + offset;
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
@@ -762,17 +762,19 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 }
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          HttpRequest request)
+                                          HttpRequest request,
+                                          std::vector<u8> data)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
+    slot->dataBuffer = data.data();
     // assert(slot->ctrl == zctrl_);
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();
     ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
-    ioCtx.offset = Configuration::GetZslba();
+    ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId();
     ioCtx.size = Configuration::GetDataBufferSizeInSector();
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;

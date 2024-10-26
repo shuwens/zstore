@@ -12,8 +12,6 @@
  * read object workflow: handle request, read into object etc
  * write object worklfow: handle request, write into object etc
  * format the broken drives
- * use objects in http
- * use hashes now
 
 ## Short-term TODOs
  * key experiment tput/latency: read
@@ -33,7 +31,8 @@
 
 ## OSDI TODOs
 - [ ] read the paper
-- [ ] compare to other stuff
+- [ ] compare to other systems
+- [ ] perf is not stuck with 100k, try different IO threads?
 
 ## Long-term TODOs
  * read zone header broken, we should be able to read this and store the zones

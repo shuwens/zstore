@@ -81,6 +81,13 @@ auto awaitable_on_request(HttpRequest req,
             co_await zoneRead(s1);
             // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
+            // log_debug("1111");
+
+            ZstoreObject deserialized_obj;
+            bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
+                                                    deserialized_obj);
+
+            // log_debug("1111");
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
             // s2->Clear();
@@ -113,7 +120,7 @@ auto awaitable_on_request(HttpRequest req,
         auto [tgt3, _, _] = third;
 
         // if (zctrl_.verbose)
-        log_debug("Tuple to write: {} {} {}", tgt1, tgt2, tgt3);
+        // log_debug("Tuple to write: {} {} {}", tgt1, tgt2, tgt3);
 
         if (!zctrl_.isDraining &&
             zctrl_.mRequestContextPool->availableContexts.size() > 3) {
@@ -139,17 +146,32 @@ auto awaitable_on_request(HttpRequest req,
             // auto slot = MakeWriteRequest(
             //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req, entry);
 
+            ZstoreObject original_obj;
+            original_obj.entry.type = LogEntryType::kData;
+            original_obj.entry.seqnum = 42;
+            original_obj.entry.chunk_seqnum = 24;
+            original_obj.datalen = 4096; // Example data length
+            original_obj.body = std::malloc(original_obj.datalen);
+            std::memset(original_obj.body, req.body().data()[0],
+                        original_obj.datalen); // Fill with example data (0xCD)
+            // std::strcpy(original_obj.key_hash, key_hash);
+            original_obj.key_size = kHashSize;
+            // static_cast<uint16_t>(std::strlen(original_obj.key_hash));
+
+            // 2. Serialize to buffer
+            std::vector<u8> buffer = WriteZstoreObjectToBuffer(original_obj);
+
             if (zctrl_.verbose)
                 log_debug("44444");
-            auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
-            auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
-            auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
+            auto s1 = MakeWriteRequest(&zctrl_, dev1, req, buffer).value();
+            auto s2 = MakeWriteRequest(&zctrl_, dev2, req, buffer).value();
+            auto s3 = MakeWriteRequest(&zctrl_, dev3, req, buffer).value();
 
             if (zctrl_.verbose)
                 log_debug("5555");
 
             co_await zoneAppend(s1);
-            log_debug("s1");
+            // log_debug("s1");
             // co_await zoneAppend(s2);
             // log_debug("s2");
             // co_await zoneAppend(s3);
@@ -176,7 +198,7 @@ auto awaitable_on_request(HttpRequest req,
                     .value();
             // update lba in map
             auto rc = zctrl_.PutObject(key_hash, new_entry).value();
-            assert(rc == true);
+            // assert(rc == true);
             // if (rc == false)
             //     log_debug("Inserting object {} failed ", object_key);
 

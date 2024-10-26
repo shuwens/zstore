@@ -194,11 +194,15 @@ int ZstoreController::PopulateMap(bool bogus)
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
             auto entry =
-                createMapEntry(
-                    std::make_tuple(std::make_pair("Zstore2Dev1", 80),
-                                    std::make_pair("Zstore2Dev2", 80),
-                                    std::make_pair("Zstore3Dev1", 115)),
-                    i + zone_offset, 1, i + zone_offset, 1, i + zone_offset, 1)
+                createMapEntry(std::make_tuple(
+                                   std::make_pair("Zstore2Dev1",
+                                                  Configuration::GetZoneId1()),
+                                   std::make_pair("Zstore2Dev2",
+                                                  Configuration::GetZoneId1()),
+                                   std::make_pair("Zstore3Dev1",
+                                                  Configuration::GetZoneId2())),
+                               i + zone_offset, 1, i + zone_offset, 1,
+                               i + zone_offset, 1)
                     .value();
             // assert(rc.has_value());
             sha256("/db/" + std::to_string(i), hash);
@@ -244,12 +248,18 @@ int ZstoreController::PopulateDevHash()
 
     // this seems to be stupid, but we are just manually adding the target
     // device and the zone we write to here
-    tgt_dev_vec.push_back({std::make_pair("Zstore2Dev1", 80)});
-    tgt_dev_vec.push_back({std::make_pair("Zstore2Dev2", 80)});
-    tgt_dev_vec.push_back({std::make_pair("Zstore3Dev1", 115)});
-    tgt_dev_vec.push_back({std::make_pair("Zstore3Dev2", 80)});
-    tgt_dev_vec.push_back({std::make_pair("Zstore4Dev1", 80)});
-    tgt_dev_vec.push_back({std::make_pair("Zstore4Dev2", 80)});
+    tgt_dev_vec.push_back(
+        {std::make_pair("Zstore2Dev1", Configuration::GetZoneId1())});
+    tgt_dev_vec.push_back(
+        {std::make_pair("Zstore2Dev2", Configuration::GetZoneId1())});
+    tgt_dev_vec.push_back(
+        {std::make_pair("Zstore3Dev1", Configuration::GetZoneId2())});
+    tgt_dev_vec.push_back(
+        {std::make_pair("Zstore3Dev2", Configuration::GetZoneId1())});
+    tgt_dev_vec.push_back(
+        {std::make_pair("Zstore4Dev1", Configuration::GetZoneId1())});
+    tgt_dev_vec.push_back(
+        {std::make_pair("Zstore4Dev2", Configuration::GetZoneId1())});
 
     for (int i = 0; i < tgt_dev_vec.size(); i++) {
         for (int j = 0; j < tgt_dev_vec.size(); j++) {
@@ -292,9 +302,12 @@ int ZstoreController::Init(bool object, int key_experiment)
               Configuration::GetNumOfDevices());
 
     std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
-        std::make_tuple("12.12.12.2", "5520", 80, 80),
-        std::make_tuple("12.12.12.3", "5520", 80, 80),
-        std::make_tuple("12.12.12.4", "5520", 80, 80)};
+        std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
+                        Configuration::GetZoneId1()),
+        std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
+                        Configuration::GetZoneId1()),
+        std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
+                        Configuration::GetZoneId1())};
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
@@ -659,9 +672,10 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
 Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
-    return std::make_tuple(std::make_pair("Zstore2Dev1", 80),
-                           std::make_pair("Zstore2Dev2", 80),
-                           std::make_pair("Zstore3Dev1", 115));
+    return std::make_tuple(
+        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
+        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
+        std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
     // ok, ok, zone full
     // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
     // invalid op code, invalid op code, ok

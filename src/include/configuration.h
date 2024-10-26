@@ -136,10 +136,13 @@ class Configuration
         return GetInstance().gDataBufferSizeInSector;
     }
 
-    static uint64_t GetZslba()
-    {
-        return GetInstance().gZoneDist * GetInstance().current_zone;
-    }
+    static uint64_t GetZoneId1() { return GetInstance().gCurrentZone1; }
+    static uint64_t GetZoneId2() { return GetInstance().gCurrentZone2; }
+
+    // static uint64_t GetZslba()
+    // {
+    //     return GetInstance().gZoneDist * GetInstance().current_zone;
+    // }
 
   private:
     // Hardcode because they won't change
@@ -175,8 +178,9 @@ class Configuration
     // 0 means no sampling, 1000 means 1/1000
     int gSamplingRate = 0;
 
-    // const int current_zone = 115;
-    const int current_zone = 80;
+    // manually set the zone id
+    const int gCurrentZone1 = 81;
+    const int gCurrentZone2 = 115;
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks

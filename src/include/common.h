@@ -10,6 +10,7 @@
 #include <spdk/event.h>
 #include <spdk/nvme.h>
 #include <spdk/thread.h>
+#include <vector>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
 
@@ -55,4 +56,5 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
                                          uint64_t offset, HttpRequest request);
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          HttpRequest request);
+                                          HttpRequest request,
+                                          std::vector<uint8_t> data);
