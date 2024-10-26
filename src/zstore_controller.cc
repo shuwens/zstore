@@ -4,6 +4,7 @@
 #include "include/device.h"
 #include "include/global.h"
 #include "include/http_server.h"
+#include "include/object.h"
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
 #include <thread>
@@ -11,8 +12,8 @@
 int zone_offset = 1808277;
 // int zone_offset = 0;
 
-namespace beast = boost::beast;   // from <boost/beast.hpp>
-namespace http = beast::http;     // from <boost/beast/http.hpp>
+// namespace beast = boost::beast; // from <boost/beast.hpp>
+// namespace http = beast::http;     // from <boost/beast/http.hpp>
 namespace net = boost::asio;      // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
@@ -187,6 +188,8 @@ void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
 
 int ZstoreController::PopulateMap(bool bogus)
 {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    // static unsigned char buffer[65];
     if (mKeyExperiment == 1) {
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
@@ -198,7 +201,8 @@ int ZstoreController::PopulateMap(bool bogus)
                     i + zone_offset, 1, i + zone_offset, 1, i + zone_offset, 1)
                     .value();
             // assert(rc.has_value());
-            mMap.insert({"/db/" + std::to_string(i), entry});
+            sha256("/db/" + std::to_string(i), hash);
+            mMap.insert({hash, entry});
         }
     } else if (mKeyExperiment == 2) {
         // Sequential write (append) and read
@@ -639,31 +643,25 @@ void ZstoreController::Drain()
 }
 
 // Bloom filter
-Result<bool> ZstoreController::SearchBF(const ObjectKey &key)
+Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
 {
-    return mBF.contains(key);
+    return mBF.contains(key_hash);
 }
 
-Result<bool> ZstoreController::UpdateBF(const ObjectKey &key)
+Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
 {
-    if (mBF.contains(key)) {
-        return true;
-        // do nothing since item is alredy in BF?
-    } else {
-        mBF.insert({key});
-        return true;
-    }
+    mBF.insert({key_hash});
+    return true;
 }
 
 // Map
 
 Result<DevTuple>
-ZstoreController::GetDevTupleForRandomReads(ObjectKey object_key)
+ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
     return std::make_tuple(std::make_pair("Zstore2Dev1", 80),
                            std::make_pair("Zstore2Dev2", 80),
                            std::make_pair("Zstore3Dev1", 115));
-
     // ok, ok, zone full
     // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
     // invalid op code, invalid op code, ok
@@ -687,29 +685,43 @@ unsigned int stringToSeed(const std::string &str)
     return seed;
 }
 
-Result<DevTuple> ZstoreController::GetDevTuple(ObjectKey object_key)
+// Simple hash function to convert a char string into an unsigned int
+unsigned int hashToSeed(unsigned char *str)
 {
-    std::srand(stringToSeed(object_key)); // seed the random number generator
-                                          // with the hash of the object key
+    unsigned int hash = 0;
+    while (*str) {
+        hash = (hash * 31) +
+               *str; // Use a prime number to combine character values
+        ++str;
+    }
+    return hash;
+}
+
+Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
+{
+    std::srand(hashToSeed(key_hash)); // seed the random number generator
+                                      // with the hash of the object key
     int random_index = std::rand() % mDevHash.size();
     return mDevHash[random_index];
 }
 
-Result<bool> ZstoreController::PutObject(const ObjectKey &key,
+Result<bool> ZstoreController::PutObject(const ObjectKeyHash &key_hash,
                                          const MapEntry entry)
 {
-    return mMap.insert_or_assign(key, entry);
+    return mMap.insert_or_assign(key_hash, entry);
 }
 
-Result<bool> ZstoreController::GetObject(const ObjectKey &key, MapEntry &entry)
+Result<bool> ZstoreController::GetObject(const ObjectKeyHash &key_hash,
+                                         MapEntry &entry)
 {
-    return mMap.cvisit(key, [&entry](const auto &x) {
+    return mMap.cvisit(key_hash, [&entry](const auto &x) {
         // entry = x.second->value;
         entry = x.second;
     });
 }
 
-Result<MapEntry> ZstoreController::CreateObject(std::string key, DevTuple tuple)
+Result<MapEntry> ZstoreController::CreateFakeObject(ObjectKeyHash key_hash,
+                                                    DevTuple tuple)
 {
     auto entry = createMapEntry(tuple, 0, 1, 0, 1, 0, 1);
     assert(entry.has_value());

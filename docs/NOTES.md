@@ -13,6 +13,7 @@
  * write object worklfow: handle request, write into object etc
  * format the broken drives
  * use objects in http
+ * use hashes now
 
 ## Short-term TODOs
  * key experiment tput/latency: read
@@ -27,6 +28,12 @@
 - [x] different object sizes
 - [ ] some functional or correctness tests
 - [ ] failure recover things 
+- [ ] RoCE2
+- [ ] RDMA hash test
+
+## OSDI TODOs
+- [ ] read the paper
+- [ ] compare to other stuff
 
 ## Long-term TODOs
  * read zone header broken, we should be able to read this and store the zones

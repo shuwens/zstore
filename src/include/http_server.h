@@ -1,6 +1,8 @@
 #pragma once
 #include "boost_utils.h"
 #include "common.h"
+#include "global.h"
+#include "object.h"
 #include "types.h"
 #include "zstore_controller.h"
 #include <boost/asio/experimental/awaitable_operators.hpp>
@@ -16,25 +18,34 @@ using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
     net::use_awaitable_t<>::executor_with_default<net::any_io_executor>>::other;
 
+// unsigned char hashObjectKey(const std::string &object_key)
+// {
+//     unsigned char key_hash[kHashSize];
+//     sha256_string(std::string(object_key).c_str(), *key_hash);
+//     return key_hash[0];
+// }
+
 // This function implements the core logic of async
 auto awaitable_on_request(HttpRequest req,
                           ZstoreController &zctrl_) -> net::awaitable<HttpMsg>
 {
     auto object_key = req.target();
+    unsigned char key_hash[kHashSize];
+    sha256(object_key, key_hash);
+
     if (req.method() == http::verb::get) {
         // NOTE: READ path: see section 3.4
-
         MapEntry entry;
         if (zctrl_.mKeyExperiment == 1) {
             // random read
             // hardcode entry value for benchmarking
             entry = createMapEntry(
-                        zctrl_.GetDevTupleForRandomReads(object_key).value(),
+                        zctrl_.GetDevTupleForRandomReads(key_hash).value(),
                         zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
                         zctrl_.mTotalCounts + 1, 1)
                         .value();
         } else {
-            auto rc = zctrl_.GetObject(object_key, entry).value();
+            auto rc = zctrl_.GetObject(key_hash, entry).value();
             // assert(rc == true);
             if (rc == false) {
                 log_error("Object {} not found", object_key);
@@ -42,7 +53,7 @@ auto awaitable_on_request(HttpRequest req,
             }
         }
 
-        if (zctrl_.SearchBF(object_key).value()) {
+        if (zctrl_.SearchBF(key_hash).value()) {
             log_info("Object {} is recently modified", object_key);
             log_error("Unimplemented!!!");
         }
@@ -85,17 +96,17 @@ auto awaitable_on_request(HttpRequest req,
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {
         // NOTE: Write path: see section 3.3
-        auto object_key = req.target();
         auto object_value = req.body();
 
         if (zctrl_.verbose)
-            log_debug("key {}, value {}", req.target(), req.body());
+            log_debug("key {}, key hash {}, value {}", object_key, key_hash,
+                      req.body());
 
-        auto dev_tuple = zctrl_.GetDevTupleForRandomReads(object_key).value();
+        auto dev_tuple = zctrl_.GetDevTupleForRandomReads(key_hash).value();
 
         // TODO:  populate the map with consistent hashes
         // auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
-        auto entry = zctrl_.CreateObject(object_key, dev_tuple).value();
+        auto entry = zctrl_.CreateFakeObject(key_hash, dev_tuple).value();
         auto [first, second, third] = entry;
         auto [tgt1, _, _] = first;
         auto [tgt2, _, _] = second;
@@ -116,7 +127,7 @@ auto awaitable_on_request(HttpRequest req,
             if (zctrl_.verbose)
                 log_debug("2222");
             // update and broadcast BF
-            auto rc2 = zctrl_.UpdateBF(object_key);
+            auto rc2 = zctrl_.UpdateBF(key_hash);
             assert(rc2.has_value());
 
             if (zctrl_.verbose)
@@ -164,7 +175,7 @@ auto awaitable_on_request(HttpRequest req,
                     // s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
                     .value();
             // update lba in map
-            auto rc = zctrl_.PutObject(object_key, new_entry).value();
+            auto rc = zctrl_.PutObject(key_hash, new_entry).value();
             assert(rc == true);
             // if (rc == false)
             //     log_debug("Inserting object {} failed ", object_key);

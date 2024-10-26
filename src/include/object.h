@@ -63,7 +63,9 @@ struct ZstoreObject {
 // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c/10632725
 void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
                         char outputBuffer[65]);
-void sha256_string(char *string, char outputBuffer[65]);
+void sha256_string(const char *string, char outputBuffer[65]);
+
+void sha256(std::string_view input, unsigned char *hash);
 
 // -----------------------------------------------------
 

@@ -12,8 +12,8 @@
 #include <unistd.h>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
-using zstore_map = boost::concurrent_flat_map<ObjectKey, MapEntry>;
-using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKey>;
+using zstore_map = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
+using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKeyHash>;
 
 class Device;
 class Zone;
@@ -26,8 +26,8 @@ class ZstoreController
     // Result<void> PopulateMap(bool bogus, int key_experiment);
     // Result<void> PopulateDevHash(int key_experiment);
 
-    Result<DevTuple> GetDevTuple(ObjectKey object_key);
-    Result<DevTuple> GetDevTupleForRandomReads(ObjectKey object_key);
+    Result<DevTuple> GetDevTuple(ObjectKeyHash object_key_hash);
+    Result<DevTuple> GetDevTupleForRandomReads(ObjectKeyHash key_hash);
 
     int pivot;
 
@@ -48,16 +48,16 @@ class ZstoreController
     zstore_bloom_filter mBF;
 
     // Object APIs
-    Result<bool> SearchBF(const ObjectKey &key);
-    Result<bool> UpdateBF(const ObjectKey &key);
+    Result<bool> SearchBF(const ObjectKeyHash &key_hash);
+    Result<bool> UpdateBF(const ObjectKeyHash &key_hash);
 
-    Result<bool> PutObject(const ObjectKey &key, MapEntry entry);
-    Result<bool> GetObject(const ObjectKey &key, MapEntry &entry);
+    Result<bool> PutObject(const ObjectKeyHash &key_hash, MapEntry entry);
+    Result<bool> GetObject(const ObjectKeyHash &key_hash, MapEntry &entry);
 
-    Result<void> UpdateMap(ObjectKey key, MapEntry entry);
-    Result<void> ReleaseObject(ObjectKey key);
-    Result<MapEntry> CreateObject(ObjectKey key, DevTuple tuple);
-    Result<void> DeleteObject(ObjectKey key);
+    // Result<void> UpdateMap(ObjectKey key, MapEntry entry);
+    // Result<void> ReleaseObject(ObjectKey key);
+    Result<MapEntry> CreateFakeObject(ObjectKeyHash key_hash, DevTuple tuple);
+    Result<void> DeleteObject(ObjectKeyHash key_hash);
 
     ZstoreController(net::io_context &ioc) : mIoc_(ioc){};
     // The io_context is required for all I/O

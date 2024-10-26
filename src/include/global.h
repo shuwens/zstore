@@ -3,6 +3,8 @@
 #include <spdk/nvme.h>
 #include <vector>
 
+const int kHashSize = 32;
+
 static struct spdk_nvme_transport_id g_trid = {};
 
 class Device;
