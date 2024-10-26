@@ -5,8 +5,11 @@
 #include "include/global.h"
 #include "include/http_server.h"
 #include "include/object.h"
+#include <fstream>
+#include <iostream>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
+#include <string>
 #include <thread>
 
 int zone_offset = 1808277;
@@ -186,10 +189,11 @@ void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
     // struct spdk_nvme_detach_ctx *detach_ctx = NULL;
 }
 
-int ZstoreController::PopulateMap(bool bogus)
+int ZstoreController::PopulateMap()
 {
+    log_info("populate map: mKeyExperiment {}, mPhase {}", mKeyExperiment,
+             mPhase);
     unsigned char hash[SHA256_DIGEST_LENGTH];
-    // static unsigned char buffer[65];
     if (mKeyExperiment == 1) {
         // Random Read
         for (int i = 0; i < 2'000'000; i++) {
@@ -204,11 +208,34 @@ int ZstoreController::PopulateMap(bool bogus)
                                i + zone_offset, 1, i + zone_offset, 1,
                                i + zone_offset, 1)
                     .value();
-            // assert(rc.has_value());
             sha256("/db/" + std::to_string(i), hash);
             mMap.insert({hash, entry});
         }
     } else if (mKeyExperiment == 2) {
+        if (mPhase == 1) {
+            log_info("Prepare phase, do nothing");
+            for (int i = 0; i < 2'000; i++) {
+                auto entry =
+                    createMapEntry(
+                        std::make_tuple(
+                            std::make_pair("Zstore2Dev1",
+                                           Configuration::GetZoneId1()),
+                            std::make_pair("Zstore2Dev2",
+                                           Configuration::GetZoneId1()),
+                            std::make_pair("Zstore3Dev1",
+                                           Configuration::GetZoneId2())),
+                        i + zone_offset, 1, i + zone_offset, 1, i + zone_offset,
+                        1)
+                        .value();
+                sha256("/db/" + std::to_string(i), hash);
+                mMap.insert({hash, entry});
+            }
+            DumpAllMap();
+        } else if (mPhase == 2) {
+            log_info("Run phase, load the map and the bloom filter");
+            ReadAllMap();
+        }
+
         // Sequential write (append) and read
         // for (int i = 0; i < 2'000'000; i++) {
         //     mMap.insert({"/db/" + std::to_string(i),
@@ -227,6 +254,126 @@ int ZstoreController::PopulateMap(bool bogus)
     }
     // else if (key_experiment == 1) {}
     return 0;
+}
+
+// Helper function to write a string to a binary file
+void writeString(std::ofstream &outFile, const std::string &str)
+{
+    size_t length = str.size();
+    outFile.write(reinterpret_cast<const char *>(&length), sizeof(length));
+    outFile.write(str.data(), length);
+}
+
+// Helper function to read a string from a binary file
+std::string readString(std::ifstream &inFile)
+{
+    size_t length;
+    inFile.read(reinterpret_cast<char *>(&length), sizeof(length));
+    std::string str(length, '\0');
+    inFile.read(&str[0], length);
+    return str;
+}
+
+// Function to write the map to a file
+void ZstoreController::writeMapToFile(const std::string &filename)
+{
+    log_debug("write map to file : {}", filename);
+    std::ofstream outFile(filename, std::ios::binary);
+    if (!outFile) {
+        std::cerr << "Error opening file for writing: " << filename
+                  << std::endl;
+        return;
+    }
+
+    log_debug("1111");
+    // Write the size of the map
+    size_t mapSize = mMap.size();
+    outFile.write(reinterpret_cast<const char *>(&mapSize), sizeof(mapSize));
+
+    log_debug("2222");
+    mMap.visit_all([&](auto &kv) {
+        log_debug("kv ");
+        // Write each key-value pair
+        // for (const auto &[key, value] : map) {
+        // Serialize the key (fixed-length hash)
+        outFile.write(reinterpret_cast<const char *>(kv.first), kHashSize);
+
+        log_debug("333");
+        // Serialize the value (MapEntry)
+        for (const auto &targetTuple :
+             {std::get<0>(kv.second), std::get<1>(kv.second),
+              std::get<2>(kv.second)}) {
+            log_debug("123");
+            // Write TargetDev
+            // writeString(outFile, std::get<0>(targetTuple));
+
+            log_debug("444");
+            // Write Lba and Length
+            outFile.write(
+                reinterpret_cast<const char *>(&std::get<1>(targetTuple)),
+                sizeof(Lba));
+            log_debug("444");
+            outFile.write(
+                reinterpret_cast<const char *>(&std::get<2>(targetTuple)),
+                sizeof(Length));
+        }
+    });
+}
+
+// Function to read the map from a file
+void ZstoreController::readMapFromFile(const std::string &filename)
+{
+    log_debug("read map from file : {}", filename);
+    std::ifstream inFile(filename, std::ios::binary);
+    if (!inFile) {
+        std::cerr << "Error opening file for reading: " << filename
+                  << std::endl;
+    }
+
+    // Read the size of the map
+    size_t mapSize;
+    inFile.read(reinterpret_cast<char *>(&mapSize), sizeof(mapSize));
+
+    // Read each key-value pair
+    for (size_t i = 0; i < mapSize; ++i) {
+        // Deserialize the key (fixed-length hash)
+        unsigned char key[kHashSize];
+        inFile.read(reinterpret_cast<char *>(key), kHashSize);
+
+        // Deserialize the value (MapEntry)
+        TargetLbaTuple t1, t2, t3;
+        for (auto &targetTuple : {std::ref(t1), std::ref(t2), std::ref(t3)}) {
+            // Read TargetDev
+            std::get<0>(targetTuple.get()) = readString(inFile);
+
+            // Read Lba and Length
+            inFile.read(
+                reinterpret_cast<char *>(&std::get<1>(targetTuple.get())),
+                sizeof(Lba));
+            inFile.read(
+                reinterpret_cast<char *>(&std::get<2>(targetTuple.get())),
+                sizeof(Length));
+        }
+
+        // Insert the key-value pair into the map
+        mMap.emplace(key, std::make_tuple(t1, t2, t3));
+    }
+}
+
+Result<void> ZstoreController::DumpAllMap()
+{
+    log_debug("dump map ");
+    // Write the map to a file
+    std::string filename = "map_data.bin";
+    writeMapToFile(filename);
+}
+
+Result<void> ZstoreController::ReadAllMap()
+{
+    log_debug("read dump map ");
+    std::string filename = "map_data.bin";
+    // Read the map back from the file
+    readMapFromFile(filename);
 }
 
 // this yields a list of devices for a given object key
@@ -282,7 +429,7 @@ int ZstoreController::PopulateDevHash()
     return 0;
 }
 
-int ZstoreController::Init(bool object, int key_experiment)
+int ZstoreController::Init(bool object, int key_experiment, int phase)
 {
     int rc = 0;
     verbose = Configuration::Verbose();
@@ -292,6 +439,7 @@ int ZstoreController::Init(bool object, int key_experiment)
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
     setKeyExperiment(key_experiment);
+    setPhase(phase);
 
     // TODO: set all parameters too
     log_debug("Configuration: sector size {}, queue size {}, context pool size "
@@ -417,7 +565,7 @@ int ZstoreController::Init(bool object, int key_experiment)
     rc = PopulateDevHash();
     assert(rc == 0);
 
-    rc = PopulateMap(true);
+    rc = PopulateMap();
     assert(rc == 0);
 
     pivot = 0;

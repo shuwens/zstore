@@ -12,8 +12,8 @@
 #include <unistd.h>
 
 namespace net = boost::asio; // from <boost/asio.hpp>
-using zstore_map = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
-using zstore_bloom_filter = boost::concurrent_flat_set<ObjectKeyHash>;
+using ZstoreMap = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
+using ZstoreBloomFilter = boost::concurrent_flat_set<ObjectKeyHash>;
 
 class Device;
 class Zone;
@@ -22,7 +22,13 @@ class ZstoreController
 {
   public:
     int PopulateDevHash();
-    int PopulateMap(bool bogus);
+    int PopulateMap();
+    Result<void> DumpAllMap();
+    Result<void> ReadAllMap();
+
+    void writeMapToFile(const std::string &filename);
+    void readMapFromFile(const std::string &filename);
+
     // Result<void> PopulateMap(bool bogus, int key_experiment);
     // Result<void> PopulateDevHash(int key_experiment);
 
@@ -38,14 +44,14 @@ class ZstoreController
     std::shared_mutex mDevHashMutex;
 
     // ZStore Map: this maps key to tuple of ZNS target and lba
-    zstore_map mMap;
+    ZstoreMap mMap;
 
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
     //
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
-    zstore_bloom_filter mBF;
+    ZstoreBloomFilter mBF;
 
     // Object APIs
     Result<bool> SearchBF(const ObjectKeyHash &key_hash);
@@ -64,7 +70,7 @@ class ZstoreController
     net::io_context &mIoc_;
 
     ~ZstoreController();
-    int Init(bool object, int key_experiment);
+    int Init(bool object, int key_experiment, int phase);
 
     // threads
     void initIoThread();
@@ -83,6 +89,7 @@ class ZstoreController
     int GetQueueDepth() { return mQueueDepth; };
     void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     void setKeyExperiment(int key) { mKeyExperiment = key; };
+    void setPhase(int phase) { mPhase = phase; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
     void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
@@ -217,6 +224,10 @@ class ZstoreController
     // 5: Target and gateway failure
     // 6: GC
     // 7: Checkpoint
+
+    int mPhase;
+    // 1: prepare
+    // 2: run
 
   private:
     // number of devices

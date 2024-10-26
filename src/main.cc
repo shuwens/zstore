@@ -3,6 +3,7 @@
 #include "include/zstore_controller.h"
 #include "spdk/env.h"
 #include "spdk/thread.h"
+#include "src/include/utils.h"
 #include <bits/stdc++.h>
 #include <boost/asio/executor_work_guard.hpp>
 #include <cassert>
@@ -21,7 +22,7 @@ int main(int argc, char **argv)
     }
 
     int key_experiment = std::stoull(argv[1]);
-    int dummy = std::stoull(argv[2]);
+    int phase = std::stoull(argv[2]);
 
     int rc;
     struct spdk_env_opts opts;
@@ -53,30 +54,36 @@ int main(int argc, char **argv)
 
     net::io_context ioc{Configuration::GetNumHttpThreads()};
     gZstoreController = new ZstoreController(std::ref(ioc));
-    gZstoreController->Init(false, key_experiment);
+    gZstoreController->Init(false, key_experiment, phase);
 
     log_info("Starting HTTP server with port 2000!\n");
 
     // gZstoreController->mIoc_.run();
     // FIXME only tput on Zstore2Dev1
-    while (1) {
-        //     auto etime = std::chrono::high_resolution_clock::now();
-        //     auto delta =
-        //     std::chrono::duration_cast<std::chrono::microseconds>(
-        //                      etime - gZstoreController->stime)
-        //                      .count();
-        //     auto tput =
-        //         gZstoreController->mTotalCounts * g_micro_to_second /
-        //         delta;
-        //
-        //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-        //              gZstoreController->mTotalCounts, delta, tput);
-        //     {
-        //         gZstoreController->stime =
-        //             std::chrono::high_resolution_clock::now();
-        //         gZstoreController->mTotalCounts = 0;
-        //     }
-        sleep(1);
+    // while (1) {
+    //     auto etime = std::chrono::high_resolution_clock::now();
+    //     auto delta =
+    //     std::chrono::duration_cast<std::chrono::microseconds>(
+    //                      etime - gZstoreController->stime)
+    //                      .count();
+    //     auto tput =
+    //         gZstoreController->mTotalCounts * g_micro_to_second /
+    //         delta;
+    //
+    //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
+    //              gZstoreController->mTotalCounts, delta, tput);
+    //     {
+    //         gZstoreController->stime =
+    //             std::chrono::high_resolution_clock::now();
+    //         gZstoreController->mTotalCounts = 0;
+    //     }
+    //     sleep(1);
+    // }
+
+    sleep(30);
+    if (gZstoreController->mPhase == 2 && gZstoreController->mPhase == 1) {
+        log_info("Prepare phase is done, dumping all map and bloom filter");
+        gZstoreController->DumpAllMap();
     }
 
     gZstoreController->Drain();
