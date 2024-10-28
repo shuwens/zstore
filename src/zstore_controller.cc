@@ -256,107 +256,96 @@ int ZstoreController::PopulateMap()
     return 0;
 }
 
-// Helper function to write a string to a binary file
+// Helper function to write a single string to the file
 void writeString(std::ofstream &outFile, const std::string &str)
 {
-    size_t length = str.size();
-    outFile.write(reinterpret_cast<const char *>(&length), sizeof(length));
-    outFile.write(str.data(), length);
+    size_t size = str.size();
+    outFile.write(reinterpret_cast<const char *>(&size), sizeof(size));
+    outFile.write(str.c_str(), size);
 }
 
-// Helper function to read a string from a binary file
+// Helper function to read a single string from the file
 std::string readString(std::ifstream &inFile)
 {
-    size_t length;
-    inFile.read(reinterpret_cast<char *>(&length), sizeof(length));
-    std::string str(length, '\0');
-    inFile.read(&str[0], length);
+    size_t size;
+    inFile.read(reinterpret_cast<char *>(&size), sizeof(size));
+    std::string str(size, '\0');
+    inFile.read(&str[0], size);
     return str;
 }
 
 // Function to write the map to a file
 void ZstoreController::writeMapToFile(const std::string &filename)
 {
-    log_debug("write map to file : {}", filename);
+    log_debug("11111");
     std::ofstream outFile(filename, std::ios::binary);
     if (!outFile) {
         std::cerr << "Error opening file for writing: " << filename
                   << std::endl;
-        return;
     }
 
-    log_debug("1111");
-    // Write the size of the map
-    size_t mapSize = mMap.size();
+    log_debug("11111");
+    size_t mapSize = 0;
+    mMap.visit_all([&mapSize](auto &x) { ++mapSize; });
+
+    // Write the map size
     outFile.write(reinterpret_cast<const char *>(&mapSize), sizeof(mapSize));
 
-    log_debug("2222");
-    mMap.visit_all([&](auto &kv) {
-        log_debug("kv ");
-        // Write each key-value pair
-        // for (const auto &[key, value] : map) {
-        // Serialize the key (fixed-length hash)
-        outFile.write(reinterpret_cast<const char *>(kv.first), kHashSize);
+    log_debug("11111");
+    // Iterate over each key-value pair and write them to the file
+    mMap.visit_all([&outFile](auto &x) {
+        // Serialize the key
+        log_debug("2222");
+        outFile.write(reinterpret_cast<const char *>(x.first),
+                      33); // Assuming 32-byte hash
 
-        log_debug("333");
-        // Serialize the value (MapEntry)
-        for (const auto &targetTuple :
-             {std::get<0>(kv.second), std::get<1>(kv.second),
-              std::get<2>(kv.second)}) {
-            log_debug("123");
-            // Write TargetDev
-            // writeString(outFile, std::get<0>(targetTuple));
-
-            log_debug("444");
-            // Write Lba and Length
-            outFile.write(
-                reinterpret_cast<const char *>(&std::get<1>(targetTuple)),
-                sizeof(Lba));
-            log_debug("444");
-            outFile.write(
-                reinterpret_cast<const char *>(&std::get<2>(targetTuple)),
-                sizeof(Length));
-        }
+        log_debug("2222");
+        // Serialize the entry
+        auto writeTargetLbaTuple = [&outFile](const TargetLbaTuple &tuple) {
+            writeString(outFile, std::get<0>(tuple)); // TargetDev
+            outFile.write(reinterpret_cast<const char *>(&std::get<1>(tuple)),
+                          sizeof(Lba)); // Lba
+            outFile.write(reinterpret_cast<const char *>(&std::get<2>(tuple)),
+                          sizeof(Length)); // Length
+        };
+        log_debug("2222");
+        writeTargetLbaTuple(std::get<0>(x.second));
+        writeTargetLbaTuple(std::get<1>(x.second));
+        writeTargetLbaTuple(std::get<2>(x.second));
+        log_debug("2222");
     });
 }
 
 // Function to read the map from a file
 void ZstoreController::readMapFromFile(const std::string &filename)
 {
-    log_debug("read map from file : {}", filename);
     std::ifstream inFile(filename, std::ios::binary);
     if (!inFile) {
         std::cerr << "Error opening file for reading: " << filename
                   << std::endl;
     }
 
-    // Read the size of the map
     size_t mapSize;
     inFile.read(reinterpret_cast<char *>(&mapSize), sizeof(mapSize));
 
-    // Read each key-value pair
     for (size_t i = 0; i < mapSize; ++i) {
-        // Deserialize the key (fixed-length hash)
-        unsigned char key[kHashSize];
-        inFile.read(reinterpret_cast<char *>(key), kHashSize);
+        // Deserialize the key
+        unsigned char *key = new unsigned char[32];
+        inFile.read(reinterpret_cast<char *>(key), 32);
 
-        // Deserialize the value (MapEntry)
-        TargetLbaTuple t1, t2, t3;
-        for (auto &targetTuple : {std::ref(t1), std::ref(t2), std::ref(t3)}) {
-            // Read TargetDev
-            std::get<0>(targetTuple.get()) = readString(inFile);
+        // Deserialize the entry
+        auto readTargetLbaTuple = [&inFile]() -> TargetLbaTuple {
+            std::string dev = readString(inFile);
+            Lba lba;
+            Length length;
+            inFile.read(reinterpret_cast<char *>(&lba), sizeof(Lba));
+            inFile.read(reinterpret_cast<char *>(&length), sizeof(Length));
+            return std::make_tuple(dev, lba, length);
+        };
 
-            // Read Lba and Length
-            inFile.read(
-                reinterpret_cast<char *>(&std::get<1>(targetTuple.get())),
-                sizeof(Lba));
-            inFile.read(
-                reinterpret_cast<char *>(&std::get<2>(targetTuple.get())),
-                sizeof(Length));
-        }
-
-        // Insert the key-value pair into the map
-        mMap.emplace(key, std::make_tuple(t1, t2, t3));
+        MapEntry entry = std::make_tuple(
+            readTargetLbaTuple(), readTargetLbaTuple(), readTargetLbaTuple());
+        mMap.emplace(key, entry);
     }
 }
 
