@@ -35,7 +35,8 @@ int dispatchObjectWorker(void *args);
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args);
 // void event_call(uint32_t core_id, spdk_event_fn fn, void *arg1, void *arg2);
 
-auto zoneRead(void *args) -> net::awaitable<void>;
+auto zoneRead(void *args) -> net::awaitable<Result<void>>;
+// auto zoneAppend(void *args) -> net::awaitable<Result<void>>;
 auto zoneAppend(void *args) -> net::awaitable<void>;
 
 double GetTimestampInUs();

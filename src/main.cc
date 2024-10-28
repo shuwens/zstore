@@ -80,10 +80,16 @@ int main(int argc, char **argv)
     //     sleep(1);
     // }
 
-    sleep(30);
-    if (gZstoreController->mPhase == 2 && gZstoreController->mPhase == 1) {
-        log_info("Prepare phase is done, dumping all map and bloom filter");
-        gZstoreController->DumpAllMap();
+    if (gZstoreController->mKeyExperiment == 1) {
+        while (1)
+            sleep(1);
+    } else {
+        sleep(30);
+        if (gZstoreController->mKeyExperiment == 2 &&
+            gZstoreController->mPhase == 1) {
+            log_info("Prepare phase is done, dumping all map and bloom filter");
+            gZstoreController->DumpAllMap();
+        }
     }
 
     gZstoreController->Drain();
