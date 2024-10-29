@@ -178,7 +178,7 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
 {
-    // log_debug("1111: offset {}, size {}", offset, size);
+    log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(

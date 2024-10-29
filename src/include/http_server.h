@@ -66,6 +66,7 @@ auto awaitable_on_request(HttpRequest req,
             //           entry.second_tgt(), entry.third_tgt());
             auto [first, _, _] = entry;
             auto [tgt, lba, _] = first;
+            log_debug("Reading from tgt {} lba {}", tgt, lba);
             auto dev1 = zctrl_.GetDevice(tgt);
             // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
             // auto dev3 = zctrl_.GetDevice(entry.third_tgt());

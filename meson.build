@@ -22,6 +22,7 @@ cc = meson.get_compiler('c')
 
 add_project_arguments('-fPIC', language: 'cpp')
 add_project_arguments('-Wno-unused-parameter', language: 'cpp')
+add_project_arguments('-Wno-deprecated-declarations', language: 'cpp')
 add_project_arguments('-fsized-deallocation', language: 'cpp')
 
 if get_option('buildtype') == 'release'
