@@ -497,11 +497,11 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     auto const port = 2000;
 
     // The io_context is required for all I/O
-    // auto const num_threads = Configuration::GetNumHttpThreads();
-    // net::io_context ioc{num_threads};
+    auto const num_threads = 3;
+    net::io_context ioc{num_threads};
 
     // Spawn a listening port
-    boost::asio::co_spawn(mIoc_, do_listen(tcp::endpoint{address, port}, *this),
+    boost::asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
                           [](std::exception_ptr e) {
                               if (e)
                                   try {
@@ -513,39 +513,42 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
                                   }
                           });
 
-    // std::vector<std::jthread> threads(num_threads);
-    // for (unsigned i = 0; i < num_threads; ++i) {
-    //     threads[i] = std::jthread([&ioc, i, &threads] {
-    //         // Create a cpu_set_t object representing a set of CPUs.
-    //         // Clear it and mark only CPU i as set.
-    //         cpu_set_t cpuset;
-    //         CPU_ZERO(&cpuset);
-    //         CPU_SET(i + Configuration::GetIoThreadCoreId(), &cpuset);
-    //         std::string name = "zstore_ioc" + std::to_string(i + 4);
-    //         int rc =
-    //             pthread_setname_np(threads[i].native_handle(), name.c_str());
-    //         if (rc != 0) {
-    //             log_error("HTTP server: Error calling pthread_setname: {}",
-    //             rc);
-    //         }
-    //         rc = pthread_setaffinity_np(threads[i].native_handle(),
-    //                                     sizeof(cpu_set_t), &cpuset);
-    //         if (rc != 0) {
-    //             log_error(
-    //                 "HTTP server: Error calling pthread_setaffinity_np: {}",
-    //                 rc);
-    //         }
-    //         ioc.run();
-    //     });
-    // }
+    std::vector<std::jthread> threads(num_threads);
+    for (unsigned i = 0; i < num_threads; ++i) {
+        threads[i] = std::jthread([&ioc, i, &threads] {
+            // Create a cpu_set_t object representing a set of CPUs.
+            // Clear it and mark only CPU i as set.
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i % 3 + Configuration::GetHttpThreadCoreId(), &cpuset);
+            std::string name =
+                "zstore_ioc" +
+                std::to_string(i + Configuration::GetHttpThreadCoreId());
+            int rc =
+                pthread_setname_np(threads[i].native_handle(), name.c_str());
+            if (rc != 0) {
+                log_error("HTTP server: Error calling pthread_setname: {}", rc);
+            }
+            rc = pthread_setaffinity_np(threads[i].native_handle(),
+                                        sizeof(cpu_set_t), &cpuset);
+            if (rc != 0) {
+                log_error(
+                    "HTTP server: Error calling pthread_setaffinity_np: {}",
+                    rc);
+            }
+            log_info("HTTP server: Thread {} on core {}", i,
+                     i % 3 + Configuration::GetHttpThreadCoreId());
+            ioc.run();
+        });
+    }
 
     // This was using SPDK threads as HTTP threads
-    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
-         ++threadId) {
-        mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL, NULL);
-        mHttpThread[threadId].controller = this;
-    }
-    initHttpThread();
+    // for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
+    //      ++threadId) {
+    //     mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
+    //     NULL); mHttpThread[threadId].controller = this;
+    // }
+    // initHttpThread();
 
     log_info("Initialization complete. Launching workers.");
 
@@ -577,6 +580,8 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     }
 
     log_info("ZstoreController Init finish");
+
+    ioc.run();
 
     return rc;
 }

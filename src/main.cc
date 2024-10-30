@@ -39,7 +39,7 @@ int main(int argc, char **argv)
     opts.name = "Zstore";
     opts.mem_size = g_dpdk_mem;
     opts.hugepage_single_segments = g_dpdk_mem_single_seg;
-    opts.core_mask = "0xbf";
+    opts.core_mask = "0xf";
     // opts.core_mask = "0x7"; // b, 7, f
     opts.shm_id = -1;
     if (spdk_env_init(&opts) < 0) {
@@ -58,7 +58,6 @@ int main(int argc, char **argv)
 
     log_info("Starting HTTP server with port 2000!\n");
 
-    // gZstoreController->mIoc_.run();
     // FIXME only tput on Zstore2Dev1
     // while (1) {
     //     auto etime = std::chrono::high_resolution_clock::now();
@@ -81,8 +80,10 @@ int main(int argc, char **argv)
     // }
 
     if (gZstoreController->mKeyExperiment == 1) {
-        while (1)
-            sleep(1);
+        log_info("1111");
+        gZstoreController->mIoc_.run();
+        // while (1)
+        //     sleep(1);
     } else {
         sleep(30);
         if (gZstoreController->mKeyExperiment == 2 &&

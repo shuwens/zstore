@@ -178,7 +178,7 @@ void spdk_nvme_zone_read_wrapper(
     uint32_t flags,
     std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
 {
-    log_debug("1111: offset {}, size {}", offset, size);
+    // log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_ns_cmd_read(
@@ -307,16 +307,15 @@ auto zoneRead(void *arg1) -> net::awaitable<Result<void>>
             ioCtx.size, ioCtx.flags);
         if (res_cpl.has_error()) {
             // log_error("cpl error status");
+            co_return outcome::failure(std::errc::io_error);
         } else
             cpl = res_cpl.value();
     }
     if (spdk_nvme_cpl_is_error(cpl)) {
-        log_error("I/O error status: {}",
-                  spdk_nvme_cpl_get_status_string(&cpl->status));
-        // fprintf(stderr, "I/O failed, aborting run\n");
-        // assert(0);
-        // exit(1);
-        log_debug("Unimplemented: put context back in pool");
+        // log_error("I/O error status: {}",
+        //           spdk_nvme_cpl_get_status_string(&cpl->status));
+        // log_debug("Unimplemented: put context back in pool");
+        co_return outcome::failure(std::errc::io_error);
     }
 
     // For read, we swap the read date into the request body

@@ -66,7 +66,8 @@ auto awaitable_on_request(HttpRequest req,
             //           entry.second_tgt(), entry.third_tgt());
             auto [first, _, _] = entry;
             auto [tgt, lba, _] = first;
-            log_debug("Reading from tgt {} lba {}", tgt, lba);
+            // log_debug("Reading from tgt {} lba {}", tgt, lba);
+
             auto dev1 = zctrl_.GetDevice(tgt);
             // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
             // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
@@ -79,24 +80,33 @@ auto awaitable_on_request(HttpRequest req,
             //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
             //     req).value();
 
-            co_await zoneRead(s1);
+            auto res = co_await zoneRead(s1);
             // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
             // log_debug("1111");
 
-            ZstoreObject deserialized_obj;
-            bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
-                                                    deserialized_obj);
+            if (res.has_value()) {
+                // log_debug("1111");
+                // }
+                ZstoreObject deserialized_obj;
+                bool success = ReadBufferToZstoreObject(
+                    s1->dataBuffer, s1->size, deserialized_obj);
 
-            // log_debug("1111");
-            s1->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            // s2->Clear();
-            // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
-            // s3->Clear();
-            // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+                // log_debug("1111");
+                s1->Clear();
+                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+                // s2->Clear();
+                // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+                // s3->Clear();
+                // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
 
-            co_return handle_request(std::move(req));
+                co_return handle_request(std::move(req));
+            } else {
+                s1->Clear();
+                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+
+                co_return handle_request(std::move(req));
+            }
         } else {
             log_error("Draining or not enough contexts");
         }
@@ -145,7 +155,8 @@ auto awaitable_on_request(HttpRequest req,
             auto dev3 = zctrl_.GetDevice(tgt3);
 
             // auto slot = MakeWriteRequest(
-            //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req, entry);
+            //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req,
+            //     entry);
 
             ZstoreObject original_obj;
             original_obj.entry.type = LogEntryType::kData;
@@ -178,7 +189,8 @@ auto awaitable_on_request(HttpRequest req,
             // co_await zoneAppend(s3);
             // log_debug("s3");
 
-            // co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+            // co_await (zoneAppend(s1) && zoneAppend(s2) &&
+            // zoneAppend(s3));
 
             if (zctrl_.verbose)
                 log_debug("6666");
@@ -195,7 +207,8 @@ auto awaitable_on_request(HttpRequest req,
                                     std::make_pair(tgt2, dev2->GetZoneId()),
                                     std::make_pair(tgt3, dev3->GetZoneId())),
                     s1->append_lba, 1, 0, 1, 0, 1)
-                    // s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+                    // s1->append_lba, 1, s2->append_lba, 1, s3->append_lba,
+                    // 1)
                     .value();
             // update lba in map
             auto rc = zctrl_.PutObject(key_hash, new_entry).value();
