@@ -31,4 +31,4 @@ cpuprofile.file
 paths.txt
 vault-benchmarking/
 wrk-scripts/
-
+test/
