@@ -166,6 +166,8 @@ auto zoneAppend(void *arg1) -> net::awaitable<void>
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
+
+    // co_return outcome::success();
 }
 
 // Zone read operations.
@@ -324,6 +326,8 @@ auto zoneRead(void *arg1) -> net::awaitable<Result<void>>
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
+
+    co_return outcome::success();
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)

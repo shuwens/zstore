@@ -493,11 +493,12 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     initIoThread();
     initDispatchThread();
 
-    auto const address = net::ip::make_address("127.0.0.1");
+    // auto const address = net::ip::make_address("127.0.0.1");
+    auto const address = net::ip::make_address("12.12.12.1");
     auto const port = 2000;
 
     // The io_context is required for all I/O
-    auto const num_threads = 3;
+    auto const num_threads = Configuration::GetNumHttpThreads();
     net::io_context ioc{num_threads};
 
     // Spawn a listening port
@@ -521,9 +522,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
             CPU_SET(i % 3 + Configuration::GetHttpThreadCoreId(), &cpuset);
-            std::string name =
-                "zstore_ioc" +
-                std::to_string(i + Configuration::GetHttpThreadCoreId());
+            std::string name = "zstore_ioc" + std::to_string(i);
             int rc =
                 pthread_setname_np(threads[i].native_handle(), name.c_str());
             if (rc != 0) {

@@ -416,7 +416,7 @@ int main(int argc, char *argv[])
     // auto const doc_root = std::make_shared<std::string>(argv[3]);
     // auto const threads = std::max<int>(1, std::atoi(argv[4]));
 
-    auto const address = net::ip::make_address("127.0.0.1");
+    auto const address = net::ip::make_address("12.12.12.1");
     auto const port = 2000;
     auto const doc_root = std::make_shared<std::string>(".");
     auto const threads = std::max<int>(1, 8);
