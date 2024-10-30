@@ -83,30 +83,35 @@ auto awaitable_on_request(HttpRequest req,
             auto res = co_await zoneRead(s1);
             // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+
+            co_return handle_request(std::move(req));
+
             // log_debug("1111");
 
-            if (res.has_value()) {
-                // log_debug("1111");
-                // }
-                ZstoreObject deserialized_obj;
-                bool success = ReadBufferToZstoreObject(
-                    s1->dataBuffer, s1->size, deserialized_obj);
-
-                // log_debug("1111");
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-                // s2->Clear();
-                // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
-                // s3->Clear();
-                // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
-
-                co_return handle_request(std::move(req));
-            } else {
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-
-                co_return handle_request(std::move(req));
-            }
+            // if (res.has_value()) {
+            //     // log_debug("1111");
+            //     // }
+            //     ZstoreObject deserialized_obj;
+            //     bool success = ReadBufferToZstoreObject(
+            //         s1->dataBuffer, s1->size, deserialized_obj);
+            //
+            //     // log_debug("1111");
+            //     s1->Clear();
+            //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            //     // s2->Clear();
+            //     // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+            //     // s3->Clear();
+            //     // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+            //
+            //     co_return handle_request(std::move(req));
+            // } else {
+            //     s1->Clear();
+            //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            //
+            //     co_return handle_request(std::move(req));
+            // }
         } else {
             log_error("Draining or not enough contexts");
         }

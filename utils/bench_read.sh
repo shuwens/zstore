@@ -12,4 +12,9 @@ set -xeuo pipefail
 
 # sudo nice -n -20 taskset -c 8-11  ~/tools/wrk/wrk -t16 -c800 -d30s -s random-reads.lua http://127.0.0.1:2000 -- 100000 false
 # sudo  taskset -c 0,4,5  ~/tools/wrk/wrk -t16 -c800 -d30s -s random-reads.lua http://127.0.0.1:2000 -- 100000 false
-sudo  taskset -c 3,4,5  ~/tools/wrk/wrk -t16 -c800 -d10s -s random-reads.lua http://127.0.0.1:2000 -- 100000 false
+# sudo  taskset -c 3,4,5  ~/tools/wrk/wrk -t16 -c800 -d10s -s random-reads.lua http://127.0.0.1:2000 -- 100000 false
+
+
+# sudo ~/tools/wrk/wrk -t1 -c1 -d1s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+
+sudo  taskset -c 8-15 ~/tools/wrk/wrk -t16 -c80 -d5s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false

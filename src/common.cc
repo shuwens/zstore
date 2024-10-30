@@ -297,7 +297,8 @@ auto zoneRead(void *arg1) -> net::awaitable<Result<void>>
         cpl = res_cpl.value();
         timer.t6 = std::chrono::high_resolution_clock::now();
 
-        if (ctx->ctrl->mTotalCounts % Configuration::GetSamplingRate() == 0)
+        if (ctx->ctrl->mTotalCounts % Configuration::GetSamplingRate() == 0 ||
+            tdiff_us(timer.t6, timer.t1) > 1000)
             log_debug(
                 "t2-t1 {}us, t3-t2 {}us, t4-t3 {}us, t5-t4 {}us, t6-t5 {}us ",
                 tdiff_us(timer.t2, timer.t1), tdiff_us(timer.t3, timer.t2),
