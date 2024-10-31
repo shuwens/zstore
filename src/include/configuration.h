@@ -167,7 +167,7 @@ class Configuration
     // int gZoneCapacity = 0;
 
     // Configured parameters
-    int gQueueDepth = 256;
+    int gQueueDepth = 1024;
     int gContextPoolSize = 4096;
 
     // how many targets one gateway talks to
@@ -176,7 +176,7 @@ class Configuration
     int gNumOfDevices = 2;
 
     // 0 means no sampling, 1000 means 1/1000
-    int gSamplingRate = 1000;
+    int gSamplingRate = 0;
 
     // manually set the zone id
     // const int gCurrentZone1 = 81;

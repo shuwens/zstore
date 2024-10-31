@@ -58,36 +58,42 @@ auto awaitable_on_request(HttpRequest req,
             log_error("Unimplemented!!!");
         }
 
-        if (!zctrl_.isDraining &&
-            zctrl_.mRequestContextPool->availableContexts.size() > 1) {
+        // log_debug("Read queue size: {}, queue depth {}, actual queue depth
+        // {}",
+        //           zctrl_.GetReadQueueSize(), zctrl_.GetQueueDepth(),
+        //           zctrl_.queue_depth);
 
-            // if (zctrl_.verbose)
-            // log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
-            //           entry.second_tgt(), entry.third_tgt());
-            auto [first, _, _] = entry;
-            auto [tgt, lba, _] = first;
-            // log_debug("Reading from tgt {} lba {}", tgt, lba);
+        if (!zctrl_.isDraining && zctrl_.queue_depth < zctrl_.GetQueueDepth()) {
+            zctrl_.queue_depth++;
+            {
 
-            auto dev1 = zctrl_.GetDevice(tgt);
-            // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
-            // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
+                // if (zctrl_.verbose)
+                // log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
+                //           entry.second_tgt(), entry.third_tgt());
+                auto [first, _, _] = entry;
+                auto [tgt, lba, _] = first;
+                // log_debug("Reading from tgt {} lba {}", tgt, lba);
 
-            auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
-            // auto s2 =
-            //     MakeReadRequest(&zctrl_, dev2, entry.second_lba(),
-            //     req).value();
-            // auto s3 =
-            //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
-            //     req).value();
+                auto dev1 = zctrl_.GetDevice(tgt);
+                // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
+                // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
 
-            auto res = co_await zoneRead(s1);
-            // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
+                auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
+                // auto s2 =
+                //     MakeReadRequest(&zctrl_, dev2, entry.second_lba(),
+                //     req).value();
+                // auto s3 =
+                //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
+                //     req).value();
 
-            s1->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+                auto res = co_await zoneRead(s1);
+                // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
+                s1->Clear();
+                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            }
+            zctrl_.queue_depth--;
             co_return handle_request(std::move(req));
-
             // log_debug("1111");
 
             // if (res.has_value()) {
@@ -112,8 +118,12 @@ auto awaitable_on_request(HttpRequest req,
             //
             //     co_return handle_request(std::move(req));
             // }
+
+            // log_debug("queue depth {}", zctrl_.queue_depth);
         } else {
-            log_error("Draining or not enough contexts");
+            log_error("Draining or not enough contexts, queue depth {}",
+                      zctrl_.queue_depth);
+            co_return handle_request(std::move(req));
         }
 
     } else if (req.method() == http::verb::post ||

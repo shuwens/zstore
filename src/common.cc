@@ -467,7 +467,7 @@ int dispatchWorker(void *args)
     struct spdk_thread *thread = zctrl->GetDispatchThread();
     spdk_set_thread(thread);
     spdk_poller *p;
-    p = spdk_poller_register(handleSubmit, zctrl, 0);
+    p = spdk_poller_register(handleSubmit, zctrl, 1);
     zctrl->SetDispatchPoller(p);
     while (true) {
         spdk_thread_poll(thread, 0, 0);

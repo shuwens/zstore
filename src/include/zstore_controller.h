@@ -36,6 +36,7 @@ class ZstoreController
     Result<DevTuple> GetDevTupleForRandomReads(ObjectKeyHash key_hash);
 
     int pivot;
+    int queue_depth = 0;
 
     // ZStore Device Consistent Hashmap: this maintains a consistent hash map
     // which maps object key to tuple of devices. Right now this is
