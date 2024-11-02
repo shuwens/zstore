@@ -31,4 +31,4 @@ rm /tmp/*.wcache || true
 perf record -g --call-graph dwarf -F 999 -o ./perf.data -- \
 	../build-rel/zstore 1 1 || true
 
-# perf script -F +pid --no-inline --input=./perf.data > ./perf.script
+perf script -F +pid --no-inline --input=./perf.data > ./perf.script
