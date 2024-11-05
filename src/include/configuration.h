@@ -168,7 +168,7 @@ class Configuration
 
     // Configured parameters
     int gQueueDepth = 1;
-    int gContextPoolSize = 4096 * 4;
+    int gContextPoolSize = 4096;
 
     // how many targets one gateway talks to
     int gNumOfTargets = 3;

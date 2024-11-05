@@ -568,11 +568,11 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     // Valid (full and open) zones and their headers
     std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
     for (int i = 0; i < mN; ++i) {
-        log_debug("read zone and headers {}.", i);
         // if (i == failedDriveId) {
         //     continue;
         // }
 
+        // log_debug("read zone and headers {}.", i);
         // TODO: right now we sort of just pick read and write zone,
         // this should be done smartly
         // FIXME bug
