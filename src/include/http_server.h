@@ -22,21 +22,29 @@ using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
 
 using namespace std::literals;
 
-void wait(bool msg, std::move_only_function<void(bool)> wroteMessage)
+#include <boost/asio/any_completion_handler.hpp>
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/async_result.hpp>
+#include <boost/asio/error.hpp>
+#include <chrono>
+
+void async_sleep_impl(
+    boost::asio::any_completion_handler<void(boost::system::error_code)>
+        handler,
+    boost::asio::any_io_executor ex, std::chrono::nanoseconds duration)
 {
-    std::thread([=, f = std::move(wroteMessage)]() mutable {
-        // std::this_thread::sleep_for(1s);
-        std::move(f)(msg);
-    }).detach();
+    auto timer = std::make_shared<boost::asio::steady_timer>(ex, duration);
+    timer->async_wait(boost::asio::consign(std::move(handler), timer));
 }
 
-template <typename Token> auto async_wait(bool msg, Token &&token)
+template <typename CompletionToken>
+inline auto async_sleep(boost::asio::any_io_executor ex,
+                        std::chrono::nanoseconds duration,
+                        CompletionToken &&token)
 {
-    auto init = [](auto completion_handler, bool msg) {
-        wait(std::move(msg), std::move(completion_handler));
-    };
-
-    return net::async_initiate<Token, void(bool)>(init, token, std::move(msg));
+    return boost::asio::async_initiate<CompletionToken,
+                                       void(boost::system::error_code)>(
+        async_sleep_impl, token, std::move(ex), duration);
 }
 
 // This function implements the core logic of async
@@ -100,12 +108,14 @@ auto awaitable_on_request(HttpRequest req,
         //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
         //     req).value();
 
-        // auto res = co_await zoneRead(s1);
+        auto res = co_await zoneRead(s1);
 
         // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
         // without this co_await yields 490k, with co_await yields 70k
-        // auto r = co_await async_wait(true, net::use_awaitable);
+        co_await async_sleep(co_await boost::asio::this_coro::executor,
+                             std::chrono::nanoseconds(1),
+                             boost::asio::use_awaitable);
 
         s1->Clear();
         zctrl_.mRequestContextPool->ReturnRequestContext(s1);

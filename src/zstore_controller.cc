@@ -491,7 +491,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     log_debug("ZstoreController launching threads");
 
     initIoThread();
-    initDispatchThread();
+    // initDispatchThread();
 
     // auto const address = net::ip::make_address("127.0.0.1");
     auto const address = net::ip::make_address("12.12.12.1");

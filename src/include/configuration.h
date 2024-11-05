@@ -153,10 +153,10 @@ class Configuration
     // NOTE this decides the number of threads *per device*, and the number of
     // IO queues are the same of num_of_IO_threads * num_of_device
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 5;
+    int gNumHttpThreads = 10;
 
     uint32_t gDispatchThreadCoreId = 1;
-    uint32_t gIoThreadCoreIdBase = 2;
+    uint32_t gIoThreadCoreIdBase = 1;
     uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads;
 
     int gBlockSize = 4096;
@@ -167,8 +167,8 @@ class Configuration
     // int gZoneCapacity = 0;
 
     // Configured parameters
-    int gQueueDepth = 1024;
-    int gContextPoolSize = 4096;
+    int gQueueDepth = 1;
+    int gContextPoolSize = 4096 * 4;
 
     // how many targets one gateway talks to
     int gNumOfTargets = 3;
