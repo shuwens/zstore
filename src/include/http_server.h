@@ -6,7 +6,14 @@
 #include "types.h"
 #include "zstore_controller.h"
 #include <boost/asio/experimental/awaitable_operators.hpp>
+// #include <boost/chrono.hpp>
+#include "boost/date_time/posix_time/posix_time.hpp" //include all types plus i/o
+#include <boost/thread/thread.hpp>
 #include <functional>
+// #include "sleep.hpp"
+// #include <boost/asio/consign.hpp>
+// #include <boost/asio/steady_timer.hpp>
+#include <memory>
 
 using namespace boost::asio::experimental::awaitable_operators;
 
@@ -18,11 +25,25 @@ using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
     net::use_awaitable_t<>::executor_with_default<net::any_io_executor>>::other;
 
-// unsigned char hashObjectKey(const std::string &object_key)
+// using namespace std::literals;
+
+// void wait(bool msg, std::move_only_function<void(bool)> wroteMessage)
 // {
-//     unsigned char key_hash[kHashSize];
-//     sha256_string(std::string(object_key).c_str(), *key_hash);
-//     return key_hash[0];
+//     boost::this_thread::sleep_for(boost::chrono::microseconds(1));
+//     // std::thread([=, f = std::move(wroteMessage)]() mutable {
+//     //     std::this_thread::sleep_for(1us);
+//     //     std::move(f)(msg);
+//     // }).detach();
+// }
+//
+// template <typename Token> auto async_wait(bool msg, Token &&token)
+// {
+//     auto init = [](auto completion_handler, bool msg) {
+//         wait(std::move(msg), std::move(completion_handler));
+//     };
+//
+//     return net::async_initiate<Token, void(bool)>(init, token,
+//     std::move(msg));
 // }
 
 // This function implements the core logic of async
@@ -63,69 +84,75 @@ auto awaitable_on_request(HttpRequest req,
         //           zctrl_.GetReadQueueSize(), zctrl_.GetQueueDepth(),
         //           zctrl_.queue_depth);
 
-        if (!zctrl_.isDraining && zctrl_.queue_depth < zctrl_.GetQueueDepth()) {
-            zctrl_.queue_depth++;
-            {
+        // if (!zctrl_.isDraining && zctrl_.queue_depth <
+        // zctrl_.GetQueueDepth()) {
+        //     zctrl_.queue_depth++;
 
-                // if (zctrl_.verbose)
-                // log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
-                //           entry.second_tgt(), entry.third_tgt());
-                auto [first, _, _] = entry;
-                auto [tgt, lba, _] = first;
-                // log_debug("Reading from tgt {} lba {}", tgt, lba);
+        // if (zctrl_.verbose)
+        // log_debug("Tuple to read: {} {} {}", entry.first_tgt(),
+        //           entry.second_tgt(), entry.third_tgt());
+        auto [first, _, _] = entry;
+        auto [tgt, lba, _] = first;
+        // log_debug("Reading from tgt {} lba {}", tgt, lba);
 
-                auto dev1 = zctrl_.GetDevice(tgt);
-                // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
-                // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
+        auto dev1 = zctrl_.GetDevice(tgt);
+        // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
+        // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
 
-                auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
-                // auto s2 =
-                //     MakeReadRequest(&zctrl_, dev2, entry.second_lba(),
-                //     req).value();
-                // auto s3 =
-                //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
-                //     req).value();
+        auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
+        // auto s2 =
+        //     MakeReadRequest(&zctrl_, dev2, entry.second_lba(),
+        //     req).value();
+        // auto s3 =
+        //     MakeReadRequest(&zctrl_, dev3, entry.third_lba(),
+        //     req).value();
 
-                auto res = co_await zoneRead(s1);
-                // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
+        // auto res = co_await zoneRead(s1);
+        // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            }
-            zctrl_.queue_depth--;
-            co_return handle_request(std::move(req));
-            // log_debug("1111");
+        // boost::asio::deadline_timer t(zctrl_.mIoc_,
+        //                               boost::posix_time::microseconds(1));
+        // t.expires_from_now(boost::posix_time::microseconds(1));
+        // co_await t.async_wait(net::use_awaitable);
 
-            // if (res.has_value()) {
-            //     // log_debug("1111");
-            //     // }
-            //     ZstoreObject deserialized_obj;
-            //     bool success = ReadBufferToZstoreObject(
-            //         s1->dataBuffer, s1->size, deserialized_obj);
-            //
-            //     // log_debug("1111");
-            //     s1->Clear();
-            //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            //     // s2->Clear();
-            //     // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
-            //     // s3->Clear();
-            //     // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
-            //
-            //     co_return handle_request(std::move(req));
-            // } else {
-            //     s1->Clear();
-            //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            //
-            //     co_return handle_request(std::move(req));
-            // }
+        // bool msg = co_await async_wait(true, net::use_awaitable);
 
-            // log_debug("queue depth {}", zctrl_.queue_depth);
-        } else {
-            log_error("Draining or not enough contexts, queue depth {}",
-                      zctrl_.queue_depth);
-            co_return handle_request(std::move(req));
-        }
+        s1->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        // }
+        // zctrl_.queue_depth--;
+        co_return handle_request(std::move(req));
+        // log_debug("1111");
 
+        // if (res.has_value()) {
+        //     // log_debug("1111");
+        //     // }
+        //     ZstoreObject deserialized_obj;
+        //     bool success = ReadBufferToZstoreObject(
+        //         s1->dataBuffer, s1->size, deserialized_obj);
+        //
+        //     // log_debug("1111");
+        //     s1->Clear();
+        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        //     // s2->Clear();
+        //     // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+        //     // s3->Clear();
+        //     // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+        //
+        //     co_return handle_request(std::move(req));
+        // } else {
+        //     s1->Clear();
+        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        //
+        //     co_return handle_request(std::move(req));
+        // }
+
+        // log_debug("queue depth {}", zctrl_.queue_depth);
+        // } else {
+        //     log_error("Draining or not enough contexts, queue depth {}",
+        //               zctrl_.queue_depth);
+        //     co_return handle_request(std::move(req));
+        // }
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {
         // NOTE: Write path: see section 3.3

@@ -521,8 +521,10 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
             // Clear it and mark only CPU i as set.
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(i % 3 + Configuration::GetHttpThreadCoreId(), &cpuset);
+            CPU_SET(i + Configuration::GetHttpThreadCoreId(), &cpuset);
             std::string name = "zstore_ioc" + std::to_string(i);
+            // log_info("HTTP server: Thread {} on core {}", i,
+            //          i + Configuration::GetHttpThreadCoreId());
             int rc =
                 pthread_setname_np(threads[i].native_handle(), name.c_str());
             if (rc != 0) {
@@ -536,7 +538,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
                     rc);
             }
             log_info("HTTP server: Thread {} on core {}", i,
-                     i % 3 + Configuration::GetHttpThreadCoreId());
+                     i + Configuration::GetHttpThreadCoreId());
             ioc.run();
         });
     }
@@ -580,7 +582,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
     log_info("ZstoreController Init finish");
 
-    ioc.run();
+    // ioc.run();
 
     return rc;
 }
