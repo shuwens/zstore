@@ -52,6 +52,7 @@ zstore_deps = [
 	dependency('_spdk'),
 	dependency(
 		'boost',
+		version: '>=1.86.0',
 		modules: ['system', 'filesystem', 'program_options', 'thread', 'regex', 'timer'],
 	),
 ]

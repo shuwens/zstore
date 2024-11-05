@@ -1,4 +1,5 @@
 #pragma once
+#include "boost/date_time/posix_time/posix_time.hpp" //include all types plus i/o
 #include "boost_utils.h"
 #include "common.h"
 #include "global.h"
@@ -6,18 +7,17 @@
 #include "types.h"
 #include "zstore_controller.h"
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/chrono.hpp>
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/thread.hpp>
-// #include <boost/chrono.hpp>
-#include "boost/date_time/posix_time/posix_time.hpp" //include all types plus i/o
 #include <boost/thread/thread.hpp>
 #include <functional>
 // #include "sleep.hpp"
-// #include <boost/asio/consign.hpp>
-// #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/consign.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <memory>
 
 using namespace boost::asio::experimental::awaitable_operators;
@@ -30,16 +30,17 @@ using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
     net::use_awaitable_t<>::executor_with_default<net::any_io_executor>>::other;
 
-// using namespace std::literals;
+using namespace std::literals;
 
 void wait(bool msg, std::move_only_function<void(bool)> wroteMessage)
 {
-    boost::this_thread::sleep_for(boost::chrono::microseconds(1));
-    // std::move(f)(msg);
-    // std::thread([=, f = std::move(wroteMessage)]() mutable {
-    //     std::this_thread::sleep_for(1us);
-    //     std::move(f)(msg);
-    // }).detach();
+    // std::this_thread::sleep_for(std::chrono::microseconds(1));
+    // boost::this_thread::sleep_for(boost::chrono::microseconds(1));
+    // std::move(msg);
+    std::thread([=, f = std::move(wroteMessage)]() mutable {
+        std::this_thread::sleep_for(1ns);
+        std::move(f)(msg);
+    }).detach();
 }
 
 template <typename Token> auto async_wait(bool msg, Token &&token)
@@ -115,7 +116,7 @@ auto awaitable_on_request(HttpRequest req,
         // auto res = co_await zoneRead(s1);
         // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
-        bool msg = co_await async_wait(true, net::use_awaitable);
+        // bool msg = co_await async_wait(true, net::use_awaitable);
 
         s1->Clear();
         zctrl_.mRequestContextPool->ReturnRequestContext(s1);
