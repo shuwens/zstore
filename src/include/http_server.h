@@ -6,6 +6,11 @@
 #include "types.h"
 #include "zstore_controller.h"
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/date_time/gregorian/gregorian_types.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/path.hpp>
+#include <boost/thread.hpp>
 // #include <boost/chrono.hpp>
 #include "boost/date_time/posix_time/posix_time.hpp" //include all types plus i/o
 #include <boost/thread/thread.hpp>
@@ -27,24 +32,24 @@ using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
 
 // using namespace std::literals;
 
-// void wait(bool msg, std::move_only_function<void(bool)> wroteMessage)
-// {
-//     boost::this_thread::sleep_for(boost::chrono::microseconds(1));
-//     // std::thread([=, f = std::move(wroteMessage)]() mutable {
-//     //     std::this_thread::sleep_for(1us);
-//     //     std::move(f)(msg);
-//     // }).detach();
-// }
-//
-// template <typename Token> auto async_wait(bool msg, Token &&token)
-// {
-//     auto init = [](auto completion_handler, bool msg) {
-//         wait(std::move(msg), std::move(completion_handler));
-//     };
-//
-//     return net::async_initiate<Token, void(bool)>(init, token,
-//     std::move(msg));
-// }
+void wait(bool msg, std::move_only_function<void(bool)> wroteMessage)
+{
+    boost::this_thread::sleep_for(boost::chrono::microseconds(1));
+    // std::move(f)(msg);
+    // std::thread([=, f = std::move(wroteMessage)]() mutable {
+    //     std::this_thread::sleep_for(1us);
+    //     std::move(f)(msg);
+    // }).detach();
+}
+
+template <typename Token> auto async_wait(bool msg, Token &&token)
+{
+    auto init = [](auto completion_handler, bool msg) {
+        wait(std::move(msg), std::move(completion_handler));
+    };
+
+    return net::async_initiate<Token, void(bool)>(init, token, std::move(msg));
+}
 
 // This function implements the core logic of async
 auto awaitable_on_request(HttpRequest req,
@@ -110,12 +115,7 @@ auto awaitable_on_request(HttpRequest req,
         // auto res = co_await zoneRead(s1);
         // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
-        // boost::asio::deadline_timer t(zctrl_.mIoc_,
-        //                               boost::posix_time::microseconds(1));
-        // t.expires_from_now(boost::posix_time::microseconds(1));
-        // co_await t.async_wait(net::use_awaitable);
-
-        // bool msg = co_await async_wait(true, net::use_awaitable);
+        bool msg = co_await async_wait(true, net::use_awaitable);
 
         s1->Clear();
         zctrl_.mRequestContextPool->ReturnRequestContext(s1);
