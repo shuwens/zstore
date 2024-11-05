@@ -15,6 +15,7 @@ cd $zstore_dir
 # ./imgtool create --size 1G pone perf-fio
 # ./thick-image --size=10G pone/perf-fio
 
+mkdir -p test
 cd test/
 
 rm perf.data || true
