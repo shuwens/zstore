@@ -111,15 +111,15 @@ auto awaitable_on_request(HttpRequest req,
         // this yields 180k tho
         auto res = co_await zoneRead(s1);
 
-        s1->Clear();
-        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-
-        // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
-
         // without this co_await yields 550k, with co_await yields 430k
         co_await async_sleep(co_await boost::asio::this_coro::executor,
                              std::chrono::microseconds(1),
                              boost::asio::use_awaitable);
+
+        s1->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+
+        // co_await (zoneRead(s1) && zoneRead(s2) && zoneRead(s3));
 
         // }
         // zctrl_.queue_depth--;
