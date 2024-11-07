@@ -7,12 +7,20 @@ setup:
 	meson setup --native-file meson.ini build-dbg --buildtype=debug
 	ln -s build-dbg build
 	cd build && meson compile
+	cd build-dbg && meson compile
 
-debug: #setup
-	# cd build-dbg; meson compile
-	make zstore
+
+debug:
+	meson setup --native-file meson.ini build-dbg --buildtype=debug 
+	meson compile -C build-dbg
+
+release:
+	meson setup --native-file meson.ini build-rel --buildtype=release -Db_sanitize=none
+	meson compile -C build-rel
 
 clean:
+	# meson -C build-rel clean
+	# meson -C build-dbg clean
 	cd build-rel; meson compile --clean
 	cd build-dbg; meson compile --clean
 

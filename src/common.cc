@@ -684,7 +684,8 @@ RequestContextPool::RequestContextPool(uint32_t cap)
         //                                 Configuration::GetMetadataSize(),
         //                             Configuration::GetBlockSize(), NULL,
         //                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        contexts[i].bufferSize = Configuration::GetBlockSize();
+        contexts[i].bufferSize = Configuration::GetDataBufferSizeInSector() *
+                                 Configuration::GetBlockSize();
         availableContexts.emplace_back(&contexts[i]);
     }
 }
@@ -715,7 +716,8 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             //         Configuration::GetMetadataSize(),
             //     Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
             //     SPDK_MALLOC_DMA);
-            ctx->bufferSize = Configuration::GetBlockSize();
+            ctx->bufferSize = Configuration::GetDataBufferSizeInSector() *
+                              Configuration::GetBlockSize();
             ctx->Clear();
             ctx->available = false;
             exit(1);
