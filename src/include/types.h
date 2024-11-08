@@ -15,8 +15,7 @@ typedef http::response<http::string_body> HttpResponse;
 
 // Basic Zstore types
 typedef std::string ObjectKey;
-typedef unsigned char *ObjectKeyHash;
-// typedef char *ObjectKeyHash;
+typedef unsigned long long ObjectKeyHash;
 typedef std::string TargetDev;
 typedef u64 Lba;
 typedef u32 Length;

@@ -59,7 +59,7 @@ class ZstoreController
     Result<bool> UpdateBF(const ObjectKeyHash &key_hash);
 
     Result<bool> PutObject(const ObjectKeyHash &key_hash, MapEntry entry);
-    Result<bool> GetObject(const ObjectKeyHash &key_hash, MapEntry &entry);
+    std::optional<MapEntry> GetObject(const ObjectKeyHash &key_hash);
 
     // Result<void> UpdateMap(ObjectKey key, MapEntry entry);
     // Result<void> ReleaseObject(ObjectKey key);
@@ -235,7 +235,7 @@ class ZstoreController
     int mN;
     // context pool size
     int mContextPoolSize;
-    int _max_size = 1000'000;
+    int _map_size = 1'000'000;
 
     // RequestContext *getContextForUserRequest();
     // void doWrite(RequestContext *context);

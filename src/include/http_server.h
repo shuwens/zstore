@@ -53,28 +53,31 @@ auto awaitable_on_request(HttpRequest req,
                           ZstoreController &zctrl_) -> net::awaitable<HttpMsg>
 {
     auto object_key = req.target();
-    unsigned char key_hash[kHashSize];
-    sha256(object_key, key_hash);
+    std::string hash_hex = sha256(object_key);
+    unsigned long long key_hash =
+        std::stoull(hash_hex.substr(0, 16), nullptr, 16);
+    // kAstd::stoull(hash_hex, nullptr, 16);
 
     if (req.method() == http::verb::get) {
         // NOTE: READ path: see section 3.4
+        auto e = zctrl_.GetObject(key_hash);
         MapEntry entry;
-        if (zctrl_.mKeyExperiment == 1) {
-            // random read
-            // hardcode entry value for benchmarking
+
+        if (!e.has_value()) {
+            log_error("Object {} not found", object_key);
+            // co_return handle_not_found_request(std::move(req));
             entry = createMapEntry(
                         zctrl_.GetDevTupleForRandomReads(key_hash).value(),
                         zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
                         zctrl_.mTotalCounts + 1, 1)
                         .value();
         } else {
-            auto rc = zctrl_.GetObject(key_hash, entry).value();
-            // assert(rc == true);
-            if (rc == false) {
-                log_error("Object {} not found", object_key);
-                co_return handle_not_found_request(std::move(req));
-            }
+            entry = e.value();
         }
+
+        // if (zctrl_.mKeyExperiment == 1) {
+        //     // random read
+        //     // hardcode entry value for benchmarking
 
         if (zctrl_.SearchBF(key_hash).value()) {
             log_info("Object {} is recently modified", object_key);
@@ -101,23 +104,23 @@ auto awaitable_on_request(HttpRequest req,
                              std::chrono::microseconds(1),
                              boost::asio::use_awaitable);
 
-        s1->Clear();
-        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-        co_return handle_request(std::move(req));
+        // s1->Clear();
+        // zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        // co_return handle_request(std::move(req));
 
-        // if (res.has_value()) {
-        //     ZstoreObject deserialized_obj;
-        //     bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
-        //                                             deserialized_obj);
-        //     req.body() = s1->response_body; // not expensive
-        //     s1->Clear();
-        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-        //     co_return handle_request(std::move(req));
-        // } else {
-        //     s1->Clear();
-        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-        //     co_return handle_request(std::move(req));
-        // }
+        if (res.has_value()) {
+            ZstoreObject deserialized_obj;
+            bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
+                                                    deserialized_obj);
+            req.body() = s1->response_body; // not expensive
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            co_return handle_request(std::move(req));
+        } else {
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            co_return handle_request(std::move(req));
+        }
 
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {

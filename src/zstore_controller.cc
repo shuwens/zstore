@@ -191,10 +191,13 @@ int ZstoreController::PopulateMap()
 {
     log_info("populate map: mKeyExperiment {}, mPhase {}", mKeyExperiment,
              mPhase);
-    unsigned char hash[SHA256_DIGEST_LENGTH];
     if (mKeyExperiment == 1) {
         // Random Read
-        for (int i = 0; i < 128'000; i++) {
+        auto zone1_base =
+            Configuration::GetZoneId1() * Configuration::GetZoneDist();
+        auto zone2_base =
+            Configuration::GetZoneId2() * Configuration::GetZoneDist();
+        for (int i = 0; i < _map_size; i++) {
             auto entry =
                 createMapEntry(std::make_tuple(
                                    std::make_pair("Zstore2Dev1",
@@ -203,31 +206,17 @@ int ZstoreController::PopulateMap()
                                                   Configuration::GetZoneId1()),
                                    std::make_pair("Zstore3Dev1",
                                                   Configuration::GetZoneId2())),
-                               i + zone_offset, 1, i + zone_offset, 1,
-                               i + zone_offset, 1)
+                               i + zone1_base, 1, i + zone1_base, 1,
+                               i + zone2_base, 1)
                     .value();
-            sha256("/db/" + std::to_string(i), hash);
-            mMap.insert({hash, entry});
+            std::string hash_hex = sha256("/db/" + std::to_string(i));
+            unsigned long long hash =
+                std::stoull(hash_hex.substr(0, 16), nullptr, 16);
+            mMap.emplace(hash, entry);
         }
     } else if (mKeyExperiment == 2) {
         if (mPhase == 1) {
             log_info("Prepare phase, do nothing");
-            for (int i = 0; i < 2'000; i++) {
-                auto entry =
-                    createMapEntry(
-                        std::make_tuple(
-                            std::make_pair("Zstore2Dev1",
-                                           Configuration::GetZoneId1()),
-                            std::make_pair("Zstore2Dev2",
-                                           Configuration::GetZoneId1()),
-                            std::make_pair("Zstore3Dev1",
-                                           Configuration::GetZoneId2())),
-                        i + zone_offset, 1, i + zone_offset, 1, i + zone_offset,
-                        1)
-                        .value();
-                sha256("/db/" + std::to_string(i), hash);
-                mMap.insert({hash, entry});
-            }
             DumpAllMap();
         } else if (mPhase == 2) {
             log_info("Run phase, load the map and the bloom filter");
@@ -317,34 +306,35 @@ void ZstoreController::writeMapToFile(const std::string &filename)
 // Function to read the map from a file
 void ZstoreController::readMapFromFile(const std::string &filename)
 {
-    std::ifstream inFile(filename, std::ios::binary);
-    if (!inFile) {
-        std::cerr << "Error opening file for reading: " << filename
-                  << std::endl;
-    }
-
-    size_t mapSize;
-    inFile.read(reinterpret_cast<char *>(&mapSize), sizeof(mapSize));
-
-    for (size_t i = 0; i < mapSize; ++i) {
-        // Deserialize the key
-        unsigned char *key = new unsigned char[32];
-        inFile.read(reinterpret_cast<char *>(key), 32);
-
-        // Deserialize the entry
-        auto readTargetLbaTuple = [&inFile]() -> TargetLbaTuple {
-            std::string dev = readString(inFile);
-            Lba lba;
-            Length length;
-            inFile.read(reinterpret_cast<char *>(&lba), sizeof(Lba));
-            inFile.read(reinterpret_cast<char *>(&length), sizeof(Length));
-            return std::make_tuple(dev, lba, length);
-        };
-
-        MapEntry entry = std::make_tuple(
-            readTargetLbaTuple(), readTargetLbaTuple(), readTargetLbaTuple());
-        mMap.emplace(key, entry);
-    }
+    // std::ifstream inFile(filename, std::ios::binary);
+    // if (!inFile) {
+    //     std::cerr << "Error opening file for reading: " << filename
+    //               << std::endl;
+    // }
+    //
+    // size_t mapSize;
+    // inFile.read(reinterpret_cast<char *>(&mapSize), sizeof(mapSize));
+    //
+    // for (size_t i = 0; i < mapSize; ++i) {
+    //     // Deserialize the key
+    //     unsigned char *key = new unsigned char[32];
+    //     inFile.read(reinterpret_cast<char *>(key), 32);
+    //
+    //     // Deserialize the entry
+    //     auto readTargetLbaTuple = [&inFile]() -> TargetLbaTuple {
+    //         std::string dev = readString(inFile);
+    //         Lba lba;
+    //         Length length;
+    //         inFile.read(reinterpret_cast<char *>(&lba), sizeof(Lba));
+    //         inFile.read(reinterpret_cast<char *>(&length), sizeof(Length));
+    //         return std::make_tuple(dev, lba, length);
+    //     };
+    //
+    //     MapEntry entry = std::make_tuple(
+    //         readTargetLbaTuple(), readTargetLbaTuple(),
+    //         readTargetLbaTuple());
+    //     mMap.emplace(key, entry);
+    // }
 }
 
 Result<void> ZstoreController::DumpAllMap()
@@ -750,32 +740,10 @@ ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
     // zstore 4: dev 1, dev 2 invlida, invalida
 }
 
-// Function to convert std::string to an unsigned int seed
-unsigned int stringToSeed(const std::string &str)
-{
-    unsigned int seed = 0;
-    for (char c : str) {
-        seed += static_cast<unsigned int>(c);
-    }
-    return seed;
-}
-
-// Simple hash function to convert a char string into an unsigned int
-unsigned int hashToSeed(unsigned char *str)
-{
-    unsigned int hash = 0;
-    while (*str) {
-        hash = (hash * 31) +
-               *str; // Use a prime number to combine character values
-        ++str;
-    }
-    return hash;
-}
-
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
 {
-    std::srand(hashToSeed(key_hash)); // seed the random number generator
-                                      // with the hash of the object key
+    std::srand(key_hash); // seed the random number generator
+                          // with the hash of the object key
     int random_index = std::rand() % mDevHash.size();
     return mDevHash[random_index];
 }
@@ -786,13 +754,12 @@ Result<bool> ZstoreController::PutObject(const ObjectKeyHash &key_hash,
     return mMap.insert_or_assign(key_hash, entry);
 }
 
-Result<bool> ZstoreController::GetObject(const ObjectKeyHash &key_hash,
-                                         MapEntry &entry)
+std::optional<MapEntry>
+ZstoreController::GetObject(const ObjectKeyHash &key_hash)
 {
-    return mMap.cvisit(key_hash, [&entry](const auto &x) {
-        // entry = x.second->value;
-        entry = x.second;
-    });
+    std::optional<MapEntry> o;
+    mMap.visit(key_hash, [&](const auto &x) { o = x.second; });
+    return o;
 }
 
 Result<MapEntry> ZstoreController::CreateFakeObject(ObjectKeyHash key_hash,
