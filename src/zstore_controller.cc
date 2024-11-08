@@ -15,8 +15,6 @@
 int zone_offset = 1808277;
 // int zone_offset = 0;
 
-// namespace beast = boost::beast; // from <boost/beast.hpp>
-// namespace http = beast::http;     // from <boost/beast/http.hpp>
 namespace net = boost::asio;      // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
@@ -196,7 +194,7 @@ int ZstoreController::PopulateMap()
     unsigned char hash[SHA256_DIGEST_LENGTH];
     if (mKeyExperiment == 1) {
         // Random Read
-        for (int i = 0; i < 2'000'000; i++) {
+        for (int i = 0; i < 128'000; i++) {
             auto entry =
                 createMapEntry(std::make_tuple(
                                    std::make_pair("Zstore2Dev1",
@@ -587,16 +585,6 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     return rc;
 }
 
-// void ZstoreController::ReadInDispatchThread(RequestContext *ctx)
-// {
-//     thread_send_msg(GetIoThread(0), zoneRead, ctx);
-// }
-
-// void ZstoreController::WriteInDispatchThread(RequestContext *ctx)
-// {
-//     thread_send_msg(GetIoThread(0), zoneRead, ctx);
-// }
-
 // TODO: assume we only have one device, we should check all device in the
 // end
 bool ZstoreController::CheckIoQpair(std::string msg)
@@ -630,34 +618,7 @@ ZstoreController::~ZstoreController()
     log_debug("drain io: {}", spdk_get_ticks());
     log_debug("clean up ns worker");
     cleanup_ns_worker_ctx();
-    //
-    //     std::vector<uint64_t> deltas1;
-    //     for (int i = 0; i < zctrlr->mWorker->ns_ctx->stimes.size();
-    //     i++)
-    //     {
-    //         deltas1.push_back(
-    //             std::chrono::duration_cast<std::chrono::microseconds>(
-    //                 zctrlr->mWorker->ns_ctx->etimes[i] -
-    //                 zctrlr->mWorker->ns_ctx->stimes[i])
-    //                 .count());
-    //     }
-    //     auto sum1 = std::accumulate(deltas1.begin(), deltas1.end(),
-    //     0.0); auto mean1 = sum1 / deltas1.size(); auto sq_sum1 =
-    //     std::inner_product(deltas1.begin(), deltas1.end(),
-    //                                       deltas1.begin(), 0.0);
-    //     auto stdev1 = std::sqrt(sq_sum1 / deltas1.size() - mean1 *
-    //     mean1); log_info("qd: {}, mean {}, std {}",
-    //              zctrlr->mWorker->ns_ctx->io_completed, mean1,
-    //              stdev1);
-    //
-    //     // clearnup
-    //     deltas1.clear();
-    //     zctrlr->mWorker->ns_ctx->etimes.clear();
-    //     zctrlr->mWorker->ns_ctx->stimes.clear();
-    //     // }
-    //
     log_debug("end work fn");
-    // print_stats(this);
 }
 
 void ZstoreController::zstore_cleanup()
@@ -681,57 +642,14 @@ void ZstoreController::cleanup_ns_worker_ctx()
 void ZstoreController::cleanup(uint32_t task_count)
 {
     // free(mNamespace);
-    //
     // free(mWorker->ns_ctx);
     // free(mWorker);
-
     // if (spdk_mempool_count(mTaskPool) != (size_t)task_count) {
     //     log_error("mTaskPool count is {} but should be {}",
     //               spdk_mempool_count(mTaskPool), task_count);
     // }
     // spdk_mempool_free(mTaskPool);
 }
-
-// Result<void> ZstoreController::Read(u64 offset, Device *dev, HttpRequest
-// req_,
-//                                     std::function<void(HttpRequest)>
-//                                     closure)
-// {
-// RequestContext *slot =
-// mRequestContextPool->GetRequestContext(true); slot->ctrl = this;
-// assert(slot->ctrl == this);
-//
-// auto ioCtx = slot->ioContext;
-// ioCtx.ns = dev->GetNamespace();
-// ioCtx.qpair = dev->GetIoQueue(0);
-// ioCtx.data = slot->dataBuffer;
-// ioCtx.offset = Configuration::GetZslba() + offset;
-// ioCtx.size = Configuration::GetDataBufferSizeInSector();
-// ioCtx.cb = complete;
-// ioCtx.ctx = slot;
-// ioCtx.flags = 0;
-// slot->ioContext = ioCtx;
-//
-// slot->request = std::move(req_);
-// // slot->read_fn = closure;
-// assert(slot->ioContext.cb != nullptr);
-// assert(slot->ctrl != nullptr);
-// {
-//     // std::unique_lock lock(mRequestQueueMutex);
-//     EnqueueRead(slot);
-// }
-// }
-
-// net::awaitable<void> ZstoreController::EnqueueRead(RequestContext *ctx)
-// {
-//     mReadQueue.push(ctx);
-// }
-
-// void ZstoreController::EnqueueWrite(RequestContext *ctx)
-// {
-//     mReadQueue.push(ctx);
-//     // mWriteQueue.push(ctx);
-// }
 
 std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
 {
