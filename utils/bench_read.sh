@@ -25,4 +25,9 @@ set -xeuo pipefail
 # sudo taskset -c 8-15 ~/tools/wrk/wrk -t16 -c800 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
 
-sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c600 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+# sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c600 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+
+# 250k with 250us
+# sudo taskset -c 10-15 ~/tools/wrk/wrk -t6 -c60 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+
+sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c60 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false

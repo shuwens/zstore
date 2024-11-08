@@ -121,7 +121,7 @@ auto awaitable_on_request(HttpRequest req,
             ZstoreObject deserialized_obj;
             bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
                                                     deserialized_obj);
-
+            req.body() = s1->response_body;
             // log_debug("1111");
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);

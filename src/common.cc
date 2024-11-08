@@ -3,6 +3,7 @@
 #include "include/device.h"
 #include "include/zstore_controller.h"
 #include "spdk/nvme_zns.h"
+#include "spdk/string.h"
 #include <tuple>
 
 std::shared_mutex g_shared_mutex_;
@@ -29,6 +30,8 @@ void spdk_nvme_zone_append_wrapper(
             },
             (void *)(cb_heap), flags);
         if (rc != 0) {
+            log_debug("{}: cmd append failed offset {}, size {}",
+                      spdk_strerror(-rc), offset, size);
             (*cb_heap)(outcome::failure(std::errc::io_error));
             delete cb_heap;
         }
@@ -48,14 +51,12 @@ auto spdk_nvme_zone_append_async(
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
     uint32_t flags) -> net::awaitable<Result<const spdk_nvme_cpl *>>
 {
-    // log_debug("1111");
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
                    uint64_t offset, uint32_t size, uint32_t flags) {
         spdk_nvme_zone_append_wrapper(thread, ns, qpair, data, offset, size,
                                       flags, std::move(completion_handler));
     };
-
     return net::async_initiate<decltype(net::use_awaitable),
                                void(Result<const spdk_nvme_cpl *>)>(
         init, net::use_awaitable, thread, ns, qpair, data, offset, size, flags);
@@ -84,6 +85,8 @@ void spdk_nvme_zone_append_wrapper_inst(
             },
             (void *)(cb_heap), flags);
         if (rc != 0) {
+            log_debug("{}: cmd append failed offset {}, size {}",
+                      spdk_strerror(-rc), offset, size);
             (cb_heap->first)(outcome::failure(std::errc::io_error));
             delete cb_heap;
         }
@@ -112,7 +115,6 @@ auto spdk_nvme_zone_append_async_inst(
                                            offset, size, flags,
                                            std::move(completion_handler));
     };
-
     return net::async_initiate<decltype(net::use_awaitable),
                                void(Result<const spdk_nvme_cpl *>)>(
         init, net::use_awaitable, &timer, thread, ns, qpair, data, offset, size,
@@ -192,6 +194,8 @@ void spdk_nvme_zone_read_wrapper(
             },
             (void *)(cb_heap), flags);
         if (rc != 0) {
+            log_debug("{}: cmd read failed offset {}, size {}",
+                      spdk_strerror(-rc), offset, size);
             (*cb_heap)(outcome::failure(std::errc::io_error));
             delete cb_heap;
         }
@@ -246,6 +250,8 @@ void spdk_nvme_zone_read_wrapper_inst(
             },
             (void *)(cb_heap), flags);
         if (rc != 0) {
+            log_debug("{}: cmd read failed offset {}, size {}",
+                      spdk_strerror(-rc), offset, size);
             (cb_heap->first)(outcome::failure(std::errc::io_error));
             delete cb_heap;
         }
@@ -274,7 +280,6 @@ auto spdk_nvme_zone_read_async_inst(
                                          offset, size, flags,
                                          std::move(completion_handler));
     };
-
     return net::async_initiate<decltype(net::use_awaitable),
                                void(Result<const spdk_nvme_cpl *>)>(
         init, net::use_awaitable, &timer, thread, ns, qpair, data, offset, size,
@@ -308,21 +313,22 @@ auto zoneRead(void *arg1) -> net::awaitable<Result<void>>
         auto res_cpl = co_await spdk_nvme_zone_read_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
             ioCtx.size, ioCtx.flags);
-        if (res_cpl.has_error()) {
-            // log_error("cpl error status");
-            co_return outcome::failure(std::errc::io_error);
-        } else
-            cpl = res_cpl.value();
+        // if (res_cpl.has_error()) {
+        //     // log_error("cpl error status");
+        //     co_return outcome::failure(std::errc::io_error);
+        // } else
+        //     cpl = res_cpl.value();
     }
-    if (spdk_nvme_cpl_is_error(cpl)) {
-        // log_error("I/O error status: {}",
-        //           spdk_nvme_cpl_get_status_string(&cpl->status));
-        // log_debug("Unimplemented: put context back in pool");
-        co_return outcome::failure(std::errc::io_error);
-    }
+    // if (spdk_nvme_cpl_is_error(cpl)) {
+    //     // log_error("I/O error status: {}",
+    //     //           spdk_nvme_cpl_get_status_string(&cpl->status));
+    //     // log_debug("Unimplemented: put context back in pool");
+    //     co_return outcome::failure(std::errc::io_error);
+    // }
 
     // For read, we swap the read date into the request body
-    std::string body(static_cast<char *>(ioCtx.data), ioCtx.size);
+    std::string body(static_cast<char *>(ioCtx.data),
+                     ioCtx.size * Configuration::GetBlockSize());
     ctx->response_body = body;
 
     ctx->ctrl->mTotalCounts++;
