@@ -97,30 +97,27 @@ auto awaitable_on_request(HttpRequest req,
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
 
         auto res = co_await zoneRead(s1);
-
         co_await async_sleep(co_await boost::asio::this_coro::executor,
                              std::chrono::microseconds(1),
                              boost::asio::use_awaitable);
 
-        // s1->Clear();
-        // zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-        // co_return handle_request(std::move(req));
+        s1->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        co_return handle_request(std::move(req));
 
-        if (res.has_value()) {
-            // log_debug("1111");
-            // }
-            ZstoreObject deserialized_obj;
-            bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
-                                                    deserialized_obj);
-            req.body() = s1->response_body; // not expensive
-            s1->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            co_return handle_request(std::move(req));
-        } else {
-            s1->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            co_return handle_request(std::move(req));
-        }
+        // if (res.has_value()) {
+        //     ZstoreObject deserialized_obj;
+        //     bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
+        //                                             deserialized_obj);
+        //     req.body() = s1->response_body; // not expensive
+        //     s1->Clear();
+        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        //     co_return handle_request(std::move(req));
+        // } else {
+        //     s1->Clear();
+        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        //     co_return handle_request(std::move(req));
+        // }
 
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {
@@ -148,8 +145,6 @@ auto awaitable_on_request(HttpRequest req,
         auto rc2 = zctrl_.UpdateBF(key_hash);
         assert(rc2.has_value());
 
-        if (zctrl_.verbose)
-            log_debug("3333");
         auto dev1 = zctrl_.GetDevice(tgt1);
         auto dev2 = zctrl_.GetDevice(tgt2);
         auto dev3 = zctrl_.GetDevice(tgt3);
