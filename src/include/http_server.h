@@ -81,11 +81,6 @@ auto awaitable_on_request(HttpRequest req,
             log_error("Unimplemented!!!");
         }
 
-        // log_debug("Read queue size: {}, queue depth {}, actual queue depth
-        // {}",
-        //           zctrl_.GetReadQueueSize(), zctrl_.GetQueueDepth(),
-        //           zctrl_.queue_depth);
-
         // if (!zctrl_.isDraining && zctrl_.queue_depth <
         // zctrl_.GetQueueDepth()) {
         //     zctrl_.queue_depth++;
@@ -98,8 +93,6 @@ auto awaitable_on_request(HttpRequest req,
         // log_debug("Reading from tgt {} lba {}", tgt, lba);
 
         auto dev1 = zctrl_.GetDevice(tgt);
-        // auto dev2 = zctrl_.GetDevice(entry.second_tgt());
-        // auto dev3 = zctrl_.GetDevice(entry.third_tgt());
 
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
 
@@ -111,8 +104,6 @@ auto awaitable_on_request(HttpRequest req,
 
         // s1->Clear();
         // zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-
-        // zctrl_.queue_depth--;
         // co_return handle_request(std::move(req));
 
         if (res.has_value()) {
@@ -121,29 +112,16 @@ auto awaitable_on_request(HttpRequest req,
             ZstoreObject deserialized_obj;
             bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
                                                     deserialized_obj);
-            req.body() = s1->response_body;
-            // log_debug("1111");
+            req.body() = s1->response_body; // not expensive
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            // s2->Clear();
-            // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
-            // s3->Clear();
-            // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
-
             co_return handle_request(std::move(req));
         } else {
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-
             co_return handle_request(std::move(req));
         }
 
-        // log_debug("queue depth {}", zctrl_.queue_depth);
-        // } else {
-        //     log_error("Draining or not enough contexts, queue depth {}",
-        //               zctrl_.queue_depth);
-        //     co_return handle_request(std::move(req));
-        // }
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {
         // NOTE: Write path: see section 3.3
