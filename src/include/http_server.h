@@ -172,20 +172,25 @@ auto awaitable_on_request(HttpRequest req,
         // 2. Serialize to buffer
         std::vector<u8> buffer = WriteZstoreObjectToBuffer(original_obj);
 
-        if (zctrl_.verbose)
-            log_debug("44444");
         auto s1 = MakeWriteRequest(&zctrl_, dev1, req, buffer).value();
         auto s2 = MakeWriteRequest(&zctrl_, dev2, req, buffer).value();
         auto s3 = MakeWriteRequest(&zctrl_, dev3, req, buffer).value();
 
-        if (zctrl_.verbose)
-            log_debug("5555");
-
         // co_await zoneAppend(s1);
         co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
-        if (zctrl_.verbose)
-            log_debug("6666");
+        co_await async_sleep(co_await boost::asio::this_coro::executor,
+                             std::chrono::microseconds(1),
+                             boost::asio::use_awaitable);
+
+        auto new_entry =
+            createMapEntry(
+                std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
+                                std::make_pair(tgt2, dev2->GetZoneId()),
+                                std::make_pair(tgt3, dev3->GetZoneId())),
+                s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+                .value();
+
         s1->Clear();
         zctrl_.mRequestContextPool->ReturnRequestContext(s1);
         s2->Clear();
@@ -193,15 +198,6 @@ auto awaitable_on_request(HttpRequest req,
         s3->Clear();
         zctrl_.mRequestContextPool->ReturnRequestContext(s3);
 
-        auto new_entry =
-            createMapEntry(
-                std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
-                                std::make_pair(tgt2, dev2->GetZoneId()),
-                                std::make_pair(tgt3, dev3->GetZoneId())),
-                s1->append_lba, 1, 0, 1, 0, 1)
-                // s1->append_lba, 1, s2->append_lba, 1, s3->append_lba,
-                // 1)
-                .value();
         // update lba in map
         auto rc = zctrl_.PutObject(key_hash, new_entry).value();
         // assert(rc == true);

@@ -215,13 +215,13 @@ int ZstoreController::PopulateMap()
             mMap.emplace(hash, entry);
         }
     } else if (mKeyExperiment == 2) {
-        if (mPhase == 1) {
-            log_info("Prepare phase, do nothing");
-            DumpAllMap();
-        } else if (mPhase == 2) {
-            log_info("Run phase, load the map and the bloom filter");
-            ReadAllMap();
-        }
+        // if (mPhase == 1) {
+        //     log_info("Prepare phase, do nothing");
+        //     DumpAllMap();
+        // } else if (mPhase == 2) {
+        //     log_info("Run phase, load the map and the bloom filter");
+        //     ReadAllMap();
+        // }
 
         // Sequential write (append) and read
         // for (int i = 0; i < 2'000'000; i++) {

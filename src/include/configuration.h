@@ -163,7 +163,6 @@ class Configuration
     int gMetadataSize = 64;
     bool gDeviceSupportMetadata = false;
 
-    uint32_t gDataBufferSizeInSector = 1; // 1- 32
     // int gZoneCapacity = 0;
 
     // Configured parameters
@@ -179,10 +178,9 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    // const int gCurrentZone1 = 50;
-    // const int gCurrentZone2 = 115;
-    const int gCurrentZone1 = 0;
-    const int gCurrentZone2 = 0;
+    const int gCurrentZone1 = 147;
+    const int gCurrentZone2 = 147;
+    uint32_t gDataBufferSizeInSector = 16; // 1- 32
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks

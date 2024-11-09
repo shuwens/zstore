@@ -30,4 +30,12 @@ set -xeuo pipefail
 # 250k with 250us
 # sudo taskset -c 10-15 ~/tools/wrk/wrk -t6 -c60 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
-sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c60 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+# 12 threads and 180 connections
+# Thread Stats   Avg      Stdev     Max   +/- Stdev
+# Latency   544.51us  177.09us  12.59ms   95.09%
+# Req/Sec    27.63k     1.53k   31.19k    98.02%
+# 3331936 requests in 10.10s, 12.98GB read
+# Requests/sec: 329905.63
+# Transfer/sec:      1.29GB
+sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c180 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+# sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c256 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
