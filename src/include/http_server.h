@@ -6,51 +6,46 @@
 #include "object.h"
 #include "types.h"
 #include "zstore_controller.h"
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/thread.hpp>
-#include <boost/thread/thread.hpp>
-#include <functional>
-
-using namespace boost::asio::experimental::awaitable_operators;
-
-namespace http = boost::beast::http; // from <boost/beast/http.hpp>
-namespace net = boost::asio;         // from <boost/asio.hpp>
-
-using HttpMsg = http::message_generator;
-using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
-using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
-    net::use_awaitable_t<>::executor_with_default<net::any_io_executor>>::other;
-
-using namespace std::literals;
-
 #include <boost/asio/any_completion_handler.hpp>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/thread.hpp>
 #include <chrono>
+#include <functional>
+
+using namespace boost::asio::experimental::awaitable_operators;
+namespace http = boost::beast::http; // from <boost/beast/http.hpp>
+
+using HttpMsg = http::message_generator;
+using tcp = asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
+using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
+    asio::use_awaitable_t<>::executor_with_default<asio::any_io_executor>>::
+    other;
 
 void async_sleep_impl(
-    boost::asio::any_completion_handler<void(boost::system::error_code)>
-        handler,
-    boost::asio::any_io_executor ex, std::chrono::nanoseconds duration)
+    asio::any_completion_handler<void(boost::system::error_code)> handler,
+    asio::any_io_executor ex, std::chrono::nanoseconds duration)
 {
-    auto timer = std::make_shared<boost::asio::steady_timer>(ex, duration);
-    timer->async_wait(boost::asio::consign(std::move(handler), timer));
+    auto timer = std::make_shared<asio::steady_timer>(ex, duration);
+    timer->async_wait(asio::consign(std::move(handler), timer));
 }
 
 template <typename CompletionToken>
-inline auto async_sleep(boost::asio::any_io_executor ex,
+inline auto async_sleep(asio::any_io_executor ex,
                         std::chrono::nanoseconds duration,
                         CompletionToken &&token)
 {
-    return boost::asio::async_initiate<CompletionToken,
-                                       void(boost::system::error_code)>(
+    return asio::async_initiate<CompletionToken,
+                                void(boost::system::error_code)>(
         async_sleep_impl, token, std::move(ex), duration);
 }
 
 // This function implements the core logic of async
 auto awaitable_on_request(HttpRequest req,
-                          ZstoreController &zctrl_) -> net::awaitable<HttpMsg>
+                          ZstoreController &zctrl_) -> asio::awaitable<HttpMsg>
 {
     auto object_key = req.target();
     std::string hash_hex = sha256(object_key);
@@ -100,9 +95,8 @@ auto awaitable_on_request(HttpRequest req,
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
 
         auto res = co_await zoneRead(s1);
-        co_await async_sleep(co_await boost::asio::this_coro::executor,
-                             std::chrono::microseconds(1),
-                             boost::asio::use_awaitable);
+        co_await async_sleep(co_await asio::this_coro::executor,
+                             std::chrono::microseconds(1), asio::use_awaitable);
 
         // s1->Clear();
         // zctrl_.mRequestContextPool->ReturnRequestContext(s1);
@@ -179,9 +173,8 @@ auto awaitable_on_request(HttpRequest req,
         // co_await zoneAppend(s1);
         co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
-        co_await async_sleep(co_await boost::asio::this_coro::executor,
-                             std::chrono::microseconds(1),
-                             boost::asio::use_awaitable);
+        co_await async_sleep(co_await asio::this_coro::executor,
+                             std::chrono::microseconds(1), asio::use_awaitable);
 
         auto new_entry =
             createMapEntry(
@@ -283,7 +276,7 @@ net::awaitable<void> do_listen(tcp::endpoint endpoint, ZstoreController &zctrl)
     acceptor.listen(net::socket_base::max_listen_connections);
 
     for (;;)
-        boost::asio::co_spawn(
+        asio::co_spawn(
             acceptor.get_executor(),
             do_session(tcp_stream(co_await acceptor.async_accept()), zctrl),
             [](std::exception_ptr e) {

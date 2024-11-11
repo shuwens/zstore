@@ -12,64 +12,46 @@
 #include <string>
 #include <thread>
 
-int zone_offset = 1808277;
-// int zone_offset = 0;
-
 namespace net = boost::asio;      // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
-void ZstoreController::initHttpThread()
+// Helper function to write a single string to the file
+void writeString(std::ofstream &outFile, const std::string &str)
 {
-    struct spdk_cpuset cpumask;
-    for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
-         ++threadId) {
-        spdk_cpuset_zero(&cpumask);
-        spdk_cpuset_set_cpu(&cpumask,
-                            Configuration::GetHttpThreadCoreId(threadId), true);
-        mHttpThread[threadId].thread =
-            spdk_thread_create("HttpThread", &cpumask);
-        assert(mHttpThread[threadId].thread != nullptr);
-        mHttpThread[threadId].controller = this;
-        int rc = spdk_env_thread_launch_pinned(
-            Configuration::GetHttpThreadCoreId(threadId), httpWorker,
-            &mHttpThread[threadId]);
-        log_info("Http thread name {} id {} on core {}",
-                 spdk_thread_get_name(mHttpThread[threadId].thread),
-                 spdk_thread_get_id(mHttpThread[threadId].thread),
-                 Configuration::GetHttpThreadCoreId(threadId));
-        if (rc < 0) {
-            log_error("Failed to launch Http thread error: {} {}", strerror(rc),
-                      spdk_strerror(rc));
-        }
-    }
+    size_t size = str.size();
+    outFile.write(reinterpret_cast<const char *>(&size), sizeof(size));
+    outFile.write(str.c_str(), size);
 }
 
-void ZstoreController::initDispatchThread()
+// Helper function to read a single string from the file
+std::string readString(std::ifstream &inFile)
 {
-    struct spdk_cpuset cpumask;
-    spdk_cpuset_zero(&cpumask);
-    spdk_cpuset_set_cpu(&cpumask, Configuration::GetDispatchThreadCoreId(),
-                        true);
-    mDispatchThread = spdk_thread_create("DispatchThread", &cpumask);
-    log_info("Create {} (id {}) on Core {}",
-             spdk_thread_get_name(mDispatchThread),
-             spdk_thread_get_id(mDispatchThread),
-             Configuration::GetDispatchThreadCoreId());
+    size_t size;
+    inFile.read(reinterpret_cast<char *>(&size), sizeof(size));
+    std::string str(size, '\0');
+    inFile.read(&str[0], size);
+    return str;
+}
 
-    int rc;
-    if (Configuration::UseObject()) {
-        log_info("Dispatch object worker");
-        rc = spdk_env_thread_launch_pinned(
-            Configuration::GetDispatchThreadCoreId(), dispatchObjectWorker,
-            this);
-    } else {
-        log_info("Not using object");
-        rc = spdk_env_thread_launch_pinned(
-            Configuration::GetDispatchThreadCoreId(), dispatchWorker, this);
-    }
-    if (rc < 0) {
-        log_error("Failed to launch dispatch thread error: {} {}", strerror(rc),
-                  spdk_strerror(rc));
+void tryDrainController(void *args)
+{
+    DrainArgs *drainArgs = (DrainArgs *)args;
+    // drainArgs->ctrl->CheckSegments();
+    // drainArgs->ctrl->ReclaimContexts();
+    // drainArgs->ctrl->ProceedGc();
+    drainArgs->success =
+        drainArgs->ctrl->mRequestContextPool->availableContexts.size() ==
+        drainArgs->ctrl->GetContextPoolSize();
+
+    drainArgs->ready = true;
+}
+
+static void busyWait(bool *ready)
+{
+    while (!*ready) {
+        if (spdk_get_thread() == nullptr) {
+            std::this_thread::sleep_for(std::chrono::seconds(0));
+        }
     }
 }
 
@@ -243,24 +225,6 @@ int ZstoreController::PopulateMap()
     return 0;
 }
 
-// Helper function to write a single string to the file
-void writeString(std::ofstream &outFile, const std::string &str)
-{
-    size_t size = str.size();
-    outFile.write(reinterpret_cast<const char *>(&size), sizeof(size));
-    outFile.write(str.c_str(), size);
-}
-
-// Helper function to read a single string from the file
-std::string readString(std::ifstream &inFile)
-{
-    size_t size;
-    inFile.read(reinterpret_cast<char *>(&size), sizeof(size));
-    std::string str(size, '\0');
-    inFile.read(&str[0], size);
-    return str;
-}
-
 // Function to write the map to a file
 void ZstoreController::writeMapToFile(const std::string &filename)
 {
@@ -404,6 +368,169 @@ int ZstoreController::PopulateDevHash()
     //     log_debug("DevHash: {}", mDevHash[i]);
     // }
     return 0;
+}
+
+// TODO: assume we only have one device, we should check all device in the
+// end
+bool ZstoreController::CheckIoQpair(std::string msg)
+{
+    assert(mDevices[0] != nullptr);
+    assert(mDevices[0]->GetIoQueue(0) != nullptr);
+    if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0)))
+        exit(0);
+    return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0));
+}
+
+struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
+{
+    assert(mDevices[0] != nullptr);
+    assert(mDevices[0]->GetIoQueue(0) != nullptr);
+
+    return mDevices[0]->GetIoQueue(0);
+}
+
+static auto quit(void *args) { exit(0); }
+
+ZstoreController::~ZstoreController()
+{
+    for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
+        thread_send_msg(mIoThread[i].thread, quit, nullptr);
+    }
+    // thread_send_msg(mDispatchThread, quit, nullptr);
+    // for (int i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
+    //     thread_send_msg(mHttpThread[i].thread, quit, nullptr);
+    // }
+    log_debug("drain io: {}", spdk_get_ticks());
+    log_debug("clean up ns worker");
+    cleanup_ns_worker_ctx();
+    log_debug("end work fn");
+}
+
+void ZstoreController::zstore_cleanup()
+{
+    log_info("unreg controllers");
+    unregister_controllers(mDevices);
+    log_info("cleanup ");
+    cleanup(0);
+
+    spdk_env_fini();
+}
+
+void ZstoreController::cleanup_ns_worker_ctx()
+{
+    log_info("here");
+    // FIXME
+    // thread_send_msg(mIoThread.thread, quit, nullptr);
+    // spdk_nvme_ctrlr_free_io_qpair(mDevices[0]->GetIoQueue());
+}
+
+void ZstoreController::cleanup(uint32_t task_count)
+{
+    // free(mNamespace);
+    // free(mWorker->ns_ctx);
+    // free(mWorker);
+    // if (spdk_mempool_count(mTaskPool) != (size_t)task_count) {
+    //     log_error("mTaskPool count is {} but should be {}",
+    //               spdk_mempool_count(mTaskPool), task_count);
+    // }
+    // spdk_mempool_free(mTaskPool);
+}
+
+void ZstoreController::Drain()
+{
+    // FIXME GetDevice default
+    log_info("Perform draining on the system.");
+    isDraining = true;
+    DrainArgs args;
+    args.ctrl = this;
+    args.success = false;
+    while (!args.success) {
+        args.ready = false;
+        // thread_send_msg(mDispatchThread, tryDrainController, &args);
+        busyWait(&args.ready);
+    }
+
+    auto etime = std::chrono::high_resolution_clock::now();
+    auto delta =
+        std::chrono::duration_cast<std::chrono::microseconds>(etime - stime)
+            .count();
+    auto tput = mTotalCounts * g_micro_to_second / delta;
+
+    // if (g->verbose)
+    log_info("Total IO {}, total time {}ms, throughput {} IOPS", mTotalCounts,
+             delta, tput);
+
+    // log_debug("drain io: {}", spdk_get_ticks());
+    log_debug("clean up ns worker");
+    // ctrl->cleanup_ns_worker_ctx();
+    // print_stats(ctrl);
+    // exit(0);
+
+    log_info("done .");
+}
+
+// Bloom filter
+Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
+{
+    return mBF.contains(key_hash);
+}
+
+Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
+{
+    mBF.insert({key_hash});
+    return true;
+}
+
+// Map
+
+Result<DevTuple>
+ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
+{
+    return std::make_tuple(
+        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
+        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
+        std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
+    // ok, ok, zone full
+    // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
+    // invalid op code, invalid op code, ok
+    // return std::make_tuple("Zstore3Dev2", "Zstore4Dev1", "Zstore4Dev2");
+
+    // full, invalid op code, invalid op code
+    // return std::make_tuple("Zstore3Dev1", "Zstore3Dev2", "Zstore4Dev1");
+
+    // zstore 2: dev 1, dev 2 80, 80
+    // zstore 3: dev 1, dev 2 115, 80
+    // zstore 4: dev 1, dev 2 invlida, invalida
+}
+
+Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
+{
+    std::srand(key_hash); // seed the random number generator
+                          // with the hash of the object key
+    int random_index = std::rand() % mDevHash.size();
+    return mDevHash[random_index];
+}
+
+Result<bool> ZstoreController::PutObject(const ObjectKeyHash &key_hash,
+                                         const MapEntry entry)
+{
+    return mMap.insert_or_assign(key_hash, entry);
+}
+
+std::optional<MapEntry>
+ZstoreController::GetObject(const ObjectKeyHash &key_hash)
+{
+    std::optional<MapEntry> o;
+    mMap.visit(key_hash, [&](const auto &x) { o = x.second; });
+    return o;
+}
+
+Result<MapEntry> ZstoreController::CreateFakeObject(ObjectKeyHash key_hash,
+                                                    DevTuple tuple)
+{
+    auto entry = createMapEntry(tuple, 0, 1, 0, 1, 0, 1);
+    assert(entry.has_value());
+    return entry.value();
 }
 
 int ZstoreController::Init(bool object, int key_experiment, int phase)
@@ -574,203 +701,3 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
     return rc;
 }
-
-// TODO: assume we only have one device, we should check all device in the
-// end
-bool ZstoreController::CheckIoQpair(std::string msg)
-{
-    assert(mDevices[0] != nullptr);
-    assert(mDevices[0]->GetIoQueue(0) != nullptr);
-    if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0)))
-        exit(0);
-    return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0));
-}
-
-struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
-{
-    assert(mDevices[0] != nullptr);
-    assert(mDevices[0]->GetIoQueue(0) != nullptr);
-
-    return mDevices[0]->GetIoQueue(0);
-}
-
-static auto quit(void *args) { exit(0); }
-
-ZstoreController::~ZstoreController()
-{
-    for (int i = 0; i < Configuration::GetNumIoThreads(); ++i) {
-        thread_send_msg(mIoThread[i].thread, quit, nullptr);
-    }
-    thread_send_msg(mDispatchThread, quit, nullptr);
-    for (int i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
-        thread_send_msg(mHttpThread[i].thread, quit, nullptr);
-    }
-    log_debug("drain io: {}", spdk_get_ticks());
-    log_debug("clean up ns worker");
-    cleanup_ns_worker_ctx();
-    log_debug("end work fn");
-}
-
-void ZstoreController::zstore_cleanup()
-{
-    log_info("unreg controllers");
-    unregister_controllers(mDevices);
-    log_info("cleanup ");
-    cleanup(0);
-
-    spdk_env_fini();
-}
-
-void ZstoreController::cleanup_ns_worker_ctx()
-{
-    log_info("here");
-    // FIXME
-    // thread_send_msg(mIoThread.thread, quit, nullptr);
-    // spdk_nvme_ctrlr_free_io_qpair(mDevices[0]->GetIoQueue());
-}
-
-void ZstoreController::cleanup(uint32_t task_count)
-{
-    // free(mNamespace);
-    // free(mWorker->ns_ctx);
-    // free(mWorker);
-    // if (spdk_mempool_count(mTaskPool) != (size_t)task_count) {
-    //     log_error("mTaskPool count is {} but should be {}",
-    //               spdk_mempool_count(mTaskPool), task_count);
-    // }
-    // spdk_mempool_free(mTaskPool);
-}
-
-std::queue<RequestContext *> &ZstoreController::GetRequestQueue()
-{
-    return mRequestQueue;
-}
-
-std::shared_mutex &ZstoreController::GetRequestQueueMutex()
-{
-    return mRequestQueueMutex;
-}
-
-void tryDrainController(void *args)
-{
-    DrainArgs *drainArgs = (DrainArgs *)args;
-    // drainArgs->ctrl->CheckSegments();
-    // drainArgs->ctrl->ReclaimContexts();
-    // drainArgs->ctrl->ProceedGc();
-    drainArgs->success =
-        drainArgs->ctrl->mRequestContextPool->availableContexts.size() ==
-        drainArgs->ctrl->GetContextPoolSize();
-
-    drainArgs->ready = true;
-}
-
-static void busyWait(bool *ready)
-{
-    while (!*ready) {
-        if (spdk_get_thread() == nullptr) {
-            std::this_thread::sleep_for(std::chrono::seconds(0));
-        }
-    }
-}
-
-void ZstoreController::Drain()
-{
-    // FIXME GetDevice default
-    log_info("Perform draining on the system.");
-    isDraining = true;
-    DrainArgs args;
-    args.ctrl = this;
-    args.success = false;
-    while (!args.success) {
-        args.ready = false;
-        thread_send_msg(mDispatchThread, tryDrainController, &args);
-        busyWait(&args.ready);
-    }
-
-    auto etime = std::chrono::high_resolution_clock::now();
-    auto delta =
-        std::chrono::duration_cast<std::chrono::microseconds>(etime - stime)
-            .count();
-    auto tput = mTotalCounts * g_micro_to_second / delta;
-
-    // if (g->verbose)
-    log_info("Total IO {}, total time {}ms, throughput {} IOPS", mTotalCounts,
-             delta, tput);
-
-    // log_debug("drain io: {}", spdk_get_ticks());
-    log_debug("clean up ns worker");
-    // ctrl->cleanup_ns_worker_ctx();
-    // print_stats(ctrl);
-    // exit(0);
-
-    log_info("done .");
-}
-
-// Bloom filter
-Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
-{
-    return mBF.contains(key_hash);
-}
-
-Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
-{
-    mBF.insert({key_hash});
-    return true;
-}
-
-// Map
-
-Result<DevTuple>
-ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
-{
-    return std::make_tuple(
-        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
-        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
-        std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
-    // ok, ok, zone full
-    // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
-    // invalid op code, invalid op code, ok
-    // return std::make_tuple("Zstore3Dev2", "Zstore4Dev1", "Zstore4Dev2");
-
-    // full, invalid op code, invalid op code
-    // return std::make_tuple("Zstore3Dev1", "Zstore3Dev2", "Zstore4Dev1");
-
-    // zstore 2: dev 1, dev 2 80, 80
-    // zstore 3: dev 1, dev 2 115, 80
-    // zstore 4: dev 1, dev 2 invlida, invalida
-}
-
-Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
-{
-    std::srand(key_hash); // seed the random number generator
-                          // with the hash of the object key
-    int random_index = std::rand() % mDevHash.size();
-    return mDevHash[random_index];
-}
-
-Result<bool> ZstoreController::PutObject(const ObjectKeyHash &key_hash,
-                                         const MapEntry entry)
-{
-    return mMap.insert_or_assign(key_hash, entry);
-}
-
-std::optional<MapEntry>
-ZstoreController::GetObject(const ObjectKeyHash &key_hash)
-{
-    std::optional<MapEntry> o;
-    mMap.visit(key_hash, [&](const auto &x) { o = x.second; });
-    return o;
-}
-
-Result<MapEntry> ZstoreController::CreateFakeObject(ObjectKeyHash key_hash,
-                                                    DevTuple tuple)
-{
-    auto entry = createMapEntry(tuple, 0, 1, 0, 1, 0, 1);
-    assert(entry.has_value());
-    return entry.value();
-}
-
-// Result<void> ZstoreController::UpdateMap(ObjectKey key, MapEntry entry)
-// {
-//     mMap.visit(key, [=](auto &x) { x.second = entry; });
-// }

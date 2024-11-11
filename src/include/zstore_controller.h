@@ -75,14 +75,15 @@ class ZstoreController
 
     // threads
     void initIoThread();
-    void initDispatchThread();
-    void initCompletionThread();
-    void initHttpThread();
+    // void initDispatchThread();
+    // void initCompletionThread();
+    // void initHttpThread();
 
     struct spdk_thread *GetIoThread(int id) { return mIoThread[id].thread; };
-    struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
-    struct spdk_thread *GetHttpThread(int id) { return mHttpThread[id].thread; }
-    struct spdk_thread *GetCompletionThread() { return mCompletionThread; }
+    // struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
+    // struct spdk_thread *GetHttpThread(int id) { return
+    // mHttpThread[id].thread; } struct spdk_thread *GetCompletionThread() {
+    // return mCompletionThread; }
 
     // SPDK components
     struct spdk_nvme_qpair *GetIoQpair();
@@ -93,9 +94,9 @@ class ZstoreController
     void setPhase(int phase) { mPhase = phase; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
-    void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
-    void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
-    void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
+    // void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
+    // void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
+    // void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
 
     int GetContextPoolSize() { return mContextPoolSize; };
     void setContextPoolSize(int context_pool_size)
@@ -145,25 +146,25 @@ class ZstoreController
 
     // net::awaitable<void> EnqueueRead(RequestContext *ctx);
     // void EnqueueWrite(RequestContext *ctx);
-    std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
-    int GetWriteQueueSize() { return mWriteQueue.size(); };
-    std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
-    int GetReadQueueSize() { return mReadQueue.size(); };
+    // std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
+    // int GetWriteQueueSize() { return mWriteQueue.size(); };
+    // std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
+    // int GetReadQueueSize() { return mReadQueue.size(); };
 
     // int GetEventsToDispatchSize();
 
-    std::queue<RequestContext *> &GetRequestQueue();
-    std::shared_mutex &GetRequestQueueMutex();
+    // std::queue<RequestContext *> &GetRequestQueue();
+    // std::shared_mutex &GetRequestQueueMutex();
     // std::shared_mutex &GetSessionMutex();
     // std::mutex &GetRequestQueueMutex();
-    int GetRequestQueueSize();
+    // int GetRequestQueueSize();
 
     // void UpdateIndexNeedLock(uint64_t lba, PhysicalAddr phyAddr);
     // void UpdateIndex(uint64_t lba, PhysicalAddr phyAddr);
     // int GetNumInflightRequests();
 
-    void WriteInDispatchThread(RequestContext *ctx);
-    void ReadInDispatchThread(RequestContext *ctx);
+    // void WriteInDispatchThread(RequestContext *ctx);
+    // void ReadInDispatchThread(RequestContext *ctx);
     // void EnqueueEvent(RequestContext *ctx);
 
     void ReclaimContexts();
@@ -242,24 +243,24 @@ class ZstoreController
     // void doRead(RequestContext *context);
 
     std::vector<Device *> mDevices;
-    std::queue<RequestContext *> mRequestQueue;
-    std::shared_mutex mRequestQueueMutex;
+    // std::queue<RequestContext *> mRequestQueue;
+    // std::shared_mutex mRequestQueueMutex;
 
     spdk_poller *mEventsPoller = nullptr;
-    spdk_poller *mDispatchPoller = nullptr;
-    spdk_poller *mHttpPoller = nullptr;
-    spdk_poller *mCompletionPoller = nullptr;
+    // spdk_poller *mDispatchPoller = nullptr;
+    // spdk_poller *mHttpPoller = nullptr;
+    // spdk_poller *mCompletionPoller = nullptr;
 
     int mQueueDepth = 1;
 
     IoThread mIoThread[16];
-    struct spdk_thread *mDispatchThread;
-    IoThread mHttpThread[16];
-    struct spdk_thread *mCompletionThread;
+    // struct spdk_thread *mDispatchThread;
+    // IoThread mHttpThread[16];
+    // struct spdk_thread *mCompletionThread;
 
     std::queue<RequestContext *> mEventsToDispatch;
-    std::queue<RequestContext *> mWriteQueue;
-    std::queue<RequestContext *> mReadQueue;
+    // std::queue<RequestContext *> mWriteQueue;
+    // std::queue<RequestContext *> mReadQueue;
 
     std::vector<Zone *> mZones;
 };

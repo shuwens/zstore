@@ -11,7 +11,7 @@ setup:
 
 
 debug:
-	meson setup --native-file meson.ini build-dbg --buildtype=debug 
+	meson setup --native-file meson.ini build-dbg --buildtype=debug
 	meson compile -C build-dbg
 
 release:

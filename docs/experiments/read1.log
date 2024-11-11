@@ -1,0 +1,51 @@
+(base)
+1 2 4 8 16
+
+    Latency   261.70us  463.14us  21.41ms   97.52%
+    Req/Sec    21.66k     4.23k   27.52k    54.13%
+  2612565 requests in 10.10s, 211.78MB read
+Requests/sec: 258670.44
+
+2
+    Latency   226.67us  411.52us  20.92ms   99.46%
+    Req/Sec    23.46k     0.95k   25.58k    77.56%
+  2829115 requests in 10.10s, 229.33MB read
+Requests/sec: 280114.20
+Transfer/sec:     22.71MB
+
+
+4
+
+Latency   669.60us  622.08us  20.40ms   85.04%
+    Req/Sec     8.72k     5.94k   18.11k    61.96%
+  1051302 requests in 10.10s, 85.22MB read
+Requests/sec: 104090.86
+
+
+
+8
+
+  Latency     2.75ms  848.75us  27.66ms   74.17%
+    Req/Sec     1.83k    93.44     2.24k    92.31%
+  220859 requests in 10.08s, 17.90MB read
+Requests/sec:  21916.95
+
+
+16
+
+
+  Latency     5.83ms    1.39ms  39.12ms   76.95%
+    Req/Sec     0.86k    44.92     1.18k    90.82%
+  103790 requests in 10.09s, 8.41MB read
+Requests/sec:  10289.35
+Transfer/sec:    854.10KB
+
+32
+
+
+    Latency    10.76ms    3.16ms  54.35ms   71.51%
+    Req/Sec   466.90     30.49   580.00     78.16%
+  56214 requests in 10.09s, 4.56MB read
+Requests/sec:   5572.10
+Transfer/sec:    462.53KB
+
