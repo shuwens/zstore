@@ -60,9 +60,9 @@ Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
     return mBF.contains(key_hash);
 }
 
-Result<void> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
+Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
 {
-    mBF.insert({key_hash});
+    return mBF.insert(key_hash);
 }
 
 // Map APIs

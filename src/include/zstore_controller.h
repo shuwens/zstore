@@ -62,7 +62,7 @@ class ZstoreController
     ZstoreBloomFilter mBF;
     // Bloomfilter APIs
     Result<bool> SearchBF(const ObjectKeyHash &key_hash);
-    Result<void> UpdateBF(const ObjectKeyHash &key_hash);
+    Result<bool> UpdateBF(const ObjectKeyHash &key_hash);
 
     // ZStore GC Map: we keep tracks of blocks that we need to GC. Note that we
     // can potentially optimize this to be per zone tracking, which will help

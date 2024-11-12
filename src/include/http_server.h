@@ -1,9 +1,11 @@
 #pragma once
+
 #include "boost_utils.h"
 #include "common.h"
 #include "configuration.h"
 #include "global.h"
 #include "object.h"
+#include "src/include/utils.h"
 #include "tinyxml2.h"
 #include "types.h"
 #include "zstore_controller.h"
@@ -16,8 +18,10 @@
 #include <boost/thread/thread.hpp>
 #include <chrono>
 #include <functional>
+#include <iostream>
 #include <regex>
 #include <string>
+#include <utility>
 
 using namespace boost::asio::experimental::awaitable_operators;
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
@@ -46,8 +50,9 @@ inline auto async_sleep(asio::any_io_executor ex,
         async_sleep_impl, token, std::move(ex), duration);
 }
 
+// TODO: use max keys
 void create_s3_list_objects_response(
-    tinyxml2::XMLDocument &doc, std::string bucket_name, std::string max_keys,
+    tinyxml2::XMLDocument &doc, std::string bucket_name, int max_keys,
     std::vector<ObjectKeyHash> object_key_hashes)
 {
     // Add the root element <ListBucketResult> with namespace
@@ -72,7 +77,7 @@ void create_s3_list_objects_response(
 
     // Add <MaxKeys> element
     tinyxml2::XMLElement *maxKeys = doc.NewElement("MaxKeys");
-    maxKeys->SetText(max_keys.c_str());
+    maxKeys->SetText(std::to_string(max_keys).c_str());
     root->InsertEndChild(maxKeys);
 
     // Add <IsTruncated> element
@@ -113,26 +118,53 @@ void create_s3_list_objects_response(
     }
 }
 
+std::pair<std::string, std::string> parse_url(const std::string &str)
+{
+    // Check if the string starts with "/"
+    if (str.empty() || str[0] != '/') {
+        return {"", ""}; // Return empty strings if the format is invalid
+    }
+
+    // Find the position of the first delimiter after the initial '/'
+    size_t firstPos = str.find('/', 1); // Start searching from index 1
+
+    if (firstPos == std::string::npos) {
+        // Case: "/aaa" format, where there's no second "/"
+        return {str.substr(1),
+                ""}; // Extract the substring after the initial '/'
+    } else {
+        // Case: "/aa/bb" format
+        std::string part1 = str.substr(
+            1,
+            firstPos - 1); // Extract between the initial '/' and the second '/'
+        std::string part2 = str.substr(
+            firstPos + 1); // Extract the remainder after the second '/'
+        return {part1, part2};
+    }
+}
+
 // This function implements the core logic of async
 auto awaitable_on_request(HttpRequest req,
                           ZstoreController &zctrl_) -> asio::awaitable<HttpMsg>
 {
-    auto object_key = req.target();
+    auto url = req.target();
+    auto [bucket, object_key] = parse_url(url);
+    if (zctrl_.verbose)
+        log_debug("Bucket: {}, Object Key: {}", bucket, object_key);
     std::string hash_hex = sha256(object_key);
     ObjectKeyHash key_hash = std::stoull(hash_hex.substr(0, 16), nullptr, 16);
 
     if (req.method() == http::verb::get) {
         if (object_key.contains("?max-keys=")) {
             // List operation
-
             std::regex pattern(R"(^\/([^?]+)\?max-keys=(\d+))");
             std::smatch matches;
-            std::string object_key(req.target());
-            if (std::regex_match(object_key, matches, pattern)) {
+            std::string str(req.target());
+            if (std::regex_match(str, matches, pattern)) {
                 // The bucket name is the first capture group, max-keys is the
                 // second
                 std::string bucket_name = matches[1];
-                std::string max_keys = matches[2];
+                int max_keys = std::stoi(matches[2]);
 
                 std::cout << "Bucket Name: " << bucket_name << std::endl;
                 std::cout << "Max Keys: " << max_keys << std::endl;
@@ -163,13 +195,17 @@ auto awaitable_on_request(HttpRequest req,
         MapEntry entry;
 
         if (!e.has_value()) {
-            log_error("Object {} not found", object_key);
-            // co_return handle_not_found_request(std::move(req));
-            entry = createMapEntry(
-                        zctrl_.GetDevTupleForRandomReads(key_hash).value(),
-                        zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
-                        zctrl_.mTotalCounts + 1, 1)
-                        .value();
+            if (zctrl_.verbose)
+                log_error("GET: Object {} not found", object_key);
+            if (zctrl_.mPhase == 3)
+                co_return handle_not_found_request(std::move(req));
+            else
+                // co_return handle_not_found_request(std::move(req));
+                entry = createMapEntry(
+                            zctrl_.GetDevTupleForRandomReads(key_hash).value(),
+                            zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
+                            zctrl_.mTotalCounts + 1, 1)
+                            .value();
         } else {
             entry = e.value();
         }
@@ -212,6 +248,21 @@ auto awaitable_on_request(HttpRequest req,
 
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {
+
+        if (object_key == "") {
+            if (zctrl_.verbose)
+                log_error(
+                    "Object key is empty. Ignoring the request as we dont "
+                    "care about bucket {}.",
+                    bucket);
+            // We ignore Put bucket
+            co_return handle_request(std::move(req));
+        }
+
+        if (zctrl_.verbose)
+            log_debug("key {}, key hash {}, value {}", object_key, key_hash,
+                      req.body());
+
         // NOTE: Write path: see section 3.3
         auto object_value = req.body();
 
@@ -261,7 +312,6 @@ auto awaitable_on_request(HttpRequest req,
         auto s2 = MakeWriteRequest(&zctrl_, dev2, req, buffer).value();
         auto s3 = MakeWriteRequest(&zctrl_, dev3, req, buffer).value();
 
-        // co_await zoneAppend(s1);
         co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
         co_await async_sleep(co_await asio::this_coro::executor,
