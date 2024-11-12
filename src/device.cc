@@ -144,7 +144,43 @@ void Device::ResetZone(Zone *zone, void *ctx)
 void Device::FinishZone(Zone *zone, void *ctx)
 {
     log_debug("This is currently unimplemented ");
+
+    // RequestContext *slot = (RequestContext *)ctx;
+    // slot->ioContext.cb = finishComplete;
+    // slot->ioContext.ctx = ctx;
+    // slot->ioContext.offset = zone->GetSlba();
+    // slot->ioContext.flags = 0;
+    //
+    // if (Configuration::GetBypassDevice()) {
+    //     debug_e("Bypass finish zone");
+    //     slot->Queue();
+    //     return;
+    // }
+    //
+    // if (Configuration::GetEventFrameworkEnabled()) {
+    //     issueIo2(zoneFinish2, slot);
+    // } else {
+    //     issueIo(zoneFinish, slot);
+    // }
 }
+
+// static void finishComplete(void *arg, const struct spdk_nvme_cpl *completion)
+// {
+//     RequestContext *slot = (RequestContext *)arg;
+//     if (spdk_nvme_cpl_is_error(completion)) {
+//         fprintf(stderr, "I/O error status: %s\n",
+//                 spdk_nvme_cpl_get_status_string(&completion->status));
+//         fprintf(stderr, "Finish I/O failed, aborting run\n");
+//         exit(1);
+//     }
+//     debug_warn("finish complete %d slot %p\n", slot->successBytes, slot);
+//     assert(slot->status == FINISH_REAPING);
+//     slot->Queue();
+// };
+
+void Device::FinishCurrentZone(void *ctx) {}
+
+void Device::OpenNextZone() { mZoneId++; }
 
 void b();
 void Device::GetZoneHeaders(std::map<uint64_t, uint8_t *> &zones)

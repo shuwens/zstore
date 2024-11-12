@@ -48,3 +48,6 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
                                           HttpRequest request,
                                           std::vector<uint8_t> data);
+
+Result<RequestContext *> MakeManagementRequest(ZstoreController *zctrl_,
+                                               Device *dev);

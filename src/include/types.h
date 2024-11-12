@@ -1,4 +1,5 @@
 #pragma once
+#include "device.h"
 #include "utils.h"
 #include <boost/beast/http.hpp>
 #include <fmt/chrono.h>
@@ -61,12 +62,11 @@ struct RequestContext {
     uint32_t curOffset;
     void *cb_args;
     uint32_t ioOffset;
-
     bool available;
 
-    // Used inside a Segment write/read
     ZstoreController *ctrl;
     struct spdk_thread *io_thread;
+    Device *device;
     uint32_t zoneId;
     uint32_t offset;
 
@@ -82,9 +82,10 @@ struct RequestContext {
         void *data;
         uint64_t offset; // lba
         uint32_t size;   // lba_count
-        // spdk_nvme_cmd_cb cb;
-        // void *ctx;
         uint32_t flags;
+        // only used for management commands
+        spdk_nvme_cmd_cb cb;
+        void *ctx;
     } ioContext;
     uint32_t bufferSize; // for recording partial writes
 

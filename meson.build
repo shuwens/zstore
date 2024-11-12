@@ -50,6 +50,7 @@ zstore_deps = [
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('_spdk'),
+	# dependency('tinyxml2'),
 	dependency(
 		'boost',
 		version: '>=1.86.0',
@@ -122,6 +123,7 @@ zstore_src = [
 	'src/object.cc',
 	'src/zstore_controller.cc',
 	'src/main.cc',
+	'src/tinyxml2.cpp',
 	'src/zone.cc',
 ]
 

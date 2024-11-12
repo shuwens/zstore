@@ -11,9 +11,10 @@
 #include <spdk/thread.h>
 #include <unistd.h>
 
-namespace net = boost::asio; // from <boost/asio.hpp>
+namespace asio = boost::asio; // from <boost/asio.hpp>
 using ZstoreMap = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
 using ZstoreBloomFilter = boost::concurrent_flat_set<ObjectKeyHash>;
+using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
 
 class Device;
 class Zone;
@@ -46,6 +47,12 @@ class ZstoreController
 
     // ZStore Map: this maps key to tuple of ZNS target and lba
     ZstoreMap mMap;
+    // Map APIs
+    Result<bool> PutObject(const ObjectKeyHash &key_hash, MapEntry entry);
+    std::optional<MapEntry> GetObject(const ObjectKeyHash &key_hash);
+    Result<std::vector<ObjectKeyHash>> ListObjects();
+    Result<MapEntry> CreateFakeObject(ObjectKeyHash key_hash, DevTuple tuple);
+    Result<MapEntry> DeleteObject(const ObjectKeyHash &key_hash);
 
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
@@ -53,22 +60,19 @@ class ZstoreController
     // For simplicity, right now we are just using a set to keep track of
     // the hashes
     ZstoreBloomFilter mBF;
-
-    // Object APIs
+    // Bloomfilter APIs
     Result<bool> SearchBF(const ObjectKeyHash &key_hash);
-    Result<bool> UpdateBF(const ObjectKeyHash &key_hash);
+    Result<void> UpdateBF(const ObjectKeyHash &key_hash);
 
-    Result<bool> PutObject(const ObjectKeyHash &key_hash, MapEntry entry);
-    std::optional<MapEntry> GetObject(const ObjectKeyHash &key_hash);
+    // ZStore GC Map: we keep tracks of blocks that we need to GC. Note that we
+    // can potentially optimize this to be per zone tracking, which will help
+    // scaning it
+    ZstoreGcSet mGcSet;
+    Result<bool> AddGcObject(const TargetLbaTuple &tuple);
 
-    // Result<void> UpdateMap(ObjectKey key, MapEntry entry);
-    // Result<void> ReleaseObject(ObjectKey key);
-    Result<MapEntry> CreateFakeObject(ObjectKeyHash key_hash, DevTuple tuple);
-    Result<void> DeleteObject(ObjectKeyHash key_hash);
-
-    ZstoreController(net::io_context &ioc) : mIoc_(ioc){};
+    ZstoreController(asio::io_context &ioc) : mIoc_(ioc){};
     // The io_context is required for all I/O
-    net::io_context &mIoc_;
+    asio::io_context &mIoc_;
 
     ~ZstoreController();
     int Init(bool object, int key_experiment, int phase);
@@ -195,6 +199,7 @@ class ZstoreController
     // std::map<uint32_t, uint64_t> mReadCounts;
     // uint64_t mTotalReadCounts = 0;
     uint64_t mTotalCounts = 0;
+    uint64_t mManagementCounts = 0;
 
     Device *GetDevice(const std::string &target_dev)
     {

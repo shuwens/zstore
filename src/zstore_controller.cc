@@ -12,7 +12,6 @@
 #include <string>
 #include <thread>
 
-namespace net = boost::asio;      // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 // Helper function to write a single string to the file
@@ -53,6 +52,88 @@ static void busyWait(bool *ready)
             std::this_thread::sleep_for(std::chrono::seconds(0));
         }
     }
+}
+
+// Bloom filter APIs
+Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
+{
+    return mBF.contains(key_hash);
+}
+
+Result<void> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
+{
+    mBF.insert({key_hash});
+}
+
+// Map APIs
+Result<DevTuple>
+ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
+{
+    return std::make_tuple(
+        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
+        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
+        std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
+    // ok, ok, zone full
+    // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
+    // invalid op code, invalid op code, ok
+    // return std::make_tuple("Zstore3Dev2", "Zstore4Dev1", "Zstore4Dev2");
+
+    // full, invalid op code, invalid op code
+    // return std::make_tuple("Zstore3Dev1", "Zstore3Dev2", "Zstore4Dev1");
+
+    // zstore 2: dev 1, dev 2 80, 80
+    // zstore 3: dev 1, dev 2 115, 80
+    // zstore 4: dev 1, dev 2 invlida, invalida
+}
+
+Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
+{
+    std::srand(key_hash); // seed the random number generator
+                          // with the hash of the object key
+    int random_index = std::rand() % mDevHash.size();
+    return mDevHash[random_index];
+}
+
+Result<bool> ZstoreController::PutObject(const ObjectKeyHash &key_hash,
+                                         const MapEntry entry)
+{
+    return mMap.insert_or_assign(key_hash, entry);
+}
+
+std::optional<MapEntry>
+ZstoreController::GetObject(const ObjectKeyHash &key_hash)
+{
+    std::optional<MapEntry> o;
+    mMap.visit(key_hash, [&](const auto &x) { o = x.second; });
+    return o;
+}
+
+Result<MapEntry> ZstoreController::DeleteObject(const ObjectKeyHash &key_hash)
+{
+    MapEntry entry;
+    mMap.visit(key_hash, [&](const auto &x) { entry = x.second; });
+    mMap.erase(key_hash);
+    return entry;
+}
+
+Result<std::vector<ObjectKeyHash>> ZstoreController::ListObjects()
+{
+    std::vector<ObjectKeyHash> keys;
+    mMap.visit_all([&](auto &x) { keys.push_back(x.first); });
+    return keys;
+}
+
+Result<MapEntry> ZstoreController::CreateFakeObject(ObjectKeyHash key_hash,
+                                                    DevTuple tuple)
+{
+    auto entry = createMapEntry(tuple, 0, 1, 0, 1, 0, 1);
+    assert(entry.has_value());
+    return entry.value();
+}
+
+Result<bool> ZstoreController::AddGcObject(const TargetLbaTuple &tuple)
+{
+    return mGcSet.insert(tuple);
 }
 
 void ZstoreController::initIoThread()
@@ -171,9 +252,8 @@ void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
 
 int ZstoreController::PopulateMap()
 {
-    log_info("populate map: mKeyExperiment {}, mPhase {}", mKeyExperiment,
-             mPhase);
     if (mKeyExperiment == 1) {
+        log_info("Populate Map({},{}): random read", mKeyExperiment, mPhase);
         // Random Read
         auto zone1_base =
             Configuration::GetZoneId1() * Configuration::GetZoneDist();
@@ -197,13 +277,20 @@ int ZstoreController::PopulateMap()
             mMap.emplace(hash, entry);
         }
     } else if (mKeyExperiment == 2) {
-        // if (mPhase == 1) {
-        //     log_info("Prepare phase, do nothing");
-        //     DumpAllMap();
-        // } else if (mPhase == 2) {
-        //     log_info("Run phase, load the map and the bloom filter");
-        //     ReadAllMap();
-        // }
+        if (mPhase == 1) {
+            log_info("Populate Map({},{}): write and read.", mKeyExperiment,
+                     mPhase);
+            //     log_info("Prepare phase, do nothing");
+            // DumpAllMap();
+        } else if (mPhase == 2) {
+            log_info("Populate Map({},{}): write and read.", mKeyExperiment,
+                     mPhase);
+            log_info("Run phase, load the map and the bloom filter");
+            // ReadAllMap();
+        } else if (mPhase == 3) {
+            log_info("Populate Map({},{}): write and read simplified.",
+                     mKeyExperiment, mPhase);
+        }
 
         // Sequential write (append) and read
         // for (int i = 0; i < 2'000'000; i++) {
@@ -469,70 +556,6 @@ void ZstoreController::Drain()
     log_info("done .");
 }
 
-// Bloom filter
-Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
-{
-    return mBF.contains(key_hash);
-}
-
-Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
-{
-    mBF.insert({key_hash});
-    return true;
-}
-
-// Map
-
-Result<DevTuple>
-ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
-{
-    return std::make_tuple(
-        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
-        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
-        std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
-    // ok, ok, zone full
-    // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
-    // invalid op code, invalid op code, ok
-    // return std::make_tuple("Zstore3Dev2", "Zstore4Dev1", "Zstore4Dev2");
-
-    // full, invalid op code, invalid op code
-    // return std::make_tuple("Zstore3Dev1", "Zstore3Dev2", "Zstore4Dev1");
-
-    // zstore 2: dev 1, dev 2 80, 80
-    // zstore 3: dev 1, dev 2 115, 80
-    // zstore 4: dev 1, dev 2 invlida, invalida
-}
-
-Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
-{
-    std::srand(key_hash); // seed the random number generator
-                          // with the hash of the object key
-    int random_index = std::rand() % mDevHash.size();
-    return mDevHash[random_index];
-}
-
-Result<bool> ZstoreController::PutObject(const ObjectKeyHash &key_hash,
-                                         const MapEntry entry)
-{
-    return mMap.insert_or_assign(key_hash, entry);
-}
-
-std::optional<MapEntry>
-ZstoreController::GetObject(const ObjectKeyHash &key_hash)
-{
-    std::optional<MapEntry> o;
-    mMap.visit(key_hash, [&](const auto &x) { o = x.second; });
-    return o;
-}
-
-Result<MapEntry> ZstoreController::CreateFakeObject(ObjectKeyHash key_hash,
-                                                    DevTuple tuple)
-{
-    auto entry = createMapEntry(tuple, 0, 1, 0, 1, 0, 1);
-    assert(entry.has_value());
-    return entry.value();
-}
-
 int ZstoreController::Init(bool object, int key_experiment, int phase)
 {
     int rc = 0;
@@ -606,28 +629,25 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     log_debug("ZstoreController launching threads");
 
     initIoThread();
-    // initDispatchThread();
 
-    // auto const address = net::ip::make_address("127.0.0.1");
-    auto const address = net::ip::make_address("12.12.12.1");
+    auto const address = asio::ip::make_address("12.12.12.1");
     auto const port = 2000;
 
     // The io_context is required for all I/O
     auto const num_threads = Configuration::GetNumHttpThreads();
-    net::io_context ioc{num_threads};
+    asio::io_context ioc{num_threads};
 
     // Spawn a listening port
-    boost::asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
-                          [](std::exception_ptr e) {
-                              if (e)
-                                  try {
-                                      std::rethrow_exception(e);
-                                  } catch (std::exception &e) {
-                                      std::cerr
-                                          << "Error in acceptor: " << e.what()
-                                          << "\n";
-                                  }
-                          });
+    asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
+                   [](std::exception_ptr e) {
+                       if (e)
+                           try {
+                               std::rethrow_exception(e);
+                           } catch (std::exception &e) {
+                               std::cerr << "Error in acceptor: " << e.what()
+                                         << "\n";
+                           }
+                   });
 
     std::vector<std::jthread> threads(num_threads);
     for (unsigned i = 0; i < num_threads; ++i) {

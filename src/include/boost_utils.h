@@ -53,6 +53,7 @@ handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
         res.prepare_payload();
         return res;
     } else if (req.method() == http::verb::get) {
+
         // Respond to GET request
         HttpResponse res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
@@ -81,6 +82,16 @@ handle_request(http::request<Body, http::basic_fields<Allocator>> &&req)
         res.keep_alive(req.keep_alive());
         // POST request is used to update the object
         res.body() = "POST Object is done";
+        res.prepare_payload();
+        return res;
+    } else if (req.method() == http::verb::delete_) {
+        // Respond to POST request
+        HttpResponse res{http::status::ok, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "object");
+        res.keep_alive(req.keep_alive());
+        // POST request is used to update the object
+        res.body() = "Delete Object is done";
         res.prepare_payload();
         return res;
     } else {

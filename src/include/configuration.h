@@ -178,8 +178,8 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    const int gCurrentZone1 = 148;
-    const int gCurrentZone2 = 148;
+    const int gCurrentZone1 = 149;
+    const int gCurrentZone2 = 149;
     uint32_t gDataBufferSizeInSector = 1; // 1- 32
 
     bool gVerbose = false; // this will turn on all logs

@@ -23,6 +23,9 @@ class Device
     // admin commands
     void ResetZone(Zone *zone, void *ctx);
     void FinishZone(Zone *zone, void *ctx); // seal
+    void FinishCurrentZone(void *ctx);
+    void OpenNextZone();
+
     bool HasAvailableZone();
     Zone *OpenZone();
     Zone *OpenZoneBySlba(uint64_t slba);
@@ -53,8 +56,8 @@ class Device
     // void issueIo2(spdk_event_fn event_fn, RequestContext *slot);
     // void issueIo(spdk_msg_fn msg_fn, RequestContext *slot);
 
-    int GetCurrentWriteZone() { return mCurrentWriteZone; };
-    int GetCurrentReadZone() { return mCurrentReadZone; };
+    // int GetCurrentWriteZone() { return mCurrentWriteZone; };
+    // int GetCurrentReadZone() { return mCurrentReadZone; };
 
   private:
     uint64_t bytes2Block(uint64_t bytes);
