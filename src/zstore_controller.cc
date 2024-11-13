@@ -260,6 +260,7 @@ int ZstoreController::PopulateMap()
         auto zone2_base =
             Configuration::GetZoneId2() * Configuration::GetZoneDist();
         for (int i = 0; i < _map_size; i++) {
+            auto zone_offset = i % 10;
             auto entry =
                 createMapEntry(std::make_tuple(
                                    std::make_pair("Zstore2Dev1",
@@ -268,8 +269,9 @@ int ZstoreController::PopulateMap()
                                                   Configuration::GetZoneId1()),
                                    std::make_pair("Zstore3Dev1",
                                                   Configuration::GetZoneId2())),
-                               i + zone1_base, 1, i + zone1_base, 1,
-                               i + zone2_base, 1)
+                               i + zone1_base + zone_offset, 1,
+                               i + zone1_base + zone_offset, 1,
+                               i + zone2_base + zone_offset, 1)
                     .value();
             std::string hash_hex = sha256("/db/" + std::to_string(i));
             unsigned long long hash =
