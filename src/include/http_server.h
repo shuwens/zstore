@@ -230,7 +230,7 @@ auto awaitable_on_request(HttpRequest req,
 
         auto res = co_await zoneRead(s1);
         co_await async_sleep(co_await asio::this_coro::executor,
-                             std::chrono::microseconds(1), asio::use_awaitable);
+                             std::chrono::microseconds(0), asio::use_awaitable);
 
         if (res.has_value()) {
             ZstoreObject deserialized_obj;
@@ -315,7 +315,7 @@ auto awaitable_on_request(HttpRequest req,
         co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
 
         co_await async_sleep(co_await asio::this_coro::executor,
-                             std::chrono::microseconds(1), asio::use_awaitable);
+                             std::chrono::microseconds(0), asio::use_awaitable);
 
         auto new_entry =
             createMapEntry(

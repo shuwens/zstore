@@ -20,10 +20,17 @@ project(
 fs = import('fs')
 cc = meson.get_compiler('c')
 
-add_project_arguments('-fPIC', language: 'cpp')
-add_project_arguments('-Wno-unused-parameter', language: 'cpp')
-add_project_arguments('-Wno-deprecated-declarations', language: 'cpp')
-add_project_arguments('-fsized-deallocation', language: 'cpp')
+add_project_arguments(
+	'-Wuninitialized',
+	# '-DBOOST_ASIO_HAS_IO_URING',
+	# '-DBOOST_ASIO_DISABLE_EPOLL',
+	# '-DBOOST_ASIO_USE_TS_EXECUTOR_AS_DEFAULT',
+	'-fPIC',
+	'-Wno-unused-parameter',
+	'-Wno-deprecated-declarations',
+	'-fsized-deallocation',
+	language: 'cpp',
+)
 
 if get_option('buildtype') == 'release'
 	add_project_arguments('-g', language: 'c')
@@ -51,6 +58,7 @@ zstore_deps = [
 	dependency('fmt'),
 	dependency('_spdk'),
 	# dependency('tinyxml2'),
+	dependency('liburing', version: '>=2.0', include_type: 'system'),
 	dependency(
 		'boost',
 		version: '>=1.86.0',
@@ -247,10 +255,10 @@ executable(
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-# executable(
-# 	'http_awaitable',
-# 	files('examples/boost/http_server_awaitable.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'http_awaitable',
+	files('examples/boost/http_server_awaitable.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
