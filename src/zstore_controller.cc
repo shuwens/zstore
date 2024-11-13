@@ -260,7 +260,7 @@ int ZstoreController::PopulateMap()
         auto zone2_base =
             Configuration::GetZoneId2() * Configuration::GetZoneDist();
         for (int i = 0; i < _map_size; i++) {
-            auto zone_offset = i % 10;
+            auto zone_offset = i % 10 * Configuration::GetZoneDist();
             auto entry =
                 createMapEntry(std::make_tuple(
                                    std::make_pair("Zstore2Dev1",
