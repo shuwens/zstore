@@ -82,7 +82,6 @@ custom_libnames = [
 	'spdk_util',
 	'spdk_log',
 	'spdk_event',
-	'spdk_rdma',
 	# dpdk stuff
 	'rte_eal',
 	'rte_kvargs',
