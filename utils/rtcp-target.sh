@@ -43,9 +43,11 @@ sleep 3
 
 ctrl_nqn="nqn.2024-04.io.zstore:cnode1"
 
-if [ "$HOSTNAME" == "zstore2" ]; then
+if [ "$HOSTNAME" == "zstore1" ]; then
 	pci1=05:00.0
-	# pci2=$(lspci -mm | perl -lane 'print @F[0] if /NVMe/' | tail -1)
+	pci2=0b:00.0
+elif [ "$HOSTNAME" == "zstore2" ]; then
+	pci1=05:00.0
 	pci2=06:00.0
 elif [ "$HOSTNAME" == "zstore3" ]; then
 	pci1=04:00.0
@@ -64,7 +66,11 @@ scripts/rpc.py nvmf_create_transport -t TCP -u 16384 -m 8 -c 8192
 scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK00000000000001 -d SPDK_Controller1
 sleep 1
 
-if [ "$HOSTNAME" == "zstore2" ]; then
+if [ "$HOSTNAME" == "zstore1" ]; then
+	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
+	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 12.12.12.1 -s 5520
+elif [ "$HOSTNAME" == "zstore2" ]; then
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t tcp -a 12.12.12.2 -s 5520
