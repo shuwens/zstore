@@ -24,15 +24,15 @@ randwriteable_pages=$((${randwritable_size} / ${bs}))
 zonesize=$(($tnvmcap / $nr_zones / $bs))
 
 # Count=sudo nvme list-ns -a /dev/nvme0
-sudo nvme list-ns -a /dev/nvme0 | awk -F: '{print $2}' | while read line; do echo $(($line)) | xargs sudo nvme delete-ns /dev/$DEV -n ; done 
+nvme list-ns -a /dev/nvme0 | awk -F: '{print $2}' | while read line; do echo $(($line)) | xargs sudo nvme delete-ns /dev/$DEV -n ; done 
 
 # Random writeable namespaces
-sudo nvme create-ns /dev/$DEV -s ${randwriteable_pages} -c ${randwriteable_pages} -b $bs --csi=0
-sudo nvme attach-ns /dev/$DEV -c 0 -n 1
+nvme create-ns /dev/$DEV -s ${randwriteable_pages} -c ${randwriteable_pages} -b $bs --csi=0
+nvme attach-ns /dev/$DEV -c 0 -n 1
 
 # ZNS namespaces
-sudo nvme create-ns /dev/$DEV -s $((${zns_size}*4096)) -c $((${zns_size}*4096)) -b $bs --csi=2
-sudo nvme attach-ns /dev/$DEV -c 0 -n 2
+nvme create-ns /dev/$DEV -s $((${zns_size}*4096)) -c $((${zns_size}*4096)) -b $bs --csi=2
+nvme attach-ns /dev/$DEV -c 0 -n 2
 # sudo nvme create-ns /dev/$DEV -s $((${zonesize}*100)) -c $((${zonesize}*100)) -b $bs --csi=2
 # sudo nvme attach-ns /dev/$DEV -c 0 -n 3
 # sudo nvme create-ns /dev/$DEV -s $((${zonesize}*($nr_zones - 200 - 4))) -c $((${zonesize}*($nr_zones - 200 - 4))) -b $bs --csi=2
