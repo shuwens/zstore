@@ -153,7 +153,8 @@ class Configuration
     // NOTE this decides the number of threads *per device*, and the number of
     // IO queues are the same of num_of_IO_threads * num_of_device
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 6; // magic number
+    // int gNumHttpThreads = 6; // magic number
+    int gNumHttpThreads = 1;
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 1;

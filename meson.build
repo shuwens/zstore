@@ -24,7 +24,6 @@ add_project_arguments(
 	'-Wuninitialized',
 	# '-DBOOST_ASIO_HAS_IO_URING',
 	# '-DBOOST_ASIO_DISABLE_EPOLL',
-	# '-DBOOST_ASIO_USE_TS_EXECUTOR_AS_DEFAULT',
 	'-fPIC',
 	'-Wno-unused-parameter',
 	'-Wno-deprecated-declarations',
@@ -57,7 +56,6 @@ zstore_deps = [
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('_spdk'),
-	# dependency('tinyxml2'),
 	dependency('liburing', version: '>=2.0', include_type: 'system'),
 	dependency(
 		'boost',
@@ -145,21 +143,6 @@ executable(
 
 # Tests
 # -----------
-# executable(
-# 	'zns_test',
-# 	files('src/tests/device_test.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
-# executable(
-# 	'test_map',
-# 	files('src/tests/map_test.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
 executable(
 	'test_simple_object',
 	files('src/tests/simple_object_test.cc'),
@@ -193,13 +176,20 @@ executable(
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-# executable(
-# 	'mpsd_read',
-# 	files('examples/multipath/mp_one_drive_read.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'mpsd_read',
+	files('examples/multipath/mp_one_drive_read.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'two_targets_read',
+	files('examples/multipath/two_targets_read.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 # executable(
 # 	'check_read',
 # 	files('src/examples/check_read.cc'),

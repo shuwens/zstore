@@ -16,7 +16,7 @@
 #include <vector>
 
 bool check = false;
-int cnt = 2;
+int cnt = 4;
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
@@ -949,7 +949,7 @@ static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
 }
 
 static void zns_dev_init(struct arb_context *ctx, std::string ip1,
-                         std::string port1)
+                         std::string port1, std::string ip2, std::string port2)
 {
     int rc = 0;
 
@@ -959,16 +959,15 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-
     trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
     // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
-    // struct spdk_nvme_transport_id trid2 = {};
-    // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
-    // snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
-    // snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
-    // trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    // trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+    struct spdk_nvme_transport_id trid2 = {};
+    snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
+    snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
+    snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
+    trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
+    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
@@ -976,7 +975,7 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
 
     register_ctrlr(spdk_nvme_connect(&trid1, &opts, sizeof(opts)));
-    // register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
+    register_ctrlr(spdk_nvme_connect(&trid2, &opts, sizeof(opts)));
 
     printf("Found %d namspaces\n", g_arbitration.num_namespaces);
 }
@@ -988,9 +987,7 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
-    // zns_dev_init(ctx, "12.12.12.3", "5520"); // 30k +30k
-    zns_dev_init(ctx, "12.12.12.4", "5520");
+    zns_dev_init(ctx, "12.12.12.2", "5520", "12.12.12.3", "5520");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
