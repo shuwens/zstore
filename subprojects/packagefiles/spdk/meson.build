@@ -1,6 +1,6 @@
 # copied from xnvme's spdk subproject configuration and cleaned up a bit
 
-project('spdk', 'c', version: '24.05')
+project('spdk', 'c', version: '24.09')
 if host_machine.system() != 'linux'
   error('Unsupported system type "@0@"'.format(exec_env))
 endif
