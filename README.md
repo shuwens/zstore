@@ -24,3 +24,4 @@ https://github.com/mikegreen/vault-benchmarking
 
 sudo taskset -c --all-tasks -p (pgrep zstore)
 htop -p (pgrep zstore) -H
+
