@@ -585,13 +585,13 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
                         Configuration::GetZoneId1()),
         std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
                         Configuration::GetZoneId1())};
-    for (auto &dev_tuple : ip_port_devs) {
-        if (register_controllers(g_devices, dev_tuple) != 0) {
-            rc = 1;
-            zstore_cleanup();
-            return rc;
-        }
-    }
+    // for (auto &dev_tuple : ip_port_devs) {
+    //     if (register_controllers(g_devices, dev_tuple) != 0) {
+    //         rc = 1;
+    //         zstore_cleanup();
+    //         return rc;
+    //     }
+    // }
     mDevices = g_devices;
 
     // Preallocate contexts for user requests

@@ -237,16 +237,23 @@ executable(
 # )
 
 # HTTP server
-# executable(
-# 	'http_async',
-# 	files('examples/boost/http_server_async.cpp'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'http_async',
+	files('examples/boost/http_server_async.cpp'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 executable(
 	'http_awaitable',
 	files('examples/boost/http_server_awaitable.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'http_awaitable2',
+	files('examples/boost/http_server_awaitable2.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
