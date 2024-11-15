@@ -110,14 +110,14 @@ static struct arb_context g_arbitration = {
     .num_workers = 0,
     .num_namespaces = 0,
     .rw_percentage = 50,
-    .queue_depth = 1,
+    .queue_depth = 64,
     .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
     .io_size_bytes = 4096,
     // .io_size_bytes = 20480,
-    .time_in_sec = 1,
+    .time_in_sec = 10,
     // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
@@ -318,7 +318,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     //      ((rand_r(&seed) % 100) < g_arbitration.rw_percentage))) {
     // Zone managment
     const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 49;
+    const int current_zone = 0;
 
     auto zslba = zone_dist * current_zone;
 
@@ -367,13 +367,13 @@ static void task_complete(struct arb_task *task)
      */
     // 524288
     // 275712
-    // if (!ns_ctx->is_draining) {
-    //     if (275700 < ns_ctx->io_completed)
-    //         printf("io completed: %d\n", ns_ctx->io_completed);
-    //     // if (ns_ctx->io_completed < 275700)
-    //     if (ns_ctx->io_completed < 18500)
-    //         submit_single_io(ns_ctx);
-    // }
+    if (!ns_ctx->is_draining) {
+        // if (275700 < ns_ctx->io_completed)
+        //     printf("io completed: %d\n", ns_ctx->io_completed);
+        // if (ns_ctx->io_completed < 275700)
+        // if (ns_ctx->io_completed < 18500)
+        submit_single_io(ns_ctx);
+    }
 }
 
 static void io_complete(void *ctx, const struct spdk_nvme_cpl *completion)
