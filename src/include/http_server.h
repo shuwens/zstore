@@ -5,9 +5,7 @@
 #include "configuration.h"
 #include "global.h"
 #include "object.h"
-#include "src/include/utils.h"
 #include "tinyxml2.h"
-#include "types.h"
 #include "zstore_controller.h"
 #include <boost/asio/any_completion_handler.hpp>
 #include <boost/asio/any_io_executor.hpp>
@@ -228,9 +226,10 @@ auto awaitable_on_request(HttpRequest req,
 
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
 
-        auto res = co_await zoneRead(s1);
-        co_await async_sleep(co_await asio::this_coro::executor,
-                             std::chrono::microseconds(0), asio::use_awaitable);
+        // auto res = co_await zoneRead(s1);
+        // co_await async_sleep(co_await asio::this_coro::executor,
+        //                      std::chrono::microseconds(0),
+        //                      asio::use_awaitable);
 
         // if (res.has_value()) {
         // yields 320 to 310k IOPS

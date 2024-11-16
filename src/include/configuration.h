@@ -153,8 +153,7 @@ class Configuration
     // NOTE this decides the number of threads *per device*, and the number of
     // IO queues are the same of num_of_IO_threads * num_of_device
     int gNumIoThreads = 1;
-    // int gNumHttpThreads = 6; // magic number
-    int gNumHttpThreads = 1;
+    int gNumHttpThreads = 6; // magic number
 
     uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 1;
@@ -171,7 +170,7 @@ class Configuration
     int gContextPoolSize = 4096;
 
     // how many targets one gateway talks to
-    int gNumOfTargets = 3;
+    int gNumOfTargets = 1;
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 

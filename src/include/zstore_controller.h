@@ -1,6 +1,5 @@
 #pragma once
 #include "types.h"
-#include "utils.h"
 #include <boost/asio/awaitable.hpp>
 #include <boost/unordered/concurrent_flat_map.hpp>
 #include <boost/unordered/concurrent_flat_set.hpp>

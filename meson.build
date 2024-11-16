@@ -5,6 +5,7 @@ project(
 	version: '0.1',
 	default_options: [
 		'cpp_std=c++23',
+		'optimization=3',
 		'default_library=static',
 		'warning_level=2',
 		'b_colorout=always',
@@ -13,7 +14,6 @@ project(
 		'b_lto=true',
 		'b_thinlto_cache=true',
 		# 'b_asneeded=false',
-		# 'b_lto=false',
 		# 'b_lundef=false',
 	],
 )
@@ -32,7 +32,7 @@ add_project_arguments(
 )
 
 if get_option('buildtype') == 'release'
-	add_project_arguments('-g', language: 'c')
+	# add_project_arguments('-g', language: 'c')
 endif
 
 if get_option('buildtype') == 'debug'
@@ -142,20 +142,20 @@ executable(
 
 # Tests
 # -----------
-executable(
-	'test_simple_object',
-	files('src/tests/simple_object_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'test_different_objects',
-	files('src/tests/different_objects_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'test_simple_object',
+# 	files('src/tests/simple_object_test.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'test_different_objects',
+# 	files('src/tests/different_objects_test.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 # FIXME
 # reads from the drive
@@ -237,24 +237,24 @@ executable(
 # )
 
 # HTTP server
-executable(
-	'http_async',
-	files('examples/boost/http_server_async.cpp'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'http_awaitable',
-	files('examples/boost/http_server_awaitable.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'http_awaitable2',
-	files('examples/boost/http_server_awaitable2.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'http_async',
+# 	files('examples/boost/http_server_async.cpp'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'http_awaitable',
+# 	files('examples/boost/http_server_awaitable.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'http_awaitable2',
+# 	files('examples/boost/http_server_awaitable2.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )

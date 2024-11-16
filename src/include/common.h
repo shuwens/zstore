@@ -1,6 +1,5 @@
 #pragma once
 #include "types.h"
-#include "utils.h"
 #include <boost/asio.hpp>
 #include <cassert>
 #include <cstdint>

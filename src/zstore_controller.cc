@@ -581,17 +581,19 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
         std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
                         Configuration::GetZoneId1()),
-        std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
-                        Configuration::GetZoneId1()),
-        std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
-                        Configuration::GetZoneId1())};
-    // for (auto &dev_tuple : ip_port_devs) {
-    //     if (register_controllers(g_devices, dev_tuple) != 0) {
-    //         rc = 1;
-    //         zstore_cleanup();
-    //         return rc;
-    //     }
-    // }
+        // std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
+        //                 Configuration::GetZoneId1()),
+        // std::make_tuple("12.12.12.4", "5520",
+        // Configuration::GetZoneId1(),
+        //                 Configuration::GetZoneId1())
+    };
+    for (auto &dev_tuple : ip_port_devs) {
+        if (register_controllers(g_devices, dev_tuple) != 0) {
+            rc = 1;
+            zstore_cleanup();
+            return rc;
+        }
+    }
     mDevices = g_devices;
 
     // Preallocate contexts for user requests
@@ -679,14 +681,6 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
             ioc.run();
         });
     }
-
-    // This was using SPDK threads as HTTP threads
-    // for (int threadId = 0; threadId < Configuration::GetNumHttpThreads();
-    //      ++threadId) {
-    //     mHttpThread[threadId].group = spdk_nvme_poll_group_create(NULL,
-    //     NULL); mHttpThread[threadId].controller = this;
-    // }
-    // initHttpThread();
 
     log_info("Initialization complete. Launching workers.");
 
