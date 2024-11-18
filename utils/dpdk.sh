@@ -15,6 +15,8 @@ if pidof nvmf_tgt; then
 	sleep 3
 fi
 
+echo off | sudo tee /sys/devices/system/cpu/smt/control
+
 HUGEMEM=4096 ./scripts/setup.sh
 
 if [[ $(hostname) == "zstore1" ]]; then

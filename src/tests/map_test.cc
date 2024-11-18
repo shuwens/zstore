@@ -9,7 +9,7 @@ using namespace std;
 
 // Type definitions
 using ObjectKey = std::string;
-using ObjectKeyHash = unsigned char *;
+// using ObjectKeyHash = unsigned char *;
 using TargetDev = std::string;
 using Lba = uint64_t;
 using Length = uint32_t;

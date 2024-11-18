@@ -219,6 +219,7 @@ class ZstoreController
             return mDevices[5];
         } else {
             log_error("target device does not exist {}", target_dev);
+            return nullptr;
         }
     };
 

@@ -143,20 +143,21 @@ executable(
 
 # Tests
 # -----------
-executable(
+t1 = executable(
 	'test_simple_object',
 	files('src/tests/simple_object_test.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
-	install: true,
 )
-executable(
+test('Simple object', t1)
+t2 = executable(
 	'test_different_objects',
 	files('src/tests/different_objects_test.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
 )
+test('Different object', t2)
 # executable(
 # 	'test_map',
 # 	files('src/tests/map_test.cc'),
