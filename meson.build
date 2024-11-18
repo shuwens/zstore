@@ -33,6 +33,7 @@ add_project_arguments(
 
 if get_option('buildtype') == 'release'
 	# add_project_arguments('-g', language: 'c')
+	add_project_arguments('-DPERF=1', language: 'cpp')
 endif
 
 if get_option('buildtype') == 'debug'
@@ -156,13 +157,13 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-executable(
-	'test_map',
-	files('src/tests/map_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'test_map',
+# 	files('src/tests/map_test.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 
 # FIXME
 # reads from the drive

@@ -70,7 +70,7 @@ Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
     return std::make_tuple(
-        std::make_pair("Zstore4Dev1", Configuration::GetZoneId1()),
+        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
         std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
         std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
     // ok, ok, zone full
@@ -263,7 +263,7 @@ int ZstoreController::PopulateMap()
             auto zone_offset = i % 10 * Configuration::GetZoneDist();
             auto entry =
                 createMapEntry(std::make_tuple(
-                                   std::make_pair("Zstore4Dev1",
+                                   std::make_pair("Zstore2Dev1",
                                                   Configuration::GetZoneId1()),
                                    std::make_pair("Zstore2Dev2",
                                                   Configuration::GetZoneId1()),
@@ -563,7 +563,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     int rc = 0;
     verbose = Configuration::Verbose();
 
-    setQueuDepth(Configuration::GetQueueDepth());
+    // setQueuDepth(Configuration::GetQueueDepth());
     setContextPoolSize(Configuration::GetContextPoolSize());
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
@@ -571,20 +571,22 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     setPhase(phase);
 
     // TODO: set all parameters too
-    log_debug("Configuration: sector size {}, queue size {}, context pool size "
-              "{}, targets {}, devices {}",
-              Configuration::GetBlockSize(), Configuration::GetQueueDepth(),
-              Configuration::GetContextPoolSize(),
-              Configuration::GetNumOfTargets(),
-              Configuration::GetNumOfDevices());
+    log_debug(
+        "Configuration: sector size {}, context pool size "
+        "{}, targets {}, devices {}",
+        Configuration::GetBlockSize(), Configuration::GetContextPoolSize(),
+        Configuration::GetNumOfTargets(), Configuration::GetNumOfDevices());
 
     std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
-        // std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
+        std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
+                        Configuration::GetZoneId1()),
+        // std::make_tuple("12.12.12.3", "5520",
+        // Configuration::GetZoneId2(),
         //                 Configuration::GetZoneId1()),
-        // std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
-        //                 Configuration::GetZoneId1()),
-        std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
-                        Configuration::GetZoneId1())};
+        // std::make_tuple("12.12.12.4", "5520",
+        // Configuration::GetZoneId1(),
+        //                 Configuration::GetZoneId1())
+    };
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
@@ -654,6 +656,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     std::vector<std::jthread> threads(num_threads);
     for (unsigned i = 0; i < num_threads; ++i) {
         threads[i] = std::jthread([&ioc, i, &threads] {
+#ifdef PERF
             // Create a cpu_set_t object representing a set of CPUs.
             // Clear it and mark only CPU i as set.
             cpu_set_t cpuset;
@@ -676,6 +679,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
             }
             log_info("HTTP server: Thread {} on core {}", i,
                      i + Configuration::GetHttpThreadCoreId());
+#endif
             ioc.run();
         });
     }

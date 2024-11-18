@@ -16,7 +16,10 @@ class Configuration
         // const char *systemModeStrs[] = {"ZoneWrite-Only", "ZoneAppend-Only",
         //                                 "ZapRAID", "RAIZN-Simple"};
         // printf("ZapRAID Configuration:\n");
-        log_info("-- Block size: {}", instance.GetBlockSize());
+        log_info(
+            "-- Block size: {}, Number of targets {}, Number of devices {}",
+            instance.GetBlockSize(), instance.GetNumOfTargets(),
+            instance.GetNumOfDevices());
         // for (int i = 0; i < instance.gNumOpenSegments; i++) {
         //     printf("-- Raid mode: %d %d %d %d %d | %d--\n",
         //            instance.gStripeConfig[i].size,
@@ -43,7 +46,7 @@ class Configuration
 
     static int GetBlockSize() { return GetInstance().gBlockSize; }
 
-    static int GetQueueDepth() { return GetInstance().gQueueDepth; }
+    // static int GetQueueDepth() { return GetInstance().gQueueDepth; }
 
     static int GetContextPoolSize() { return GetInstance().gContextPoolSize; }
 
@@ -77,26 +80,6 @@ class Configuration
         GetInstance().gDeviceSupportMetadata = flag;
     }
 
-    // static uint32_t GetReceiverThreadCoreId()
-    // {
-    //     return GetInstance().gReceiverThreadCoreId;
-    // }
-
-    // static uint32_t GetIndexThreadCoreId()
-    // {
-    //     return GetInstance().gIndexThreadCoreId;
-    // }
-
-    static uint32_t GetDispatchThreadCoreId()
-    {
-        return GetInstance().gDispatchThreadCoreId;
-    }
-
-    // static uint32_t GetCompletionThreadCoreId()
-    // {
-    //     return GetInstance().gCompletionThreadCoreId;
-    // }
-
     static uint32_t GetIoThreadCoreId()
     {
         return GetInstance().gIoThreadCoreIdBase;
@@ -127,22 +110,20 @@ class Configuration
         return GetInstance().gStorageSpaceInBytes;
     }
 
-    // static uint32_t GetTotalIo() { return GetInstance().gTotalIO; }
-
     static uint64_t GetZoneDist() { return GetInstance().gZoneDist; }
 
-    static uint32_t GetDataBufferSizeInSector()
+    // static uint32_t GetDataBufferSizeInSector()
+    // {
+    //     return GetInstance().gDataBufferSizeInSector;
+    // }
+
+    static uint32_t GetObjectSizeInBytes()
     {
-        return GetInstance().gDataBufferSizeInSector;
+        return GetInstance().gObjectSizeInBytes;
     }
 
     static uint64_t GetZoneId1() { return GetInstance().gCurrentZone1; }
     static uint64_t GetZoneId2() { return GetInstance().gCurrentZone2; }
-
-    // static uint64_t GetZslba()
-    // {
-    //     return GetInstance().gZoneDist * GetInstance().current_zone;
-    // }
 
   private:
     // Hardcode because they won't change
@@ -150,23 +131,19 @@ class Configuration
 
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
-    // NOTE this decides the number of threads *per device*, and the number of
-    // IO queues are the same of num_of_IO_threads * num_of_device
+    // NOTE this decides the number of SPDK threads
     int gNumIoThreads = 1;
     int gNumHttpThreads = 6; // magic number
 
-    uint32_t gDispatchThreadCoreId = 1;
     uint32_t gIoThreadCoreIdBase = 1;
     uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads;
 
-    int gBlockSize = 4096;
-    int gMetadataSize = 64;
+    // We dont use metadata
+    int gMetadataSize = 0;
     bool gDeviceSupportMetadata = false;
-
-    // int gZoneCapacity = 0;
+    int gBlockSize = 4096;
 
     // Configured parameters
-    int gQueueDepth = 1;
     int gContextPoolSize = 4096;
 
     // how many targets one gateway talks to
@@ -181,7 +158,7 @@ class Configuration
     const int gCurrentZone1 = 0;
     const int gCurrentZone2 = 0;
     // const int gCurrentZone2 = 152;
-    uint32_t gDataBufferSizeInSector = 1; // 1- 32
+    uint32_t gObjectSizeInBytes = 4096; // 4kB to 4MB (4,194,304)
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks

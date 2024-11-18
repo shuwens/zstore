@@ -652,8 +652,7 @@ RequestContextPool::RequestContextPool(uint32_t cap)
     for (uint32_t i = 0; i < capacity; ++i) {
         contexts[i].Clear();
         contexts[i].dataBuffer =
-            (uint8_t *)spdk_zmalloc(Configuration::GetDataBufferSizeInSector() *
-                                        Configuration::GetBlockSize(),
+            (uint8_t *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
                                     Configuration::GetBlockSize(), NULL,
                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
         // contexts[i].metadataBuffer =
@@ -662,8 +661,7 @@ RequestContextPool::RequestContextPool(uint32_t cap)
         //                                 Configuration::GetMetadataSize(),
         //                             Configuration::GetBlockSize(), NULL,
         //                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        contexts[i].bufferSize = Configuration::GetDataBufferSizeInSector() *
-                                 Configuration::GetBlockSize();
+        contexts[i].bufferSize = Configuration::GetObjectSizeInBytes();
         availableContexts.emplace_back(&contexts[i]);
     }
 }
@@ -684,8 +682,7 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
         } else {
             ctx = new RequestContext();
             ctx->dataBuffer = (uint8_t *)spdk_zmalloc(
-                Configuration::GetDataBufferSizeInSector() *
-                    Configuration::GetBlockSize(),
+                Configuration::GetObjectSizeInBytes(),
                 Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
                 SPDK_MALLOC_DMA);
             // ctx->metadataBuffer = (uint8_t *)spdk_zmalloc(
@@ -694,8 +691,7 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             //         Configuration::GetMetadataSize(),
             //     Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
             //     SPDK_MALLOC_DMA);
-            ctx->bufferSize = Configuration::GetDataBufferSizeInSector() *
-                              Configuration::GetBlockSize();
+            ctx->bufferSize = Configuration::GetObjectSizeInBytes();
             ctx->Clear();
             ctx->available = false;
             exit(1);
@@ -740,7 +736,8 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId() + offset;
-    ioCtx.size = Configuration::GetDataBufferSizeInSector();
+    ioCtx.size =
+        Configuration::GetObjectSizeInBytes() / Configuration::GetBlockSize();
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
@@ -764,7 +761,8 @@ Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId();
-    ioCtx.size = Configuration::GetDataBufferSizeInSector();
+    ioCtx.size =
+        Configuration::GetObjectSizeInBytes() / Configuration::GetBlockSize();
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 

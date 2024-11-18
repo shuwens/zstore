@@ -297,8 +297,7 @@ auto awaitable_on_request(HttpRequest req,
         original_obj.entry.type = LogEntryType::kData;
         original_obj.entry.seqnum = 42;
         original_obj.entry.chunk_seqnum = 24;
-        original_obj.datalen = Configuration::GetBlockSize() *
-                               Configuration::GetDataBufferSizeInSector();
+        original_obj.datalen = Configuration::GetObjectSizeInBytes();
         original_obj.body = std::malloc(original_obj.datalen);
         std::memset(original_obj.body, req.body().data()[0],
                     original_obj.datalen); // Fill with example data (0xCD)
