@@ -115,7 +115,7 @@ static struct arb_context g_arbitration = {
     .rw_percentage = 50,
     // .queue_depth = 64,
     .queue_depth = 128,
-    .time_in_sec = 10,
+    .time_in_sec = 5,
     .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
@@ -988,9 +988,9 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
+    zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
     // zns_dev_init(ctx, "12.12.12.3", "5520"); // 30k +30k
-    zns_dev_init(ctx, "12.12.12.4", "5520");
+    // zns_dev_init(ctx, "12.12.12.4", "5520");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");

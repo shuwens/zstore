@@ -70,7 +70,7 @@ Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
     return std::make_tuple(
-        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
+        std::make_pair("Zstore4Dev1", Configuration::GetZoneId1()),
         std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
         std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
     // ok, ok, zone full
@@ -263,7 +263,7 @@ int ZstoreController::PopulateMap()
             auto zone_offset = i % 10 * Configuration::GetZoneDist();
             auto entry =
                 createMapEntry(std::make_tuple(
-                                   std::make_pair("Zstore2Dev1",
+                                   std::make_pair("Zstore4Dev1",
                                                   Configuration::GetZoneId1()),
                                    std::make_pair("Zstore2Dev2",
                                                   Configuration::GetZoneId1()),
@@ -579,14 +579,12 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
               Configuration::GetNumOfDevices());
 
     std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
-        std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
-                        Configuration::GetZoneId1()),
+        // std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
+        //                 Configuration::GetZoneId1()),
         // std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
         //                 Configuration::GetZoneId1()),
-        // std::make_tuple("12.12.12.4", "5520",
-        // Configuration::GetZoneId1(),
-        //                 Configuration::GetZoneId1())
-    };
+        std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
+                        Configuration::GetZoneId1())};
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;

@@ -142,20 +142,27 @@ executable(
 
 # Tests
 # -----------
-# executable(
-# 	'test_simple_object',
-# 	files('src/tests/simple_object_test.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'test_different_objects',
-# 	files('src/tests/different_objects_test.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'test_simple_object',
+	files('src/tests/simple_object_test.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'test_different_objects',
+	files('src/tests/different_objects_test.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'test_map',
+	files('src/tests/map_test.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 
 # FIXME
 # reads from the drive
