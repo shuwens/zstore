@@ -9,14 +9,14 @@
 // Assuming the previous implementation of ZstoreObject, toBuffer, and
 // fromBuffer is available
 
-void testSerializationDeserialization()
+void testSerializationDeserialization(int datalen)
 {
     // 1. Create and initialize a ZstoreObject
     ZstoreObject original_obj;
     original_obj.entry.type = LogEntryType::kData;
     original_obj.entry.seqnum = 42;
     original_obj.entry.chunk_seqnum = 24;
-    original_obj.datalen = 128; // Example data length
+    original_obj.datalen = datalen; // Example data length
     original_obj.body = std::malloc(original_obj.datalen);
     std::memset(original_obj.body, 0xCD,
                 original_obj.datalen); // Fill with example data (0xCD)
@@ -58,12 +58,19 @@ void testSerializationDeserialization()
         std::free(deserialized_obj.body);
 
     // If all assertions pass
-    log_info("Test passed: Serialization and deserialization are correct!");
+    log_info("Test passed: Serialization and deserialization are correct!  "
+             "Data length: {}",
+             datalen);
 }
 
 int main()
 {
     // Run the test
-    testSerializationDeserialization();
+    testSerializationDeserialization(128);
+    testSerializationDeserialization(1024);
+    testSerializationDeserialization(4096);
+    testSerializationDeserialization(4096 * 4);
+    testSerializationDeserialization(4096 * 16);
+
     return 0;
 }
