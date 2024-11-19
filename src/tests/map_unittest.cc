@@ -1,44 +1,27 @@
 #include "../include/types.h"
 #include "../include/zstore_controller.h"
+#include "../zstore_controller.cc"
+#include <boost/unordered/concurrent_flat_map.hpp>
+#include <cassert>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_map>
+#include <vector>
 
-using namespace std;
-
-// Type definitions
-using ObjectKey = std::string;
 using ObjectKeyHash = unsigned long long;
 using TargetDev = std::string;
-using Lba = uint64_t;
-using Length = uint32_t;
-
-// Device types and map entry
+using Lba = u64;
+using Length = unsigned int;
 using TargetLbaTuple = std::tuple<TargetDev, Lba, Length>;
 using MapEntry = std::tuple<TargetLbaTuple, TargetLbaTuple, TargetLbaTuple>;
-// using MapType = boost::container::concurrent_flat_map<ObjectKeyHash,
-// MapEntry>;
+using ZstoreMap = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
 
-// Helper function to write a single string to the file
-void writeString(std::ofstream &outFile, const std::string &str)
-{
-    size_t size = str.size();
-    outFile.write(reinterpret_cast<const char *>(&size), sizeof(size));
-    outFile.write(str.c_str(), size);
-}
+ZstoreMap mMap;
 
-// Helper function to read a single string from the file
-std::string readString(std::ifstream &inFile)
-{
-    size_t size;
-    inFile.read(reinterpret_cast<char *>(&size), sizeof(size));
-    std::string str(size, '\0');
-    inFile.read(&str[0], size);
-    return str;
-}
-
-// Function to write the map to a file
+// Write ZstoreMap to a file
 void writeMapToFile(const ZstoreMap &map, const std::string &filename)
 {
     std::ofstream outFile(filename, std::ios::binary);
@@ -57,8 +40,9 @@ void writeMapToFile(const ZstoreMap &map, const std::string &filename)
     // Iterate over each key-value pair and write them to the file
     map.visit_all([&outFile](auto &x) {
         // Serialize the key
-        // outFile.write(reinterpret_cast<const char *>(x.first),
-        //               sizeof(ObjectKeyHash)); // Assuming 32-byte hash
+        ObjectKeyHash key = x.first;
+        outFile.write(reinterpret_cast<char *>(&key),
+                      sizeof(key)); // Assuming 32-byte hash
 
         // Serialize the entry
         auto writeTargetLbaTuple = [&outFile](const TargetLbaTuple &tuple) {
@@ -72,9 +56,10 @@ void writeMapToFile(const ZstoreMap &map, const std::string &filename)
         writeTargetLbaTuple(std::get<1>(x.second));
         writeTargetLbaTuple(std::get<2>(x.second));
     });
+    log_debug("write entry done");
 }
 
-// Function to read the map from a file
+// Read ZstoreMap from a file
 ZstoreMap readMapFromFile(const std::string &filename)
 {
     std::ifstream inFile(filename, std::ios::binary);
@@ -90,8 +75,8 @@ ZstoreMap readMapFromFile(const std::string &filename)
 
     for (size_t i = 0; i < mapSize; ++i) {
         // Deserialize the key
-        // unsigned long long key;
-        // inFile.read(reinterpret_cast<char *>(key), sizeof(ObjectKeyHash));
+        ObjectKeyHash key = 0;
+        inFile.read(reinterpret_cast<char *>(&key), sizeof(key));
 
         // Deserialize the entry
         auto readTargetLbaTuple = [&inFile]() -> TargetLbaTuple {
@@ -114,28 +99,29 @@ ZstoreMap readMapFromFile(const std::string &filename)
 int main()
 {
     ZstoreMap mMap;
+    // Populate map with sample data
+    mMap.emplace(12345, std::make_tuple(std::make_tuple("DeviceA", 100, 50),
+                                        std::make_tuple("DeviceB", 200, 25),
+                                        std::make_tuple("DeviceC", 300, 75)));
 
-    // Sample data
-    unsigned long long key1 = 1234;
-    unsigned long long key2 = 4322;
-    // unsigned char key2[32] = "sample_key_2";
-    MapEntry entry1 = {std::make_tuple("device1", 1000, 256),
-                       std::make_tuple("device2", 2000, 512),
-                       std::make_tuple("device3", 3000, 128)};
-    MapEntry entry2 = {std::make_tuple("device1", 1500, 128),
-                       std::make_tuple("device2", 2500, 256),
-                       std::make_tuple("device3", 3500, 64)};
-    mMap.emplace(key1, entry1);
-    mMap.emplace(key2, entry2);
+    mMap.emplace(67890, std::make_tuple(std::make_tuple("DeviceD", 400, 100),
+                                        std::make_tuple("DeviceE", 500, 60),
+                                        std::make_tuple("DeviceF", 600, 80)));
 
-    // Write the map to a file
-    std::string filename = "mMap_data.bin";
-    writeMapToFile(mMap, filename);
+    log_info("Map size: {}", mMap.size());
 
-    // Read the map back from the file
-    ZstoreMap loadedMap = readMapFromFile(filename);
+    // Write to file
+    writeMapToFile(mMap, "zstore_map.txt");
+    log_info("write map to file");
 
-    // Print the loaded map
+    // Clear map and read back from file
+    ZstoreMap loadedMap = readMapFromFile("zstore_map.txt");
+    log_info("load map from file");
+
+    assert(mMap.size() == loadedMap.size() && "Map size mismatch");
+    assert(mMap == loadedMap && "Map contents mismatch");
+
+    // Verify contents
     loadedMap.visit_all([](auto &x) {
         std::cout << "Key: " << x.first << "\n";
         std::tuple<

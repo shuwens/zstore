@@ -185,8 +185,8 @@ static void register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
     entry->io_size_blocks =
         g_arbitration.io_size_bytes / spdk_nvme_ns_get_sector_size(ns);
 
-    printf("size in io: %d, io size blocks %d\n", entry->size_in_ios,
-           entry->io_size_blocks);
+    // printf("size in io: %d, io size blocks %d\n", entry->size_in_ios,
+    //        entry->io_size_blocks);
     snprintf(entry->name, 44, "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
 
     g_arbitration.num_namespaces++;
@@ -988,9 +988,9 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
+    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
     // zns_dev_init(ctx, "12.12.12.3", "5520"); // 30k +30k
-    // zns_dev_init(ctx, "12.12.12.4", "5520");
+    zns_dev_init(ctx, "12.12.12.4", "5520");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");

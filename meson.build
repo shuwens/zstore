@@ -61,7 +61,15 @@ zstore_deps = [
 	dependency(
 		'boost',
 		version: '>=1.86.0',
-		modules: ['system', 'filesystem', 'program_options', 'thread', 'regex', 'timer'],
+		modules: [
+			'serialization',
+			'system',
+			'filesystem',
+			'program_options',
+			'thread',
+			'regex',
+			'timer',
+		],
 	),
 ]
 
@@ -150,6 +158,7 @@ t1 = executable(
 	link_args: spdk_link_args,
 )
 test('Simple object', t1)
+
 t2 = executable(
 	'test_different_objects',
 	files('src/tests/different_objects_test.cc'),
@@ -158,6 +167,16 @@ t2 = executable(
 	install: true,
 )
 test('Different object', t2)
+
+t3 = executable(
+	'unittest_map',
+	files('src/tests/map_unittest.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+test('Map dump and load unit tests', t3)
+
 # executable(
 # 	'test_map',
 # 	files('src/tests/map_test.cc'),

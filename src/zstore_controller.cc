@@ -5,6 +5,12 @@
 #include "include/global.h"
 #include "include/http_server.h"
 #include "include/object.h"
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/string.hpp>
+// #include <boost/serialization/tuple.hpp>
+#include <boost/serialization/utility.hpp>
 #include <fstream>
 #include <iostream>
 #include <spdk/nvme_zns.h>
@@ -70,9 +76,9 @@ Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
     return std::make_tuple(
-        std::make_pair("Zstore2Dev1", Configuration::GetZoneId1()),
         std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
-        std::make_pair("Zstore3Dev1", Configuration::GetZoneId2()));
+        std::make_pair("Zstore4Dev1", Configuration::GetZoneId1()),
+        std::make_pair("Zstore4Dev2", Configuration::GetZoneId2()));
     // ok, ok, zone full
     // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
     // invalid op code, invalid op code, ok
@@ -320,88 +326,12 @@ int ZstoreController::PopulateMap()
     return 0;
 }
 
-// Function to write the map to a file
-void ZstoreController::writeMapToFile(const std::string &filename)
-{
-    log_debug("11111");
-    std::ofstream outFile(filename, std::ios::binary);
-    if (!outFile) {
-        std::cerr << "Error opening file for writing: " << filename
-                  << std::endl;
-    }
-
-    log_debug("11111");
-    size_t mapSize = 0;
-    mMap.visit_all([&mapSize](auto &x) { ++mapSize; });
-
-    // Write the map size
-    outFile.write(reinterpret_cast<const char *>(&mapSize), sizeof(mapSize));
-
-    log_debug("11111");
-    // Iterate over each key-value pair and write them to the file
-    mMap.visit_all([&outFile](auto &x) {
-        // Serialize the key
-        log_debug("2222");
-        outFile.write(reinterpret_cast<const char *>(x.first),
-                      33); // Assuming 32-byte hash
-
-        log_debug("2222");
-        // Serialize the entry
-        auto writeTargetLbaTuple = [&outFile](const TargetLbaTuple &tuple) {
-            writeString(outFile, std::get<0>(tuple)); // TargetDev
-            outFile.write(reinterpret_cast<const char *>(&std::get<1>(tuple)),
-                          sizeof(Lba)); // Lba
-            outFile.write(reinterpret_cast<const char *>(&std::get<2>(tuple)),
-                          sizeof(Length)); // Length
-        };
-        log_debug("2222");
-        writeTargetLbaTuple(std::get<0>(x.second));
-        writeTargetLbaTuple(std::get<1>(x.second));
-        writeTargetLbaTuple(std::get<2>(x.second));
-        log_debug("2222");
-    });
-}
-
-// Function to read the map from a file
-void ZstoreController::readMapFromFile(const std::string &filename)
-{
-    // std::ifstream inFile(filename, std::ios::binary);
-    // if (!inFile) {
-    //     std::cerr << "Error opening file for reading: " << filename
-    //               << std::endl;
-    // }
-    //
-    // size_t mapSize;
-    // inFile.read(reinterpret_cast<char *>(&mapSize), sizeof(mapSize));
-    //
-    // for (size_t i = 0; i < mapSize; ++i) {
-    //     // Deserialize the key
-    //     unsigned char *key = new unsigned char[32];
-    //     inFile.read(reinterpret_cast<char *>(key), 32);
-    //
-    //     // Deserialize the entry
-    //     auto readTargetLbaTuple = [&inFile]() -> TargetLbaTuple {
-    //         std::string dev = readString(inFile);
-    //         Lba lba;
-    //         Length length;
-    //         inFile.read(reinterpret_cast<char *>(&lba), sizeof(Lba));
-    //         inFile.read(reinterpret_cast<char *>(&length), sizeof(Length));
-    //         return std::make_tuple(dev, lba, length);
-    //     };
-    //
-    //     MapEntry entry = std::make_tuple(
-    //         readTargetLbaTuple(), readTargetLbaTuple(),
-    //         readTargetLbaTuple());
-    //     mMap.emplace(key, entry);
-    // }
-}
-
 Result<void> ZstoreController::DumpAllMap()
 {
     log_debug("dump map ");
     // Write the map to a file
     std::string filename = "map_data.bin";
-    writeMapToFile(filename);
+    // writeMapToFile(filename);
 }
 
 Result<void> ZstoreController::ReadAllMap()
@@ -409,7 +339,7 @@ Result<void> ZstoreController::ReadAllMap()
     log_debug("read dump map ");
     std::string filename = "map_data.bin";
     // Read the map back from the file
-    readMapFromFile(filename);
+    // readMapFromFile(filename);
 }
 
 // this yields a list of devices for a given object key
@@ -589,10 +519,8 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
         // std::make_tuple("12.12.12.3", "5520",
         // Configuration::GetZoneId2(),
         //                 Configuration::GetZoneId1()),
-        // std::make_tuple("12.12.12.4", "5520",
-        // Configuration::GetZoneId1(),
-        //                 Configuration::GetZoneId1())
-    };
+        std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
+                        Configuration::GetZoneId1())};
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
@@ -725,3 +653,38 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
     return rc;
 }
+
+// void ZstoreController::writeMapToFile(const std::string &filename)
+// {
+//     try {
+//         std::ofstream file_out(filename, std::ios::out | std::ios::trunc);
+//         if (!file_out.is_open()) {
+//             throw std::runtime_error("Could not open file for writing");
+//         }
+//         boost::archive::text_oarchive archive(file_out);
+//         archive << mMap; // Serialize the map to the file
+//         file_out.close();
+//         std::cout << "Map successfully written to file: " << filename
+//                   << std::endl;
+//     } catch (const std::exception &e) {
+//         std::cerr << "Error writing map to file: " << e.what() << std::endl;
+//     }
+// }
+//
+// void ZstoreController::readMapFromFile(const std::string &filename)
+// {
+//     try {
+//         std::ifstream file_in(filename, std::ios::in);
+//         if (!file_in.is_open()) {
+//             throw std::runtime_error("Could not open file for reading");
+//         }
+//         boost::archive::text_iarchive archive(file_in);
+//         archive >> mMap; // Deserialize the map from the file
+//         file_in.close();
+//         std::cout << "Map successfully loaded from file: " << filename
+//                   << std::endl;
+//     } catch (const std::exception &e) {
+//         std::cerr << "Error reading map from file: " << e.what() <<
+//         std::endl;
+//     }
+// }
