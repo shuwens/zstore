@@ -21,17 +21,32 @@ class Zone;
 class ZstoreController
 {
   public:
-    int PopulateDevHash();
+    int mKeyExperiment;
+    // 1: Random Read
+    // 2: Sequential write (append) and read
+    // 3: Checkpoint
+    // 4: Target failure
+    // 5: gateway failure
+    // 6: Target and gateway failure
+    // 7: GC
+
+    int mPhase;
+    // 1: prepare
+    // 2: run
+
+    /* NOTE workflow for persisting map
+     * 1. zookeeper will select a server (leader) perform checkpoint
+     * 2. leader will announce epoch change to all servers (N -> N+1). Each
+     *    follower will (1) create new map and new bloom filter for N+1, and
+     *    (2) return list of writes and wp for each device
+     */
     int PopulateMap();
     Result<void> DumpAllMap();
     Result<void> ReadAllMap();
-
     void writeMapToFile(const std::string &filename);
     void readMapFromFile(const std::string &filename);
 
-    // Result<void> PopulateMap(bool bogus, int key_experiment);
-    // Result<void> PopulateDevHash(int key_experiment);
-
+    int PopulateDevHash();
     Result<DevTuple> GetDevTuple(ObjectKeyHash object_key_hash);
     Result<DevTuple> GetDevTupleForRandomReads(ObjectKeyHash key_hash);
 
@@ -78,15 +93,7 @@ class ZstoreController
 
     // threads
     void initIoThread();
-    // void initDispatchThread();
-    // void initCompletionThread();
-    // void initHttpThread();
-
     struct spdk_thread *GetIoThread(int id) { return mIoThread[id].thread; };
-    // struct spdk_thread *GetDispatchThread() { return mDispatchThread; }
-    // struct spdk_thread *GetHttpThread(int id) { return
-    // mHttpThread[id].thread; } struct spdk_thread *GetCompletionThread() {
-    // return mCompletionThread; }
 
     // SPDK components
     struct spdk_nvme_qpair *GetIoQpair();
@@ -97,9 +104,6 @@ class ZstoreController
     void setPhase(int phase) { mPhase = phase; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
-    // void SetCompletionPoller(spdk_poller *p) { mCompletionPoller = p; }
-    // void SetDispatchPoller(spdk_poller *p) { mDispatchPoller = p; }
-    // void SetHttpPoller(spdk_poller *p) { mHttpPoller = p; }
 
     int GetContextPoolSize() { return mContextPoolSize; };
     void setContextPoolSize(int context_pool_size)
@@ -132,54 +136,13 @@ class ZstoreController
     int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
                            enum spdk_nvme_qprio qprio);
 
-    // TODO:
-    // void Append(uint64_t zslba, uint32_t size, void *data, void *cb_args);
-    //
-    // void Write(uint64_t offset, uint32_t size, void *data,
-    //            zns_raid_request_complete cb_fn, void *cb_args);
-    //
-    // Result<void> Read(uint64_t offset, Device *dev, HttpRequest request,
-    //                   std::function<void(HttpRequest)> fn);
-    //
-    // void Execute(uint64_t offset, uint32_t size, void *data, bool
-    // is_write,
-    //              zns_raid_request_complete cb_fn, void *cb_args);
-
     void Drain();
-
-    // net::awaitable<void> EnqueueRead(RequestContext *ctx);
-    // void EnqueueWrite(RequestContext *ctx);
-    // std::queue<RequestContext *> &GetWriteQueue() { return mWriteQueue; }
-    // int GetWriteQueueSize() { return mWriteQueue.size(); };
-    // std::queue<RequestContext *> &GetReadQueue() { return mReadQueue; }
-    // int GetReadQueueSize() { return mReadQueue.size(); };
-
-    // int GetEventsToDispatchSize();
-
-    // std::queue<RequestContext *> &GetRequestQueue();
-    // std::shared_mutex &GetRequestQueueMutex();
-    // std::shared_mutex &GetSessionMutex();
-    // std::mutex &GetRequestQueueMutex();
-    // int GetRequestQueueSize();
-
-    // void UpdateIndexNeedLock(uint64_t lba, PhysicalAddr phyAddr);
-    // void UpdateIndex(uint64_t lba, PhysicalAddr phyAddr);
-    // int GetNumInflightRequests();
-
-    // void WriteInDispatchThread(RequestContext *ctx);
-    // void ReadInDispatchThread(RequestContext *ctx);
-    // void EnqueueEvent(RequestContext *ctx);
-
     void ReclaimContexts();
     void Flush();
     void Dump();
 
-    // bool Append(RequestContext *ctx, uint32_t offset);
-    // bool Read(RequestContext *ctx, uint32_t pos, PhysicalAddr phyAddr);
     void Reset(RequestContext *ctx);
     bool IsResetDone();
-    // void WriteComplete(RequestContext *ctx);
-    // void ReadComplete(RequestContext *ctx);
 
     void AddZone(Zone *zone);
     const std::vector<Zone *> &GetZones();
@@ -222,19 +185,6 @@ class ZstoreController
             return nullptr;
         }
     };
-
-    int mKeyExperiment;
-    // 1: Random Read
-    // 2: Sequential write (append) and read
-    // 3: Target failure
-    // 4: gateway failure
-    // 5: Target and gateway failure
-    // 6: GC
-    // 7: Checkpoint
-
-    int mPhase;
-    // 1: prepare
-    // 2: run
 
   private:
     // number of devices
