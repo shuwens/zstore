@@ -286,3 +286,12 @@ executable(
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
+
+# zookeeper
+executable(
+	'simple_zk',
+	files('examples/zookeeper/simple-client.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
