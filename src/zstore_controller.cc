@@ -226,7 +226,7 @@ void ZstoreController::zns_dev_init(
     snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
     snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
     trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));

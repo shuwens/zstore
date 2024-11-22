@@ -104,6 +104,7 @@ custom_libnames = [
 	'spdk_env_dpdk_rpc',
 	'spdk_env_dpdk',
 	'spdk_bdev',
+	'spdk_bdev_malloc',
 	'spdk_scsi',
 ]
 
@@ -288,10 +289,10 @@ executable(
 # )
 
 # zookeeper
-executable(
-	'simple_zk',
-	files('examples/zookeeper/simple-client.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
+# executable(
+# 	'simple_zk',
+# 	files('examples/zookeeper/simple-client.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
