@@ -12,4 +12,4 @@ cd $zstore_dir/subprojects/spdk
 
 fio --ioengine=psync --direct=1 --filename=/dev/$1 --rw=write \
 	--group_reporting --zonemode=zbd --name=seqwrite \
-	--offset_increment=1z --size=1z --numjobs=14 --job_max_open_zones=1
+	--offset_increment=1z --size=1z --numjobs=1 --job_max_open_zones=1
