@@ -80,8 +80,8 @@ scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
 scripts/rpc.py nvmf_create_transport -t RDMA -u 8192 -i 131072 -c 8192
 # scripts/rpc.py nvmf_create_transport -t RDMA -q 32 -n 1023
 
-scripts/rpc.py bdev_nvme_set_options -n 4 -t 0 -a none -p 100000
-scripts/rpc.py framework_start_init
+# scripts/rpc.py bdev_nvme_set_options -n 4 -t 0 -a none -p 100000
+# scripts/rpc.py framework_start_init
 
 scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK00000000000001 -d SPDK_Controller1
 sleep 1
