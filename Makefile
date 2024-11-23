@@ -5,7 +5,9 @@ setup:
 	rm -rf build* || true
 	meson setup --native-file meson.ini build-rel --buildtype=release -Db_sanitize=none
 	meson setup --native-file meson.ini build-dbg --buildtype=debug
-	cd build-dbg && meson compile
+	# cd build-dbg && meson compile
+	cd build-rel && meson compile
+	ln -s build-rel build
 
 debug:
 	meson setup --native-file meson.ini build-dbg --buildtype=debug
