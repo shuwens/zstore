@@ -984,12 +984,9 @@ static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    // TCP
-    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
-    zns_dev_init(ctx, "12.12.12.3", "5520"); // 30k +30k
-    // zns_dev_init(ctx, "12.12.12.4", "5520");
+    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 221993.20 IO/s + 57607.20
+    // zns_dev_init(ctx, "12.12.12.3", "5520"); // 377933.00 IO/s + 202988.41
+    zns_dev_init(ctx, "12.12.12.4", "5520"); // 57936.00 IO/s + 57698.60
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
