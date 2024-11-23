@@ -516,9 +516,8 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
         std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
                         Configuration::GetZoneId1()),
-        // std::make_tuple("12.12.12.3", "5520",
-        // Configuration::GetZoneId2(),
-        //                 Configuration::GetZoneId1()),
+        std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
+                        Configuration::GetZoneId1()),
         std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
                         Configuration::GetZoneId1())};
     for (auto &dev_tuple : ip_port_devs) {

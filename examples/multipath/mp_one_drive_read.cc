@@ -987,8 +987,8 @@ static int register_controllers(struct arb_context *ctx)
     // RDMA
     // zns_dev_init(ctx, "192.168.100.9", "5520");
     // TCP
-    zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
-    // zns_dev_init(ctx, "12.12.12.3", "5520"); // 30k +30k
+    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 300k +200k
+    zns_dev_init(ctx, "12.12.12.3", "5520"); // 30k +30k
     // zns_dev_init(ctx, "12.12.12.4", "5520");
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {

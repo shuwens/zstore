@@ -147,7 +147,7 @@ class Configuration
     int gContextPoolSize = 4096;
 
     // how many targets one gateway talks to
-    int gNumOfTargets = 1;
+    int gNumOfTargets = 3;
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 

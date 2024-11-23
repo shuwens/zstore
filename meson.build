@@ -289,6 +289,7 @@ executable(
 # )
 
 # zookeeper
+# FIXME
 # executable(
 # 	'simple_zk',
 # 	files('examples/zookeeper/simple-client.cc'),
