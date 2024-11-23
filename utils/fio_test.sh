@@ -1,32 +1,15 @@
 #!/usr/bin/env bash
-
 set -xeuo pipefail
-
-
-
-
 
 zstore_dir=$(git rev-parse --show-toplevel)
 source $zstore_dir/.env
 
 cd $zstore_dir/subprojects/spdk
 
-if pidof nvmf_tgt; then
-	scripts/rpc.py spdk_kill_instance SIGTERM >/dev/null || true
-	scripts/rpc.py spdk_kill_instance SIGKILL >/dev/null || true
-	pkill -f nvmf_tgt || true
-	pkill -f reactor_0 || true
-	sleep 3
-fi
+# fio --filename=/dev/nvme0n1 --direct=1 --rw=write --bs=128K --numjobs=4 --iodepth=32 \
+# --size=100% --loops=2 --runtime=1200 --ramp_time=60 --time_based --ioengine=libaio  \
+# -output-format=normal
 
-HUGEMEM=4096 ./scripts/setup.sh
-
-if [[ $(hostname) == "zstore1" ]]; then
-        sudo ifconfig enp1s0d1 12.12.12.1/24 up
-        # sudo ifconfig ibp1s0 12.12.12.1/24 up
-fi
-if [[ $(hostname) == "zstore2" ]]; then
-        sudo ifconfig enp1s0d1 12.12.12.2/24 up
-        # sudo ifconfig ibp1s0 12.12.12.2/24 up
-fi
-
+fio --ioengine=psync --direct=1 --filename=/dev/$1 --rw=write \
+	--group_reporting --zonemode=zbd --name=seqwrite \
+	--offset_increment=1z --size=1z --numjobs=14 --job_max_open_zones=1
