@@ -89,19 +89,20 @@ sleep 1
 if [ "$HOSTNAME" == "zstore1" ]; then
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
-	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.1 -s 5520
+	# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.1 -s 5520
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -a 12.12.12.1 -s 5520
 elif [ "$HOSTNAME" == "zstore2" ]; then
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
-	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.2 -s 5520
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -a 12.12.12.2 -s 5520
 elif [ "$HOSTNAME" == "zstore3" ]; then
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
-	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.3 -s 5520
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -a 12.12.12.3 -s 5520
 elif [ "$HOSTNAME" == "zstore4" ]; then
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
-	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.4 -s 5520
+	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -a 12.12.12.4 -s 5520
 fi
 
 wait
