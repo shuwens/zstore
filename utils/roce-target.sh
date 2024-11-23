@@ -44,6 +44,8 @@ modprobe mlx4_core
 modprobe mlx4_ib
 modprobe mlx4_en
 
+modprobe nvme-rdma
+
 # ifconfig enp1s0 12.12.12.2 netmask 255.255.255.0 up
 
 ./build/bin/nvmf_tgt -m '[0,1,2,3]' &

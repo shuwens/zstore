@@ -959,7 +959,6 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-
     trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     // struct spdk_nvme_transport_id trid2 = {};
