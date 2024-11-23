@@ -50,7 +50,7 @@ modprobe mlx4_en
 sleep 3
 
 
-scripts/rpc.py nvmf_set_config -r 10000
+# scripts/rpc.py nvmf_set_config -r 10000
 
 
 ctrl_nqn="nqn.2024-04.io.zstore:cnode1"
