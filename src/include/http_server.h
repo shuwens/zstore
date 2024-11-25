@@ -226,25 +226,25 @@ auto awaitable_on_request(HttpRequest req,
 
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
 
-        auto res = co_await zoneRead(s1);
+        // auto res = co_await zoneRead(s1);
 
         co_await async_sleep(co_await asio::this_coro::executor,
                              std::chrono::microseconds(0), asio::use_awaitable);
 
-        if (res.has_value()) {
-            // yields 320 to 310k IOPS ZstoreObject deserialized_obj;
-            bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
-                                                    deserialized_obj);
-            req.body() = s1->response_body; // not expensive
-            s1->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            co_return handle_request(std::move(req));
-        } else {
-            // yields 378k IOPS
-            s1->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            co_return handle_request(std::move(req));
-        }
+        // if (res.has_value()) {
+        // yields 320 to 310k IOPS ZstoreObject deserialized_obj;
+        // bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
+        //                                         deserialized_obj);
+        // req.body() = s1->response_body; // not expensive
+        //     s1->Clear();
+        //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        //     co_return handle_request(std::move(req));
+        // } else {
+        // yields 378k IOPS
+        s1->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        co_return handle_request(std::move(req));
+        // }
 
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {

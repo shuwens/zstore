@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
+# https://support.hpe.com/hpesc/public/docDisplay?docId=a00071081en_us&page=GUID-617F4C95-AA58-43F7-B524-78C6535747AC.html
 
 # https://www.rdmamojo.com/2014/11/08/working-rdma-ubuntu/
 # https://gist.github.com/hokiegeek2/96c07d4b0de71a641c45fcf105a2fce0

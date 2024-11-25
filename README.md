@@ -17,6 +17,10 @@ https://codecapsule.com/2014/10/18/implementing-a-key-value-store-part-7-optimiz
 
 root@zstore1 /h/s/t/MLNX_OFED_LINUX-24.07-0.6.1.0-ubuntu24.04-x86_64 [1]# ./mlnxofedinstall --skip-unsupported-devices-check --force
 
+### Zookeeper
+
+utils/setup-zookeeper.sh
+
 
 
 ### wrk workload
