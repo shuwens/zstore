@@ -90,7 +90,7 @@ scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
 # scripts/rpc.py nvmf_create_transport -t RDMA -u 8192 -i 131072 -c 8192
 # scripts/rpc.py nvmf_create_transport -t RDMA -q 32 -n 1023
 
-nvmf_create_transport -t RDMA -n 8192
+scripts/rpc.py nvmf_create_transport -t RDMA -n 8192
 {
 trtype: "RDMA"
 max_queue_depth: 128
