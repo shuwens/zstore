@@ -16,7 +16,7 @@
 #include <vector>
 
 bool check = false;
-int cnt = 12;
+int cnt = 6;
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
 

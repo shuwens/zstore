@@ -19,7 +19,7 @@ bool check = false;
 int cnt = 2;
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+static const char *g_hostnqn = "nqn.2024-04.io.zstore2:cnode1";
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -125,7 +125,7 @@ static struct arb_context g_arbitration = {
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     // .core_mask = "0xf",
-    .core_mask = "0x1",
+    .core_mask = "0xb",
     .workload_type = "randrw",
 };
 
