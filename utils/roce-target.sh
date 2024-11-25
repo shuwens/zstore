@@ -90,18 +90,18 @@ scripts/rpc.py bdev_nvme_attach_controller -b nvme1 -t PCIe -a $pci2
 # scripts/rpc.py nvmf_create_transport -t RDMA -u 8192 -i 131072 -c 8192
 # scripts/rpc.py nvmf_create_transport -t RDMA -q 32 -n 1023
 
-scripts/rpc.py nvmf_create_transport -t RDMA -n 8192
-{
-trtype: "RDMA"
-max_queue_depth: 128
-max_qpairs_per_ctrlr: 64
-in_capsule_data_size: 4096
-max_io_size: 131072
-io_unit_size: 8192
-max_aq_depth: 128
-num_shared_buffers: 8192
-buf_cache_size: 32
-}
+scripts/rpc.py nvmf_create_transport -t RDMA -q 128 -m 64 -c 4096 -i 131072 -u 8192 -a 128 -b 32 -n 8192
+# {
+# trtype: "RDMA"
+# max_queue_depth: 128
+# max_qpairs_per_ctrlr: 64
+# in_capsule_data_size: 4096
+# max_io_size: 131072
+# io_unit_size: 8192
+# max_aq_depth: 128
+# num_shared_buffers: 8192
+# buf_cache_size: 32
+# }
 
 # scripts/rpc.py bdev_nvme_set_options -n 4 -t 0 -a none -p 100000
 # scripts/rpc.py framework_start_init
