@@ -115,7 +115,7 @@ static struct arb_context g_arbitration = {
     .rw_percentage = 50,
     // .queue_depth = 64,
     .queue_depth = 128,
-    .time_in_sec = 10,
+    .time_in_sec = 1,
     .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
@@ -959,15 +959,14 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
-    // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
+    trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     struct spdk_nvme_transport_id trid2 = {};
     snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
     snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
     snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn);
     trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid2.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));

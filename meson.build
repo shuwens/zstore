@@ -218,6 +218,13 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
+executable(
+	'three_targets_reads',
+	files('examples/multipath/three_target_reads.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
 # executable(
 # 	'check_read',
 # 	files('src/examples/check_read.cc'),

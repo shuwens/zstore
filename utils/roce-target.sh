@@ -55,32 +55,32 @@ sleep 3
 # scripts/rpc.py nvmf_set_config -r 10000
 
 
-ctrl_nqn="nqn.2024-04.io.zstore:cnode1"
+# ctrl_nqn="nqn.2024-04.io.zstore:cnode1"
 
 if [ "$HOSTNAME" == "zstore1" ]; then
 	sudo ifconfig enp1s0 12.12.12.1/24 up
 	pci1=05:00.0
 	pci2=0b:00.0
-	cnode1="nqn.2024-04.io.zstore1:cnode1"
-	cnode2="nqn.2024-04.io.zstore1:cnode2"
+	ctrl_nqn="nqn.2024-04.io.zstore1:cnode1"
+	# cnode2="nqn.2024-04.io.zstore1:cnode2"
 elif [ "$HOSTNAME" == "zstore2" ]; then
 	sudo ifconfig enp1s0 12.12.12.2/24 up
 	pci1=05:00.0
 	pci2=06:00.0
-	cnode1="nqn.2024-04.io.zstore2:cnode1"
-	cnode2="nqn.2024-04.io.zstore2:cnode2"
+	ctrl_nqn="nqn.2024-04.io.zstore2:cnode1"
+	# cnode2="nqn.2024-04.io.zstore2:cnode2"
 elif [ "$HOSTNAME" == "zstore3" ]; then
 	sudo ifconfig enp1s0 12.12.12.3/24 up
 	pci1=04:00.0
 	pci2=06:00.0
-	cnode1="nqn.2024-04.io.zstore3:cnode1"
-	cnode2="nqn.2024-04.io.zstore3:cnode2"
+	ctrl_nqn="nqn.2024-04.io.zstore3:cnode1"
+	# cnode2="nqn.2024-04.io.zstore3:cnode2"
 elif [ "$HOSTNAME" == "zstore4" ]; then
 	sudo ifconfig enp1s0 12.12.12.4/24 up
 	pci1=05:00.0
 	pci2=0b:00.0
-	cnode1="nqn.2024-04.io.zstore4:cnode1"
-	cnode2="nqn.2024-04.io.zstore4:cnode2"
+	ctrl_nqn="nqn.2024-04.io.zstore4:cnode1"
+	# cnode2="nqn.2024-04.io.zstore4:cnode2"
 fi
 
 scripts/rpc.py bdev_nvme_attach_controller -b nvme0 -t PCIe -a $pci1
@@ -103,26 +103,28 @@ scripts/rpc.py nvmf_create_transport -t RDMA -q 128 -m 64 -c 4096 -i 131072 -u 8
 # buf_cache_size: 32
 # }
 
-# scripts/rpc.py bdev_nvme_set_options -n 4 -t 0 -a none -p 100000
-# scripts/rpc.py framework_start_init
-
-scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK00000000000001 -d SPDK_Controller1 -m 8
-sleep 1
-
 if [ "$HOSTNAME" == "zstore1" ]; then
+	scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK01 -d SPDK_Controller1 -m 8
+	sleep 1
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 	# scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.1 -s 5520
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.1 -s 5520
 elif [ "$HOSTNAME" == "zstore2" ]; then
+	scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK02 -d SPDK_Controller2 -m 8
+	sleep 1
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.2 -s 5520
 elif [ "$HOSTNAME" == "zstore3" ]; then
+	scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK02 -d SPDK_Controller2 -m 8
+	sleep 1
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.3 -s 5520
 elif [ "$HOSTNAME" == "zstore4" ]; then
+	scripts/rpc.py nvmf_create_subsystem $ctrl_nqn -a -s SPDK02 -d SPDK_Controller2 -m 8
+	sleep 1
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
 	scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.4 -s 5520
