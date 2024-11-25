@@ -115,7 +115,7 @@ static struct arb_context g_arbitration = {
     .rw_percentage = 50,
     // .queue_depth = 64,
     .queue_depth = 128,
-    .time_in_sec = 5,
+    .time_in_sec = 1,
     .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
@@ -959,7 +959,7 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
+    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
 
     // struct spdk_nvme_transport_id trid2 = {};
     // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
@@ -983,9 +983,9 @@ static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    // zns_dev_init(ctx, "12.12.12.2", "5520"); // 221993.20 IO/s + 57607.20
+    zns_dev_init(ctx, "12.12.12.2", "5520"); // 221993.20 IO/s + 57607.20
     // zns_dev_init(ctx, "12.12.12.3", "5520"); // 377933.00 IO/s + 202988.41
-    zns_dev_init(ctx, "12.12.12.4", "5520"); // 57936.00 IO/s + 57698.60
+    // zns_dev_init(ctx, "12.12.12.4", "5520"); // 57936.00 IO/s + 57698.60
 
     // if (spdk_nvme_probe(&g_trid, NULL, probe_cb, attach_cb, NULL) != 0) {
     //     fprintf(stderr, "spdk_nvme_probe() failed\n");
