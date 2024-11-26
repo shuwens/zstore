@@ -6,6 +6,7 @@
 #include "spdk/log.h"
 #include "spdk/nvme.h"
 #include "spdk/nvme_intel.h"
+#include "spdk/nvme_zns.h"
 #include "spdk/string.h"
 #include <bits/stdc++.h>
 #include <chrono>
@@ -123,8 +124,8 @@ static struct arb_context g_arbitration = {
     // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
-    .core_mask = "0x1",
-    // .core_mask = "0xfff",
+    // .core_mask = "0x1",
+    .core_mask = "0xfff",
     .workload_type = "randrw",
 };
 
@@ -326,7 +327,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // ns_ctx->stimes.push_back(ns_ctx->stime);
 
     const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 0;
+    const int current_zone = 20;
     // const int current_zone = 30;
 
     auto zslba = zone_dist * current_zone;
@@ -338,9 +339,13 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     }
 
     // printf("DEBUG: lba: %d \n", zslba + ns_ctx->count);
-    rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
-                               zslba + ns_ctx->count, entry->io_size_blocks,
-                               io_complete, task, 0);
+    // rc = spdk_nvme_ns_cmd_read(entry->nvme.ns, ns_ctx->qpair, task->buf,
+    //                            zslba + ns_ctx->count, entry->io_size_blocks,
+    //                            io_complete, task, 0);
+    rc = spdk_nvme_zns_zone_append(entry->nvme.ns, ns_ctx->qpair, task->buf,
+                                   zslba, entry->io_size_blocks, io_complete,
+                                   task, 0);
+
     ns_ctx->count++;
 
     // } else {
