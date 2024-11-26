@@ -1,5 +1,4 @@
 #pragma once
-
 #include "boost_utils.h"
 #include "common.h"
 #include "configuration.h"
@@ -12,8 +11,6 @@
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/thread.hpp>
-#include <boost/thread/thread.hpp>
 #include <chrono>
 #include <functional>
 #include <iostream>
@@ -163,7 +160,6 @@ auto awaitable_on_request(HttpRequest req,
         else if (req.method() == http::verb::delete_)
             log_debug("req {} target {}, body {}", "DELETE", req.target(),
                       req.body());
-
         co_return handle_request(std::move(req));
     }
 
@@ -206,7 +202,6 @@ auto awaitable_on_request(HttpRequest req,
         }
 
         // Get bucket will always return 404
-
         if (object_key == "") {
             if (zctrl_.verbose)
                 log_error(
@@ -360,6 +355,7 @@ auto awaitable_on_request(HttpRequest req,
         // update lba in map
         auto rc = zctrl_.PutObject(key_hash, new_entry).value();
         co_return handle_request(std::move(req));
+
     } else if (req.method() == http::verb::delete_) {
         if (zctrl_.verbose)
             log_debug("Delete request for key {}", key_hash);

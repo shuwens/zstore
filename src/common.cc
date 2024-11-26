@@ -1,10 +1,8 @@
 #include "include/common.h"
 #include "include/configuration.h"
-#include "include/device.h"
 #include "include/zstore_controller.h"
 #include "spdk/nvme_zns.h"
 #include "spdk/string.h"
-#include "src/include/utils.h"
 #include <tuple>
 
 std::shared_mutex g_shared_mutex_;

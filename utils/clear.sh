@@ -30,8 +30,8 @@ fi
 
 scripts/rpc_py nvmf_subsystem_remove_listener $ctrl_nqn -t RDMA -a $ip -s 5520
 scripts/rpc_py nvmf_delete_subsystem $ctrl_nqn
-	# scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
-	# scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
+# scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme0n2
+# scripts/rpc.py nvmf_subsystem_add_ns $ctrl_nqn nvme1n2
 scripts/rpc.py bdev_nvme_detach_controller nvme0
 scripts/rpc.py bdev_nvme_detach_controller nvme1
 

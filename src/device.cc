@@ -1,4 +1,3 @@
-#include "include/device.h"
 #include "include/configuration.h"
 #include "include/types.h"
 #include "include/zone.h"

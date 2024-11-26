@@ -122,8 +122,7 @@ class Configuration
         return GetInstance().gObjectSizeInBytes;
     }
 
-    static uint64_t GetZoneId1() { return GetInstance().gCurrentZone1; }
-    static uint64_t GetZoneId2() { return GetInstance().gCurrentZone2; }
+    static uint64_t GetZoneId() { return GetInstance().gCurrentZone; }
 
   private:
     // Hardcode because they won't change
@@ -155,8 +154,7 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    const int gCurrentZone1 = 0;
-    const int gCurrentZone2 = 0;
+    const int gCurrentZone = 0;
     // const int gCurrentZone2 = 152;
     uint32_t gObjectSizeInBytes = 4096; // 4kB to 4MB (4,194,304)
 

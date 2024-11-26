@@ -1,15 +1,10 @@
 #include "include/zstore_controller.h"
-#include "include/common.h"
 #include "include/configuration.h"
-#include "include/device.h"
-#include "include/global.h"
 #include "include/http_server.h"
-#include "include/object.h"
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/string.hpp>
-// #include <boost/serialization/tuple.hpp>
 #include <boost/serialization/utility.hpp>
 #include <fstream>
 #include <iostream>
@@ -75,36 +70,10 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
 Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
-    // std::string device;
-    // if (i % 6 == 0) {
-    //     device = "Zstore2Dev1";
-    // } else if (i % 6 == 1) {
-    //     device = "Zstore2Dev2";
-    // } else if (i % 6 == 2) {
-    //     device = "Zstore3Dev1";
-    // } else if (i % 6 == 3) {
-    //     device = "Zstore3Dev2";
-    // } else if (i % 6 == 4) {
-    //     device = "Zstore4Dev1";
-    // } else if (i % 6 == 5) {
-    //     device = "Zstore4Dev2";
-    // }
-
     return std::make_tuple(
-        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
-        std::make_pair("Zstore4Dev1", Configuration::GetZoneId1()),
-        std::make_pair("Zstore4Dev2", Configuration::GetZoneId2()));
-    // ok, ok, zone full
-    // return std::make_tuple("Zstore2Dev1", "Zstore2Dev2", "Zstore3Dev1");
-    // invalid op code, invalid op code, ok
-    // return std::make_tuple("Zstore3Dev2", "Zstore4Dev1", "Zstore4Dev2");
-
-    // full, invalid op code, invalid op code
-    // return std::make_tuple("Zstore3Dev1", "Zstore3Dev2", "Zstore4Dev1");
-
-    // zstore 2: dev 1, dev 2 80, 80
-    // zstore 3: dev 1, dev 2 115, 80
-    // zstore 4: dev 1, dev 2 invlida, invalida
+        std::make_pair("Zstore2Dev2", Configuration::GetZoneId()),
+        std::make_pair("Zstore4Dev1", Configuration::GetZoneId()),
+        std::make_pair("Zstore4Dev2", Configuration::GetZoneId()));
 }
 
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
@@ -189,21 +158,18 @@ void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
 {
     struct spdk_nvme_ns *ns;
 
-    // device 1
     Device *device1 = new Device();
     ns = spdk_nvme_ctrlr_get_ns(ctrlr, 1);
-    if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+    if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS)
         log_info("ns {} is not zns ns", 1);
-    }
     device1->Init(ctrlr, 1, zone_id1);
     device1->SetDeviceTransportAddress(traddr);
     g_devices.emplace_back(device1);
 
     Device *device2 = new Device();
     ns = spdk_nvme_ctrlr_get_ns(ctrlr, 2);
-    if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS) {
+    if (spdk_nvme_ns_get_csi(ns) != SPDK_NVME_CSI_ZNS)
         log_info("ns {} is not zns ns", 2);
-    }
     device2->Init(ctrlr, 2, zone_id2);
     device2->SetDeviceTransportAddress(traddr);
     g_devices.emplace_back(device2);
@@ -233,11 +199,9 @@ void ZstoreController::zns_dev_init(
     const std::tuple<std::string, std::string, std::string, u32, u32>
         &dev_tuple)
 {
-    // char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
     // 1. connect nvmf device
-    struct spdk_nvme_transport_id trid = {};
-
     auto [nqn, ip, port, zone_id1, zone_id2] = dev_tuple;
+    struct spdk_nvme_transport_id trid = {};
     snprintf(trid.traddr, sizeof(trid.traddr), "%s", ip.c_str());
     snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
     snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", nqn.c_str());
@@ -265,92 +229,6 @@ int ZstoreController::register_controllers(
 void ZstoreController::unregister_controllers(std::vector<Device *> &g_devices)
 {
     // struct spdk_nvme_detach_ctx *detach_ctx = NULL;
-}
-
-int ZstoreController::PopulateMap()
-{
-    if (mKeyExperiment == 1) {
-        log_info("Populate Map({},{}): random read", mKeyExperiment, mPhase);
-        // Random Read
-        auto zone1_base =
-            Configuration::GetZoneId1() * Configuration::GetZoneDist();
-        auto zone2_base =
-            Configuration::GetZoneId2() * Configuration::GetZoneDist();
-        for (int i = 0; i < _map_size; i++) {
-            auto zone_offset = i % 10 * Configuration::GetZoneDist();
-            std::string device;
-            if (i % 6 == 0) {
-                device = "Zstore2Dev1";
-            } else if (i % 6 == 1) {
-                device = "Zstore2Dev2";
-            } else if (i % 6 == 2) {
-                device = "Zstore3Dev1";
-            } else if (i % 6 == 3) {
-                device = "Zstore3Dev2";
-            } else if (i % 6 == 4) {
-                device = "Zstore4Dev1";
-            } else if (i % 6 == 5) {
-                device = "Zstore4Dev2";
-            }
-            auto entry =
-                createMapEntry(
-                    std::make_tuple(
-                        std::make_pair(device, Configuration::GetZoneId1()),
-                        std::make_pair("Zstore2Dev2",
-                                       Configuration::GetZoneId1()),
-                        std::make_pair("Zstore3Dev1",
-                                       Configuration::GetZoneId2())),
-                    i + zone1_base + zone_offset,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize(),
-                    i + zone1_base + zone_offset,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize(),
-                    i + zone2_base + zone_offset,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize())
-                    .value();
-            std::string hash_hex = sha256(std::to_string(i));
-            // log_debug("Populate Map: index {}, key {}", i,
-            //           "/db/" + std::to_string(i));
-            unsigned long long hash =
-                std::stoull(hash_hex.substr(0, 16), nullptr, 16);
-            mMap.emplace(hash, entry);
-        }
-    } else if (mKeyExperiment == 2) {
-        if (mPhase == 1) {
-            log_info("Populate Map({},{}): write and read.", mKeyExperiment,
-                     mPhase);
-            //     log_info("Prepare phase, do nothing");
-            // DumpAllMap();
-        } else if (mPhase == 2) {
-            log_info("Populate Map({},{}): write and read.", mKeyExperiment,
-                     mPhase);
-            log_info("Run phase, load the map and the bloom filter");
-            // ReadAllMap();
-        } else if (mPhase == 3) {
-            log_info("Populate Map({},{}): write and read simplified.",
-                     mKeyExperiment, mPhase);
-        }
-
-        // Sequential write (append) and read
-        // for (int i = 0; i < 2'000'000; i++) {
-        //     mMap.insert({"/db/" + std::to_string(i),
-        //                  createMapEntry("device", i).value()});
-        // }
-    } else if (mKeyExperiment == 3) {
-        // Target failure
-    } else if (mKeyExperiment == 4) {
-        // gateway failure
-    } else if (mKeyExperiment == 5) {
-        // Target and gateway failure
-    } else if (mKeyExperiment == 6) {
-        // GC
-    } else if (mKeyExperiment == 7) {
-        // Checkpoint
-    }
-    // else if (key_experiment == 1) {}
-    return 0;
 }
 
 Result<void> ZstoreController::DumpAllMap()
@@ -389,17 +267,17 @@ int ZstoreController::PopulateDevHash()
     // this seems to be stupid, but we are just manually adding the target
     // device and the zone we write to here
     tgt_dev_vec.push_back(
-        {std::make_pair("Zstore2Dev1", Configuration::GetZoneId1())});
+        {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
     tgt_dev_vec.push_back(
-        {std::make_pair("Zstore2Dev2", Configuration::GetZoneId1())});
+        {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
     tgt_dev_vec.push_back(
-        {std::make_pair("Zstore3Dev1", Configuration::GetZoneId2())});
+        {std::make_pair("Zstore3Dev1", Configuration::GetZoneId())});
     tgt_dev_vec.push_back(
-        {std::make_pair("Zstore3Dev2", Configuration::GetZoneId1())});
+        {std::make_pair("Zstore3Dev2", Configuration::GetZoneId())});
     tgt_dev_vec.push_back(
-        {std::make_pair("Zstore4Dev1", Configuration::GetZoneId1())});
+        {std::make_pair("Zstore4Dev1", Configuration::GetZoneId())});
     tgt_dev_vec.push_back(
-        {std::make_pair("Zstore4Dev2", Configuration::GetZoneId1())});
+        {std::make_pair("Zstore4Dev2", Configuration::GetZoneId())});
 
     for (int i = 0; i < tgt_dev_vec.size(); i++) {
         for (int j = 0; j < tgt_dev_vec.size(); j++) {
@@ -452,19 +330,18 @@ ZstoreController::~ZstoreController()
     // for (int i = 0; i < Configuration::GetNumHttpThreads(); ++i) {
     //     thread_send_msg(mHttpThread[i].thread, quit, nullptr);
     // }
-    log_debug("drain io: {}", spdk_get_ticks());
-    log_debug("clean up ns worker");
+    // log_debug("drain io: {}", spdk_get_ticks());
+    // log_debug("clean up ns worker");
     cleanup_ns_worker_ctx();
-    log_debug("end work fn");
+    // log_debug("end work fn");
 }
 
 void ZstoreController::zstore_cleanup()
 {
-    log_info("unreg controllers");
+    // log_info("unreg controllers");
     unregister_controllers(mDevices);
-    log_info("cleanup ");
+    // log_info("cleanup ");
     cleanup(0);
-
     spdk_env_fini();
 }
 
@@ -543,14 +420,14 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
         ip_port_devs{
             std::make_tuple("nqn.2024-04.io.zstore2:cnode1", "12.12.12.2",
-                            "5520", Configuration::GetZoneId1(),
-                            Configuration::GetZoneId1()),
+                            "5520", Configuration::GetZoneId(),
+                            Configuration::GetZoneId()),
             std::make_tuple("nqn.2024-04.io.zstore3:cnode1", "12.12.12.3",
-                            "5520", Configuration::GetZoneId2(),
-                            Configuration::GetZoneId1()),
+                            "5520", Configuration::GetZoneId(),
+                            Configuration::GetZoneId()),
             std::make_tuple("nqn.2024-04.io.zstore4:cnode1", "12.12.12.4",
-                            "5520", Configuration::GetZoneId1(),
-                            Configuration::GetZoneId1())};
+                            "5520", Configuration::GetZoneId(),
+                            Configuration::GetZoneId())};
 
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
@@ -651,8 +528,6 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
     log_info("Initialization complete. Launching workers.");
 
-    // auto ret = PopulateDevHash(key_experiment);
-    // assert(ret.has_value());
     rc = PopulateDevHash();
     assert(rc == 0);
 
@@ -679,8 +554,6 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     }
 
     log_info("ZstoreController Init finish");
-
-    // ioc.run();
 
     return rc;
 }
@@ -719,3 +592,88 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 //         std::endl;
 //     }
 // }
+
+int ZstoreController::PopulateMap()
+{
+    // TODO: 4KiB, 4MiB, 1GiB ....
+    if (mKeyExperiment == 1) {
+        log_info("Populate Map({},{}): random read", mKeyExperiment, mPhase);
+        // Random Read
+        auto zone_base =
+            Configuration::GetZoneId() * Configuration::GetZoneDist();
+        for (int i = 0; i < _map_size; i++) {
+            auto zone_offset = i % 10 * Configuration::GetZoneDist();
+            std::string device;
+            if (i % 6 == 0) {
+                device = "Zstore2Dev1";
+            } else if (i % 6 == 1) {
+                device = "Zstore2Dev2";
+            } else if (i % 6 == 2) {
+                device = "Zstore3Dev1";
+            } else if (i % 6 == 3) {
+                device = "Zstore3Dev2";
+            } else if (i % 6 == 4) {
+                device = "Zstore4Dev1";
+            } else if (i % 6 == 5) {
+                device = "Zstore4Dev2";
+            }
+            auto entry =
+                createMapEntry(
+                    std::make_tuple(
+                        std::make_pair(device, Configuration::GetZoneId()),
+                        std::make_pair("Zstore2Dev2",
+                                       Configuration::GetZoneId()),
+                        std::make_pair("Zstore3Dev1",
+                                       Configuration::GetZoneId())),
+                    i + zone_base + zone_offset,
+                    Configuration::GetObjectSizeInBytes() /
+                        Configuration::GetBlockSize(),
+                    i + zone_base + zone_offset,
+                    Configuration::GetObjectSizeInBytes() /
+                        Configuration::GetBlockSize(),
+                    i + zone_base + zone_offset,
+                    Configuration::GetObjectSizeInBytes() /
+                        Configuration::GetBlockSize())
+                    .value();
+            std::string hash_hex = sha256(std::to_string(i));
+            // log_debug("Populate Map: index {}, key {}", i,
+            //           "/db/" + std::to_string(i));
+            unsigned long long hash =
+                std::stoull(hash_hex.substr(0, 16), nullptr, 16);
+            mMap.emplace(hash, entry);
+        }
+    } else if (mKeyExperiment == 2) {
+        if (mPhase == 1) {
+            log_info("Populate Map({},{}): write and read.", mKeyExperiment,
+                     mPhase);
+            //     log_info("Prepare phase, do nothing");
+            // DumpAllMap();
+        } else if (mPhase == 2) {
+            log_info("Populate Map({},{}): write and read.", mKeyExperiment,
+                     mPhase);
+            log_info("Run phase, load the map and the bloom filter");
+            // ReadAllMap();
+        } else if (mPhase == 3) {
+            log_info("Populate Map({},{}): write and read simplified.",
+                     mKeyExperiment, mPhase);
+        }
+
+        // Sequential write (append) and read
+        // for (int i = 0; i < 2'000'000; i++) {
+        //     mMap.insert({"/db/" + std::to_string(i),
+        //                  createMapEntry("device", i).value()});
+        // }
+    } else if (mKeyExperiment == 3) {
+        // Target failure
+    } else if (mKeyExperiment == 4) {
+        // gateway failure
+    } else if (mKeyExperiment == 5) {
+        // Target and gateway failure
+    } else if (mKeyExperiment == 6) {
+        // GC
+    } else if (mKeyExperiment == 7) {
+        // Checkpoint
+    }
+    // else if (key_experiment == 1) {}
+    return 0;
+}
