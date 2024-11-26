@@ -152,6 +152,18 @@ auto awaitable_on_request(HttpRequest req,
     std::string hash_hex = sha256(object_key);
     ObjectKeyHash key_hash = std::stoull(hash_hex.substr(0, 16), nullptr, 16);
 
+    if (req.method() == http::verb::get)
+        log_debug("req {} target {}, body {}", "GET", req.target(), req.body());
+    else if (req.method() == http::verb::post)
+        log_debug("req {} target {}, body ", "POST", req.target());
+    else if (req.method() == http::verb::put)
+        log_debug("req {} target {}, body ", "PUT", req.target());
+    else if (req.method() == http::verb::delete_)
+        log_debug("req {} target {}, body {}", "DELETE", req.target(),
+                  req.body());
+
+    co_return handle_request(std::move(req));
+
     if (req.method() == http::verb::get) {
         if (object_key.contains("?max-keys=")) {
             // List operation
@@ -159,8 +171,8 @@ auto awaitable_on_request(HttpRequest req,
             std::smatch matches;
             std::string str(req.target());
             if (std::regex_match(str, matches, pattern)) {
-                // The bucket name is the first capture group, max-keys is the
-                // second
+                // The bucket name is the first capture group, max-keys is
+                // the second
                 std::string bucket_name = matches[1];
                 int max_keys = std::stoi(matches[2]);
 

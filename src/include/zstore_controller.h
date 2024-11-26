@@ -122,12 +122,13 @@ class ZstoreController
     int register_workers();
     int register_controllers(
         std::vector<Device *> &g_devices,
-        const std::tuple<std::string, std::string, u32, u32> &dev_tuple);
+        const std::tuple<std::string, std::string, std::string, u32, u32>
+            &dev_tuple);
     void unregister_controllers(std::vector<Device *> &g_devices);
     void zstore_cleanup();
-    void zns_dev_init(
-        std::vector<Device *> &g_devices,
-        const std::tuple<std::string, std::string, u32, u32> &dev_tuple);
+    void zns_dev_init(std::vector<Device *> &g_devices,
+                      const std::tuple<std::string, std::string, std::string,
+                                       u32, u32> &dev_tuple);
 
     int associate_workers_with_ns(Device *device);
     void cleanup_ns_worker_ctx();

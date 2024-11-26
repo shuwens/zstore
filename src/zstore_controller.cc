@@ -215,22 +215,23 @@ void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
 
 void ZstoreController::zns_dev_init(
     std::vector<Device *> &g_devices,
-    const std::tuple<std::string, std::string, u32, u32> &dev_tuple)
+    const std::tuple<std::string, std::string, std::string, u32, u32>
+        &dev_tuple)
 {
-    char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+    // char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid = {};
 
-    auto [ip, port, zone_id1, zone_id2] = dev_tuple;
+    auto [nqn, ip, port, zone_id1, zone_id2] = dev_tuple;
     snprintf(trid.traddr, sizeof(trid.traddr), "%s", ip.c_str());
     snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
-    snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", g_hostnqn);
+    snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", nqn.c_str());
     trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
     trid.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
-    snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", g_hostnqn);
+    snprintf(opts.hostnqn, sizeof(opts.hostnqn), "%s", nqn.c_str());
     // NOTE: disable keep alive timeout
     opts.keep_alive_timeout_ms = 0;
     register_ctrlr(g_devices, spdk_nvme_connect(&trid, &opts, sizeof(opts)),
@@ -239,15 +240,10 @@ void ZstoreController::zns_dev_init(
 
 int ZstoreController::register_controllers(
     std::vector<Device *> &g_devices,
-    const std::tuple<std::string, std::string, u32, u32> &dev_tuple)
+    const std::tuple<std::string, std::string, std::string, u32, u32>
+        &dev_tuple)
 {
-    // log_info("Initializing NVMe Controllers");
-
-    // RDMA
-    // zns_dev_init(ctx, "192.168.100.9", "5520");
-    // TCP
     zns_dev_init(g_devices, dev_tuple);
-
     return 0;
 }
 
@@ -513,13 +509,18 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
         Configuration::GetBlockSize(), Configuration::GetContextPoolSize(),
         Configuration::GetNumOfTargets(), Configuration::GetNumOfDevices());
 
-    std::vector<std::tuple<std::string, std::string, u32, u32>> ip_port_devs{
-        std::make_tuple("12.12.12.2", "5520", Configuration::GetZoneId1(),
-                        Configuration::GetZoneId1()),
-        std::make_tuple("12.12.12.3", "5520", Configuration::GetZoneId2(),
-                        Configuration::GetZoneId1()),
-        std::make_tuple("12.12.12.4", "5520", Configuration::GetZoneId1(),
-                        Configuration::GetZoneId1())};
+    std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
+        ip_port_devs{
+            std::make_tuple("nqn.2024-04.io.zstore2:cnode1", "12.12.12.2",
+                            "5520", Configuration::GetZoneId1(),
+                            Configuration::GetZoneId1()),
+            std::make_tuple("nqn.2024-04.io.zstore3:cnode1", "12.12.12.3",
+                            "5520", Configuration::GetZoneId2(),
+                            Configuration::GetZoneId1()),
+            std::make_tuple("nqn.2024-04.io.zstore4:cnode1", "12.12.12.4",
+                            "5520", Configuration::GetZoneId1(),
+                            Configuration::GetZoneId1())};
+
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
