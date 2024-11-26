@@ -75,23 +75,23 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
 Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
-    std::string device;
-    if (i % 6 == 0) {
-        device = "Zstore2Dev1";
-    } else if (i % 6 == 1) {
-        device = "Zstore2Dev2";
-    } else if (i % 6 == 2) {
-        device = "Zstore3Dev1";
-    } else if (i % 6 == 3) {
-        device = "Zstore3Dev2";
-    } else if (i % 6 == 4) {
-        device = "Zstore4Dev1";
-    } else if (i % 6 == 5) {
-        device = "Zstore4Dev2";
-    }
+    // std::string device;
+    // if (i % 6 == 0) {
+    //     device = "Zstore2Dev1";
+    // } else if (i % 6 == 1) {
+    //     device = "Zstore2Dev2";
+    // } else if (i % 6 == 2) {
+    //     device = "Zstore3Dev1";
+    // } else if (i % 6 == 3) {
+    //     device = "Zstore3Dev2";
+    // } else if (i % 6 == 4) {
+    //     device = "Zstore4Dev1";
+    // } else if (i % 6 == 5) {
+    //     device = "Zstore4Dev2";
+    // }
 
     return std::make_tuple(
-        std::make_pair(device, Configuration::GetZoneId1()),
+        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
         std::make_pair("Zstore4Dev1", Configuration::GetZoneId1()),
         std::make_pair("Zstore4Dev2", Configuration::GetZoneId2()));
     // ok, ok, zone full
@@ -310,7 +310,9 @@ int ZstoreController::PopulateMap()
                     Configuration::GetObjectSizeInBytes() /
                         Configuration::GetBlockSize())
                     .value();
-            std::string hash_hex = sha256("/db/" + std::to_string(i));
+            std::string hash_hex = sha256(std::to_string(i));
+            // log_debug("Populate Map: index {}, key {}", i,
+            //           "/db/" + std::to_string(i));
             unsigned long long hash =
                 std::stoull(hash_hex.substr(0, 16), nullptr, 16);
             mMap.emplace(hash, entry);
