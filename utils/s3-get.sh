@@ -31,7 +31,8 @@ Example: $script dev.build.artifacts us-east-1 /jobs/dev-job/1/dist.zip ./dist.z
 
 AWS_SERVICE='s3'
 AWS_REGION="$2"
-AWS_SERVICE_ENDPOINT_URL="${AWS_SERVICE}.${AWS_REGION}.amazonaws.com"
+# AWS_SERVICE_ENDPOINT_URL="${AWS_SERVICE}.${AWS_REGION}.amazonaws.com"
+AWS_SERVICE_ENDPOINT_URL="http://localhost:9000"
 AWS_S3_BUCKET_NAME="$1"
 AWS_S3_PATH="$(echo $3 | sed 's;^\([^/]\);/\1;')"
 
@@ -55,7 +56,8 @@ CURRENT_DATE_DAY="$(date -u '+%Y%m%d')"
 CURRENT_DATE_ISO8601="${CURRENT_DATE_DAY}T$(date -u '+%H%M%S')Z"
 
 HTTP_REQUEST_PAYLOAD_HASH="$(printf "" | openssl dgst -sha256 | sed 's/^.* //')"
-HTTP_CANONICAL_REQUEST_URI="/${AWS_S3_BUCKET_NAME}${AWS_S3_PATH}"
+# HTTP_CANONICAL_REQUEST_URI="/${AWS_S3_BUCKET_NAME}${AWS_S3_PATH}"
+HTTP_CANONICAL_REQUEST_URI="/${AWS_S3_BUCKET_NAME}"
 HTTP_REQUEST_CONTENT_TYPE='application/octet-stream'
 
 HTTP_CANONICAL_REQUEST_HEADERS="content-type:${HTTP_REQUEST_CONTENT_TYPE}
@@ -90,9 +92,9 @@ ${AWS_REGION}/${AWS_SERVICE}/aws4_request, \
 SignedHeaders=${HTTP_REQUEST_SIGNED_HEADERS}, Signature=${SIGNATURE}"
 
 [ -d $4 ] && OUT_FILE="$4/$(basename $AWS_S3_PATH)" || OUT_FILE=$4
-echo "Downloading https://${AWS_SERVICE_ENDPOINT_URL}${HTTP_CANONICAL_REQUEST_URI} to $OUT_FILE"
+echo "Downloading ${AWS_SERVICE_ENDPOINT_URL}${HTTP_CANONICAL_REQUEST_URI} to $OUT_FILE"
 
-curl "https://${AWS_SERVICE_ENDPOINT_URL}${HTTP_CANONICAL_REQUEST_URI}" \
+curl "${AWS_SERVICE_ENDPOINT_URL}${HTTP_CANONICAL_REQUEST_URI}" \
     -H "Authorization: ${HTTP_REQUEST_AUTHORIZATION_HEADER}" \
     -H "content-type: ${HTTP_REQUEST_CONTENT_TYPE}" \
     -H "x-amz-content-sha256: ${HTTP_REQUEST_PAYLOAD_HASH}" \

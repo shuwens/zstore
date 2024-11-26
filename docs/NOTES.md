@@ -41,3 +41,36 @@
 
 ## Longer-term TODOs
  * Need to have a test for 
+
+## S3 APIs
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000000000, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000000401, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000012452, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000012453, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000012454, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000012455, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000012456, body
+[DBG ../src/include/http_server.h:160 awaitable_on_request] req PUT target /hotsauce-bench000000000000/000000012457, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000?max-keys=1000, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000000000, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000000001, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000000002, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000012453, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000012454, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000012455, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000012456, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000/000000012457, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000000000, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000000001, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000012452, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000012453, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000012454, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000012455, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000012456, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000/000000012457, body
+[DBG ../src/include/http_server.h:156 awaitable_on_request] req GET target /hotsauce-bench000000000000, body
+[DBG ../src/include/http_server.h:163 awaitable_on_request] req DELETE target /hotsauce-bench000000000000, body
+

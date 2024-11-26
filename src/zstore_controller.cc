@@ -75,8 +75,23 @@ Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
 Result<DevTuple>
 ZstoreController::GetDevTupleForRandomReads(ObjectKeyHash key_hash)
 {
+    std::string device;
+    if (i % 6 == 0) {
+        device = "Zstore2Dev1";
+    } else if (i % 6 == 1) {
+        device = "Zstore2Dev2";
+    } else if (i % 6 == 2) {
+        device = "Zstore3Dev1";
+    } else if (i % 6 == 3) {
+        device = "Zstore3Dev2";
+    } else if (i % 6 == 4) {
+        device = "Zstore4Dev1";
+    } else if (i % 6 == 5) {
+        device = "Zstore4Dev2";
+    }
+
     return std::make_tuple(
-        std::make_pair("Zstore2Dev2", Configuration::GetZoneId1()),
+        std::make_pair(device, Configuration::GetZoneId1()),
         std::make_pair("Zstore4Dev1", Configuration::GetZoneId1()),
         std::make_pair("Zstore4Dev2", Configuration::GetZoneId2()));
     // ok, ok, zone full
@@ -263,23 +278,37 @@ int ZstoreController::PopulateMap()
             Configuration::GetZoneId2() * Configuration::GetZoneDist();
         for (int i = 0; i < _map_size; i++) {
             auto zone_offset = i % 10 * Configuration::GetZoneDist();
+            std::string device;
+            if (i % 6 == 0) {
+                device = "Zstore2Dev1";
+            } else if (i % 6 == 1) {
+                device = "Zstore2Dev2";
+            } else if (i % 6 == 2) {
+                device = "Zstore3Dev1";
+            } else if (i % 6 == 3) {
+                device = "Zstore3Dev2";
+            } else if (i % 6 == 4) {
+                device = "Zstore4Dev1";
+            } else if (i % 6 == 5) {
+                device = "Zstore4Dev2";
+            }
             auto entry =
-                createMapEntry(std::make_tuple(
-                                   std::make_pair("Zstore2Dev1",
-                                                  Configuration::GetZoneId1()),
-                                   std::make_pair("Zstore2Dev2",
-                                                  Configuration::GetZoneId1()),
-                                   std::make_pair("Zstore3Dev1",
-                                                  Configuration::GetZoneId2())),
-                               i + zone1_base + zone_offset,
-                               Configuration::GetObjectSizeInBytes() /
-                                   Configuration::GetBlockSize(),
-                               i + zone1_base + zone_offset,
-                               Configuration::GetObjectSizeInBytes() /
-                                   Configuration::GetBlockSize(),
-                               i + zone2_base + zone_offset,
-                               Configuration::GetObjectSizeInBytes() /
-                                   Configuration::GetBlockSize())
+                createMapEntry(
+                    std::make_tuple(
+                        std::make_pair(device, Configuration::GetZoneId1()),
+                        std::make_pair("Zstore2Dev2",
+                                       Configuration::GetZoneId1()),
+                        std::make_pair("Zstore3Dev1",
+                                       Configuration::GetZoneId2())),
+                    i + zone1_base + zone_offset,
+                    Configuration::GetObjectSizeInBytes() /
+                        Configuration::GetBlockSize(),
+                    i + zone1_base + zone_offset,
+                    Configuration::GetObjectSizeInBytes() /
+                        Configuration::GetBlockSize(),
+                    i + zone2_base + zone_offset,
+                    Configuration::GetObjectSizeInBytes() /
+                        Configuration::GetBlockSize())
                     .value();
             std::string hash_hex = sha256("/db/" + std::to_string(i));
             unsigned long long hash =

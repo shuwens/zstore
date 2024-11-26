@@ -152,20 +152,25 @@ auto awaitable_on_request(HttpRequest req,
     std::string hash_hex = sha256(object_key);
     ObjectKeyHash key_hash = std::stoull(hash_hex.substr(0, 16), nullptr, 16);
 
-    if (req.method() == http::verb::get)
-        log_debug("req {} target {}, body {}", "GET", req.target(), req.body());
-    else if (req.method() == http::verb::post)
-        log_debug("req {} target {}, body ", "POST", req.target());
-    else if (req.method() == http::verb::put)
-        log_debug("req {} target {}, body ", "PUT", req.target());
-    else if (req.method() == http::verb::delete_)
-        log_debug("req {} target {}, body {}", "DELETE", req.target(),
-                  req.body());
+    if (zctrl_.verbose) {
+        if (req.method() == http::verb::get)
+            log_debug("req {} target {}, body {}", "GET", req.target(),
+                      req.body());
+        else if (req.method() == http::verb::post)
+            log_debug("req {} target {}, body ", "POST", req.target());
+        else if (req.method() == http::verb::put)
+            log_debug("req {} target {}, body ", "PUT", req.target());
+        else if (req.method() == http::verb::delete_)
+            log_debug("req {} target {}, body {}", "DELETE", req.target(),
+                      req.body());
 
-    co_return handle_request(std::move(req));
+        co_return handle_request(std::move(req));
+    }
 
     if (req.method() == http::verb::get) {
         if (object_key.contains("?max-keys=")) {
+            // TODO: not sure if this is correct
+
             // List operation
             std::regex pattern(R"(^\/([^?]+)\?max-keys=(\d+))");
             std::smatch matches;
@@ -200,6 +205,18 @@ auto awaitable_on_request(HttpRequest req,
             }
         }
 
+        // Get bucket will always return 404
+
+        if (object_key == "") {
+            if (zctrl_.verbose)
+                log_error(
+                    "Object key is empty. Ignoring the request as we dont "
+                    "care about bucket {}.",
+                    bucket);
+            // We ignore Get bucket
+            co_return handle_not_found_request(std::move(req));
+        }
+
         // NOTE: READ path: see section 3.4
         auto e = zctrl_.GetObject(key_hash);
         MapEntry entry;
@@ -207,15 +224,12 @@ auto awaitable_on_request(HttpRequest req,
         if (!e.has_value()) {
             if (zctrl_.verbose)
                 log_error("GET: Object {} not found", object_key);
-            if (zctrl_.mPhase == 3)
-                co_return handle_not_found_request(std::move(req));
-            else
-                // co_return handle_not_found_request(std::move(req));
-                entry = createMapEntry(
-                            zctrl_.GetDevTupleForRandomReads(key_hash).value(),
-                            zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
-                            zctrl_.mTotalCounts + 1, 1)
-                            .value();
+            // co_return handle_not_found_request(std::move(req));
+            entry = createMapEntry(
+                        zctrl_.GetDevTupleForRandomReads(key_hash).value(),
+                        zctrl_.mTotalCounts - 1, 1, zctrl_.mTotalCounts, 1,
+                        zctrl_.mTotalCounts + 1, 1)
+                        .value();
         } else {
             entry = e.value();
         }
@@ -232,13 +246,13 @@ auto awaitable_on_request(HttpRequest req,
 
         auto [first, _, _] = entry;
         auto [tgt, lba, _] = first;
-        // log_debug("Reading from tgt {} lba {}", tgt, lba);
+        log_debug("Reading from tgt {} lba {}", tgt, lba);
 
         auto dev1 = zctrl_.GetDevice(tgt);
 
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba, req).value();
 
-        // auto res = co_await zoneRead(s1);
+        auto res = co_await zoneRead(s1);
 
         co_await async_sleep(co_await asio::this_coro::executor,
                              std::chrono::microseconds(0), asio::use_awaitable);

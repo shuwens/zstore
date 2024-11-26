@@ -130,4 +130,6 @@ elif [ "$HOSTNAME" == "zstore4" ]; then
 	scripts/rpc.py nvmf_subsystem_add_listener $ctrl_nqn -t RDMA -f ipv4 -a 12.12.12.4 -s 5520
 fi
 
+scripts/rpc.py framework_set_scheduler dynamic
+
 wait
