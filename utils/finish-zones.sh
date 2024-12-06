@@ -3,10 +3,9 @@ set -euo pipefail
 
 # This script checks all non empty zones and finishes them
 
-# Check if the first argument is "sudo"
-if [[ "$1" != "sudo" ]]; then
-  echo "Error: Run the script with sudo ."
-  exit 1
+if [[ "$EUID" -ne 0 ]]; then
+    echo "Error: This script must be run with sudo or as root."
+    exit 1
 fi
 
 if [ "$HOSTNAME" == "zstore1" ]; then
@@ -71,12 +70,12 @@ echo "Parsing complete. To finish SLBA values " "${dev2_lbas[@]}"
 
 for lba in "${dev1_lbas[@]}"
 do
-  echo "$lba"
+  # echo "$lba"
   sudo nvme zns finish-zone /dev/$device1 -s $lba
 done
 
 for lba in "${dev2_lbas[@]}"
 do
-  echo "$lba"
+  # echo "$lba"
   sudo nvme zns finish-zone /dev/$device2 -s $lba
 done
