@@ -59,8 +59,8 @@ void testSerializationDeserialization(int datalen)
 
     // If all assertions pass
     log_info("Test passed: Serialization and deserialization are correct!  "
-             "Data length: {}",
-             datalen);
+             "Data length in pages: {}",
+             datalen / 4096);
 }
 
 int main()
@@ -71,6 +71,7 @@ int main()
     testSerializationDeserialization(4096);
     testSerializationDeserialization(4096 * 4);
     testSerializationDeserialization(4096 * 16);
+    testSerializationDeserialization(4096 * 1024);
 
     return 0;
 }

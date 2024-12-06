@@ -12,6 +12,7 @@
 * read object workflow: handle request, read into object etc
 * write object worklfow: handle request, write into object etc
 - [x] format broken drives
+- [ ] check append on different disk, reformat?
 
 ## Short-term TODOs
 * key experiment tput/latency: read
@@ -30,11 +31,14 @@
 - [ ] larget objects
 - [ ] make sure we finish zone right after zone is full
 - [x] RoCE2
-- [ ] RDMA hash test
+- [ ] benchmark on RDMA hash 
+- [ ] RDMA hash writes impl
+- [ ] batching of RDMA hash writes impl
+
 
 ## OSDI TODOs
 - [x] perf is not stuck with 100k, try different IO threads?
-- [ ] read the paper
+- [x] read the paper
 - [ ] compare to other systems
 
 ## Long-term TODOs

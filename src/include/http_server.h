@@ -144,23 +144,25 @@ auto awaitable_on_request(HttpRequest req,
 {
     auto url = req.target();
     auto [bucket, object_key] = parse_url(url);
-    // if (zctrl_.verbose)
-    log_debug("\nBucket: {}, Object Key: {}, url {}", bucket, object_key, url);
+    if (Configuration::Debugging())
+        log_debug("Bucket: {}, Object Key: {}, url {}", bucket, object_key,
+                  url);
     std::string hash_hex = sha256(object_key);
     ObjectKeyHash key_hash = std::stoull(hash_hex.substr(0, 16), nullptr, 16);
 
-    // if (zctrl_.verbose) {
-    if (req.method() == http::verb::get)
-        log_debug("req {} target {}, body {}", "GET", req.target(), req.body());
-    else if (req.method() == http::verb::post)
-        log_debug("req {} target {}, body ", "POST", req.target());
-    else if (req.method() == http::verb::put)
-        log_debug("req {} target {}, body ", "PUT", req.target());
-    else if (req.method() == http::verb::delete_)
-        log_debug("req {} target {}, body {}", "DELETE", req.target(),
-                  req.body());
-    // co_return handle_request(std::move(req));
-    // }
+    if (Configuration::Debugging()) {
+        if (req.method() == http::verb::get)
+            log_debug("req {} target {}, body {}", "GET", req.target(),
+                      req.body());
+        else if (req.method() == http::verb::post)
+            log_debug("req {} target {}, body ", "POST", req.target());
+        else if (req.method() == http::verb::put)
+            log_debug("req {} target {}, body ", "PUT", req.target());
+        else if (req.method() == http::verb::delete_)
+            log_debug("req {} target {}, body {}", "DELETE", req.target(),
+                      req.body());
+        // co_return handle_request(std::move(req));
+    }
 
     if (req.method() == http::verb::get) {
         if (object_key.contains("?max-keys=")) {
@@ -240,7 +242,8 @@ auto awaitable_on_request(HttpRequest req,
 
         auto [first, _, _] = entry;
         auto [tgt, lba, _] = first;
-        log_debug("Reading from tgt {} lba {}", tgt, lba);
+        if (Configuration::Debugging())
+            log_debug("Reading from tgt {} lba {}", tgt, lba);
 
         auto dev1 = zctrl_.GetDevice(tgt);
 

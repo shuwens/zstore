@@ -1,0 +1,39 @@
++ hsbench -a test -s test -u http://12.12.12.1:2000 -z 4K -d 1 -t 1 -b 1
+2024/12/03 19:11:47 Hotsauce S3 Benchmark Version 0.1
+2024/12/03 19:11:47 Parameters:
+2024/12/03 19:11:47 url=http://12.12.12.1:2000
+2024/12/03 19:11:47 object_prefix=
+2024/12/03 19:11:47 bucket_prefix=hotsauce-bench
+2024/12/03 19:11:47 region=us-east-1
+2024/12/03 19:11:47 modes=cxiplgdcx
+2024/12/03 19:11:47 output=
+2024/12/03 19:11:47 json_output=
+2024/12/03 19:11:47 max_keys=1000
+2024/12/03 19:11:47 object_count=-1
+2024/12/03 19:11:47 bucket_count=1
+2024/12/03 19:11:47 duration=1
+2024/12/03 19:11:47 threads=1
+2024/12/03 19:11:47 loops=1
+2024/12/03 19:11:47 size=4K
+2024/12/03 19:11:47 interval=1.000000
+2024/12/03 19:11:47 Running Loop 0 BUCKET CLEAR TEST
+2024/12/03 19:11:47 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BCLR, Ops: 0, MB/s: 0.00, IO/s: 0, Lat(ms): [ min: 0.0, avg: 0.0, 99%: 0.0, max: 0.0 ], Slowdowns: 0
+2024/12/03 19:11:47 Running Loop 0 BUCKET DELETE TEST
+2024/12/03 19:11:47 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BDEL, Ops: 1, MB/s: 0.00, IO/s: 4762, Lat(ms): [ min: 0.2, avg: 0.2, 99%: 0.2, max: 0.2 ], Slowdowns: 0
+2024/12/03 19:11:47 Running Loop 0 BUCKET INIT TEST
+2024/12/03 19:11:47 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BINIT, Ops: 1, MB/s: 0.00, IO/s: 3501, Lat(ms): [ min: 0.2, avg: 0.2, 99%: 0.2, max: 0.2 ], Slowdowns: 0
+2024/12/03 19:11:47 Running Loop 0 OBJECT PUT TEST
+2024/12/03 19:11:48 Loop: 0, Int: 0, Dur(s): 1.0, Mode: PUT, Ops: 2650, MB/s: 10.35, IO/s: 2650, Lat(ms): [ min: 0.1, avg: 0.4, 99%: 7.5, max: 55.5 ], Slowdowns: 0
+2024/12/03 19:11:48 Loop: 0, Int: TOTAL, Dur(s): 1.0, Mode: PUT, Ops: 2651, MB/s: 10.35, IO/s: 2650, Lat(ms): [ min: 0.1, avg: 0.4, 99%: 6.1, max: 55.5 ], Slowdowns: 0
+2024/12/03 19:11:48 Running Loop 0 BUCKET LIST TEST
+2024/12/03 19:11:48 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: LIST, Ops: 0, MB/s: 0.00, IO/s: 0, Lat(ms): [ min: 0.0, avg: 0.0, 99%: 0.0, max: 0.0 ], Slowdowns: 0
+2024/12/03 19:11:48 Running Loop 0 OBJECT GET TEST
+2024/12/03 19:11:48 Loop: 0, Int: TOTAL, Dur(s): 0.6, Mode: GET, Ops: 2651, MB/s: 18.55, IO/s: 4749, Lat(ms): [ min: 0.1, avg: 0.2, 99%: 0.4, max: 84.5 ], Slowdowns: 0
+2024/12/03 19:11:48 Running Loop 0 OBJECT DELETE TEST
+2024/12/03 19:11:49 Loop: 0, Int: TOTAL, Dur(s): 0.2, Mode: DEL, Ops: 2651, MB/s: 66.88, IO/s: 17120, Lat(ms): [ min: 0.0, avg: 0.1, 99%: 0.2, max: 0.5 ], Slowdowns: 0
+2024/12/03 19:11:49 Running Loop 0 BUCKET CLEAR TEST
+2024/12/03 19:11:49 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BCLR, Ops: 0, MB/s: 0.00, IO/s: 0, Lat(ms): [ min: 0.0, avg: 0.0, 99%: 0.0, max: 0.0 ], Slowdowns: 0
+2024/12/03 19:11:49 Running Loop 0 BUCKET DELETE TEST
+2024/12/03 19:11:49 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BDEL, Ops: 1, MB/s: 0.00, IO/s: 12614, Lat(ms): [ min: 0.1, avg: 0.1, 99%: 0.1, max: 0.1 ], Slowdowns: 0
+[19:11] zstore1:utils (dev *) |
+

@@ -1,54 +1,82 @@
-#!/usr/bin/env bash
+#!/bin/bash
+set -euo pipefail
 
-set -xeuo pipefail
+# This script checks all non empty zones and finishes them
 
-declare -a lbas=(
-"0x100000"
-"0x200000"
-"0x300000"
-"0x400000"
-"0x500000"
-"0x600000"
-"0x700000"
-"0x780000"
-"0x800000"
-"0x880000"
-"0x900000"
-"0x980000"
-"0xa00000"
-"0xa80000"
-"0xb00000"
-"0xb80000"
-"0xc00000"
-"0xc80000"
-"0xd00000"
-"0xd80000"
-"0xe00000"
-"0xe80000"
-"0xf00000"
-"0xf80000"
-"0x1000000"
-"0x1080000"
-"0x1100000"
-"0x1180000"
-"0x1200000"
-"0x1280000"
-"0x1300000"
-"0x1380000"
-"0x1400000"
-"0x1480000"
-"0x1500000"
-"0x1580000"
-"0x1600000"
-"0x1680000"
-"0x1700000"
-"0x1780000"
-)
+# Check if the first argument is "sudo"
+if [[ "$1" != "sudo" ]]; then
+  echo "Error: Run the script with sudo ."
+  exit 1
+fi
 
-for lba in "${arr[@]}"
+if [ "$HOSTNAME" == "zstore1" ]; then
+  device1="nvme1n2"
+  device2="nvme2n2"
+elif [ "$HOSTNAME" == "zstore2" ]; then
+  device1="nvme1n2"
+  device2="nvme2n2"
+elif [ "$HOSTNAME" == "zstore3" ]; then
+  device1="nvme0n2"
+  device2="nvme1n2"
+elif [ "$HOSTNAME" == "zstore4" ]; then
+  device1="nvme0n2"
+  device2="nvme1n2"
+fi
+
+sudo nvme zns report-zone /dev/$device1 > device1.txt
+sudo nvme zns report-zone /dev/$device2 > device2.txt
+
+dev1_lbas=()
+dev2_lbas=()
+
+while IFS= read -r line; do
+  word_count=$(echo "$line" | wc -w)
+  # Skip lines with fewer than two words
+  if [[ $word_count -lt 3 ]]; then
+    continue
+  fi
+
+  # Extract the SLBA and State values using awk
+  SLBA=$(echo "$line" | awk '{print $2}')
+  STATE=$(echo "$line" | awk '{print $8}')
+
+  # Check if State is not 0xe0 or 0x10
+  if [[ "$STATE" != "0xe0" && "$STATE" != "0x10" ]]; then
+    # Append the SLBA to the output file
+    dev1_lbas+=("$SLBA")
+  fi
+done  < "device1.txt"
+
+echo "Parsing complete. To finish SLBA values " "${dev1_lbas[@]}"
+
+while IFS= read -r line; do
+  word_count=$(echo "$line" | wc -w)
+  # Skip lines with fewer than two words
+  if [[ $word_count -lt 3 ]]; then
+    continue
+  fi
+
+  # Extract the SLBA and State values using awk
+  SLBA=$(echo "$line" | awk '{print $2}')
+  STATE=$(echo "$line" | awk '{print $8}')
+
+  # Check if State is not 0xe0 or 0x10
+  if [[ "$STATE" != "0xe0" && "$STATE" != "0x10" ]]; then
+    # Append the SLBA to the output file
+    dev2_lbas+=("$SLBA")
+  fi
+done  < "device2.txt"
+
+echo "Parsing complete. To finish SLBA values " "${dev2_lbas[@]}"
+
+for lba in "${dev1_lbas[@]}"
 do
-	echo "$lba"
-	sudo nvme zns finish-zone /dev/nvme1n2 -s $lba
-	sudo nvme zns finish-zone /dev/nvme2n2 -s $lba
+  echo "$lba"
+  sudo nvme zns finish-zone /dev/$device1 -s $lba
 done
 
+for lba in "${dev2_lbas[@]}"
+do
+  echo "$lba"
+  sudo nvme zns finish-zone /dev/$device2 -s $lba
+done

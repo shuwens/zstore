@@ -27,7 +27,8 @@ int ioWorker(void *args);
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args);
 
 auto zoneRead(void *args) -> asio::awaitable<Result<void>>;
-auto zoneAppend(void *args) -> asio::awaitable<void>;
+auto zoneAppend(void *args) -> asio::awaitable<Result<void>>;
+auto zoneFinish(void *args) -> asio::awaitable<Result<void>>;
 
 double GetTimestampInUs();
 double timestamp();

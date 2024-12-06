@@ -204,7 +204,8 @@ void spdk_nvme_zone_append_wrapper(
     uint32_t flags,
     std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
 {
-    // log_debug("APPEND: offset {}, size {}", offset, size);
+    if (Configuration::Debugging())
+        log_debug("APPEND: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
         int rc = spdk_nvme_zns_zone_append(
@@ -308,7 +309,7 @@ auto spdk_nvme_zone_append_async_inst(
         size, flags);
 }
 
-auto zoneAppend(void *arg1) -> asio::awaitable<void>
+auto zoneAppend(void *arg1) -> asio::awaitable<Result<void>>
 {
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
@@ -358,7 +359,7 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
             assert(ret.has_value() && "zone finish failed");
 
             // bump zone ID to next zone
-            ctx->device->OpenNextZone();
+            // ctx->device->OpenNextZone();
 
             // send append request to new zone
             auto res_cpl = co_await spdk_nvme_zone_append_async(
@@ -383,7 +384,7 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
         assert(ctx->ctrl != nullptr);
     }
 
-    // co_return outcome::success();
+    co_return outcome::success();
 }
 
 // Zone read operations.
