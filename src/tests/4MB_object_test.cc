@@ -1,110 +1,9 @@
 #include "../include/object.h"
 #include "../include/utils.h"
 #include "../object.cc"
-#include <cassert> // For assert
-#include <cstring>
-#include <cstring> // For memcpy
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
 
 // Assuming the previous implementation of ZstoreObject, toBuffer, and
 // fromBuffer is available
-
-u64 kChunkSize = 4096 * 32; // 4KB
-
-void *serializeMap(const ChunkList &map, size_t &bufferSize)
-{
-    // Calculate total size required for the buffer
-    bufferSize =
-        sizeof(size_t) + map.size() * (sizeof(uint64_t) + 2 * sizeof(uint64_t));
-    void *buffer = malloc(bufferSize); // Allocate the buffer
-    char *ptr = static_cast<char *>(buffer);
-
-    // Write the size of the map
-    size_t mapSize = map.size();
-    memcpy(ptr, &mapSize, sizeof(size_t));
-    ptr += sizeof(size_t);
-
-    // Write each key-value pair
-    for (const auto &[key, value] : map) {
-        memcpy(ptr, &key, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
-
-        uint64_t first = std::get<0>(value);
-        uint64_t second = std::get<1>(value);
-
-        memcpy(ptr, &first, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
-
-        memcpy(ptr, &second, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
-    }
-
-    return buffer;
-}
-
-ChunkList deserializeMap(void *buffer)
-{
-    char *ptr = static_cast<char *>(buffer);
-
-    // Read the size of the map
-    size_t mapSize;
-    memcpy(&mapSize, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-
-    // Reconstruct the map
-    ChunkList map;
-    for (size_t i = 0; i < mapSize; ++i) {
-        uint64_t key;
-        memcpy(&key, ptr, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
-
-        uint64_t first, second;
-        memcpy(&first, ptr, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
-
-        memcpy(&second, ptr, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
-
-        map[key] = std::make_tuple(first, second);
-    }
-
-    return map;
-}
-
-// Helper function to take a larger object and split it into chunks
-// of 4KB each
-std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj)
-{
-    u64 num_chunks = obj.datalen / kChunkSize;
-    u64 remaining_data_len = obj.datalen;
-
-    // we have n chunks and 1 chunk list to keep track of all the chunks
-    std::vector<ZstoreObject> chunk_vec;
-    chunk_vec.reserve(num_chunks);
-
-    for (u64 i = 0; i < num_chunks; i++) {
-        ZstoreObject chunk;
-        chunk.entry.type = LogEntryType::kData;
-        chunk.entry.seqnum = obj.entry.seqnum;
-        chunk.entry.chunk_seqnum = i + 1;
-        if (remaining_data_len >= kChunkSize) {
-            chunk.datalen = kChunkSize;
-            remaining_data_len -= kChunkSize;
-        } else {
-            chunk.datalen = remaining_data_len;
-        }
-        chunk.body = std::malloc(chunk.datalen);
-        std::memcpy(chunk.body, "A", chunk.datalen);
-        std::strcpy(chunk.key_hash, obj.key_hash);
-        chunk.key_size = obj.key_size;
-        chunk_vec.push_back(chunk);
-    }
-
-    return chunk_vec;
-}
 
 // Helper function to merge chunks into a single object
 // ZstoreObject mergeChunksIntoObject(std::vector<ZstoreObject> chunk_vec)
@@ -133,7 +32,7 @@ std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj)
 void testObjectsWithMdts(u64 datalen)
 {
     // calculate the number of chunks
-    u64 num_chunks = datalen / kChunkSize;
+    u64 num_chunks = datalen / Configuration::GetChunkSize();
     u64 remaining_data_len = datalen;
     log_info(
         "Testing objects with data length: {} bytes, {} MB, num of chunks {}",
@@ -161,7 +60,7 @@ void testObjectsWithMdts(u64 datalen)
     chunk_header.entry.type = LogEntryType::kHeader;
     chunk_header.entry.seqnum = 42;
     chunk_header.entry.chunk_seqnum = 0;
-    chunk_header.datalen = kChunkSize;
+    chunk_header.datalen = Configuration::GetChunkSize();
     chunk_header.body = std::malloc(obj.datalen);
     chunk_header.key_size = std::strlen("test_key_hash");
     log_info("Chunk header size: {}", sizeof(chunk_header));
@@ -172,7 +71,7 @@ void testObjectsWithMdts(u64 datalen)
     log_info("Chunk list size: {}", sizeof(chunk_list));
     for (u64 i = 0; i < num_chunks; i++) {
         // log_info("Chunk list: {} {}", i, kChunkSize);
-        chunk_list[i] = std::make_tuple(i, kChunkSize);
+        chunk_list[i] = std::make_tuple(i, Configuration::GetChunkSize());
     }
     chunk_header.body = serializeMap(chunk_list, chunk_header.datalen);
     log_info("Chunk list size: {}", sizeof(chunk_list));

@@ -1,9 +1,14 @@
 #pragma once
+#include "configuration.h"
 #include "types.h"
+#include <cassert> // For assert
 #include <cstdint>
 #include <cstring>
-#include <cstring> // For std::memcpy
+#include <iostream>
+#include <map>
 #include <openssl/sha.h>
+#include <sstream>
+#include <string>
 #include <vector> // For std::vector
 
 typedef uint32_t timestamp_t;
@@ -59,6 +64,9 @@ struct ZstoreObject {
 };
 
 // Object and Map related
+void *serializeMap(const ChunkList &map, size_t &bufferSize);
+ChunkList deserializeMap(void *buffer);
+std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj);
 
 // -----------------------------------------------------
 

@@ -56,6 +56,8 @@ class Configuration
 
     static int GetMetadataSize() { return GetInstance().gMetadataSize; }
 
+    static u64 GetChunkSize() { return GetInstance().gChunkSize; }
+
     static int GetNumIoThreads() { return GetInstance().gNumIoThreads; }
 
     static int GetNumHttpThreads() { return GetInstance().gNumHttpThreads; }
@@ -144,6 +146,7 @@ class Configuration
 
     // Configured parameters
     int gContextPoolSize = 4096;
+    u64 gChunkSize = 4096 * 32; // 4KB
 
     // how many targets one gateway talks to
     int gNumOfTargets = 3;
@@ -154,11 +157,13 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    const int gCurrentZone = 21;
-    uint32_t gObjectSizeInBytes = 4096; // 4kB to 4MB (4,194,304)
+    // const int gCurrentZone = 21; // write
+    const int gCurrentZone = 0;
+    uint32_t gObjectSizeInBytes = 4096; // 4kB
+    // uint32_t gObjectSizeInBytes = 4096; // 4kB to 4MB (4,194,304)
 
     bool gVerbose = false; // this will turn on all logs
-    bool gDebug = true;    // this will turn on all checks and log
+    bool gDebug = false;   // this will turn on all checks and log
 
     bool gUseObject = false;
     // bool gUseDummyWorkload = false;
