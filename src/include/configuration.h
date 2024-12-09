@@ -159,8 +159,12 @@ class Configuration
     // manually set the zone id
     // const int gCurrentZone = 21; // write
     const int gCurrentZone = 0;
-    uint32_t gObjectSizeInBytes = 4096; // 4kB
-    // uint32_t gObjectSizeInBytes = 4096; // 4kB to 4MB (4,194,304)
+    // uint32_t gObjectSizeInBytes = 4096; // 4kB
+    // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
+    uint32_t gObjectSizeInBytes = 4096 * 4; // beyond this crashes the
+                                            // http server
+    // large object: single run can go to 128 blocks
+    // http server can only go to 4 blocks
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks and log
