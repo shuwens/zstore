@@ -154,8 +154,7 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    const int gCurrentZone = 15;
-    // const int gCurrentZone2 = 152;
+    const int gCurrentZone = 21;
     uint32_t gObjectSizeInBytes = 4096; // 4kB to 4MB (4,194,304)
 
     bool gVerbose = false; // this will turn on all logs

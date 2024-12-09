@@ -178,6 +178,24 @@ t3 = executable(
 )
 test('Map dump and load unit tests', t3)
 
+t4 = executable(
+	'test_4KB_object',
+	files('src/tests/4KB_object_test.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+test('4KB object', t4)
+
+t5 = executable(
+	'test_4MB_object',
+	files('src/tests/4MB_object_test.cc'),
+	dependencies: [zstore_deps] + [dependency('_spdk')],
+	link_args: spdk_link_args,
+	install: true,
+)
+test('4MB object', t5)
+
 # executable(
 # 	'test_map',
 # 	files('src/tests/map_test.cc'),

@@ -9,11 +9,13 @@
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID
 
+typedef std::map<u64, LbaTuple> ChunkList;
+
 enum class LogEntryType : uint8_t {
-    kData = 0,
-    kHeader = 1,
-    kSpliter = 2,
-    kInvalid = 3,
+    kInvalid = 0,
+    kData = 1,
+    kHeader = 2,
+    kSpliter = 3,
 };
 
 struct LogEntry {

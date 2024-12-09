@@ -23,6 +23,7 @@ typedef u32 Length;
 
 // Device types
 typedef std::tuple<TargetDev, Lba, Length> TargetLbaTuple;
+typedef std::tuple<Lba, Length> LbaTuple;
 typedef std::tuple<std::pair<TargetDev, u32>, std::pair<TargetDev, u32>,
                    std::pair<TargetDev, u32>>
     DevTuple;
