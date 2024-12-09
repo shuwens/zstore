@@ -165,6 +165,8 @@ class Configuration
                                             // http server
     // large object: single run can go to 128 blocks
     // http server can only go to 4 blocks
+    //
+    // read is 64 blocks?
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks and log
