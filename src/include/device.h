@@ -4,6 +4,10 @@
 #include <set>
 #include <unordered_map>
 
+// NOTE
+// zone size is     0x80000: 524288
+// zone capacity is 0x43500: 275456
+
 class Zone;
 
 class Device

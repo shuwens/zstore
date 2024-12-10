@@ -597,26 +597,49 @@ int ZstoreController::PopulateMap()
 {
     // TODO: 4KiB, 4MiB, 1GiB ....
     if (mKeyExperiment == 1) {
-        log_info("Populate Map({},{}): random read", mKeyExperiment, mPhase);
+        log_info("Populate Map({},{}): random read, starting from zone {}",
+                 mKeyExperiment, mPhase, Configuration::GetZoneId());
         // Random Read
-        auto zone_base =
-            Configuration::GetZoneId() * Configuration::GetZoneDist();
+        u32 current_zone = Configuration::GetZoneId();
+        u64 current_lba = 0;
+        u64 zone_offset = 0;
         for (int i = 0; i < _map_size; i++) {
-            auto zone_offset = i % 10 * Configuration::GetZoneDist();
             std::string device;
-            if (i % 6 == 0) {
+            // if (i % 6 == 0) {
+            //     device = "Zstore2Dev1";
+            // } else if (i % 6 == 1) {
+            //     device = "Zstore2Dev2";
+            // } else if (i % 6 == 2) {
+            //     device = "Zstore3Dev1";
+            // } else if (i % 6 == 3) {
+            //     device = "Zstore3Dev2";
+            // } else if (i % 6 == 4) {
+            //     device = "Zstore4Dev1";
+            // } else if (i % 6 == 5) {
+            //     device = "Zstore4Dev2";
+            // }
+
+            if (i % 2 == 0) {
                 device = "Zstore2Dev1";
-            } else if (i % 6 == 1) {
+            } else if (i % 2 == 1) {
                 device = "Zstore2Dev2";
-            } else if (i % 6 == 2) {
-                device = "Zstore3Dev1";
-            } else if (i % 6 == 3) {
-                device = "Zstore3Dev2";
-            } else if (i % 6 == 4) {
-                device = "Zstore4Dev1";
-            } else if (i % 6 == 5) {
-                device = "Zstore4Dev2";
             }
+            // else if (i % 4 == 2) {
+            //     device = "Zstore4Dev1";
+            // } else if (i % 4 == 3) {
+            //     device = "Zstore4Dev2";
+            // }
+
+            // the lba should be zone_num * 0x80000 + offset [0, 0x43500]
+            zone_offset = current_lba % Configuration::GetZoneDist();
+            if (zone_offset > Configuration::GetZoneCap()) {
+                current_zone++;
+                current_lba = current_zone * Configuration::GetZoneDist();
+                log_debug("Populate Map for index {}, current lba {}: zone {} "
+                          "is full, moving to next zone",
+                          i, current_lba, current_zone);
+            }
+
             auto entry =
                 createMapEntry(
                     std::make_tuple(
@@ -625,13 +648,13 @@ int ZstoreController::PopulateMap()
                                        Configuration::GetZoneId()),
                         std::make_pair("Zstore3Dev1",
                                        Configuration::GetZoneId())),
-                    i + zone_base + zone_offset,
+                    current_lba,
                     Configuration::GetObjectSizeInBytes() /
                         Configuration::GetBlockSize(),
-                    i + zone_base + zone_offset,
+                    current_lba,
                     Configuration::GetObjectSizeInBytes() /
                         Configuration::GetBlockSize(),
-                    i + zone_base + zone_offset,
+                    current_lba,
                     Configuration::GetObjectSizeInBytes() /
                         Configuration::GetBlockSize())
                     .value();
@@ -641,6 +664,7 @@ int ZstoreController::PopulateMap()
             unsigned long long hash =
                 std::stoull(hash_hex.substr(0, 16), nullptr, 16);
             mMap.emplace(hash, entry);
+            current_lba++;
         }
     } else if (mKeyExperiment == 2) {
         if (mPhase == 1) {

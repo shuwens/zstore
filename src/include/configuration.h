@@ -112,7 +112,12 @@ class Configuration
         return GetInstance().gStorageSpaceInBytes;
     }
 
+    // NOTE
+    // zone size is     0x80000: 524288
+    // zone capacity is 0x43500: 275456
+
     static uint64_t GetZoneDist() { return GetInstance().gZoneDist; }
+    static uint64_t GetZoneCap() { return GetInstance().gZoneCap; }
 
     // static uint32_t GetDataBufferSizeInSector()
     // {
@@ -128,7 +133,8 @@ class Configuration
 
   private:
     // Hardcode because they won't change
-    const uint64_t gZoneDist = 0x80000; // zone size
+    const uint64_t gZoneDist = 524288; // zone size: 0x80000
+    const uint64_t gZoneCap = 275456;  // zone capacity: 0x43500
 
     uint64_t gStorageSpaceInBytes = 1024 * 1024 * 1024 * 1024ull; // 1TiB
 
@@ -161,18 +167,20 @@ class Configuration
     const int gCurrentZone = 0;
     // uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
-    uint32_t gObjectSizeInBytes = 4096 * 4; // beyond this crashes the
-                                            // http server
+    uint32_t gObjectSizeInBytes = 4096 * 256;
+
+    // FIXME:
+    //
     // large object: single run can go to 128 blocks
-    // http server can only go to 4 blocks
+    // http server can only go to 16 blocks
     //
     // read is 64 blocks?
 
     bool gVerbose = false; // this will turn on all logs
     bool gDebug = false;   // this will turn on all checks and log
 
-    bool gUseObject = false;
     // bool gUseDummyWorkload = false;
+    bool gUseObject = false;
     bool gUseHttp = true;
     // TODO: use other spdk thread to work stealing
     bool gUseWorkStealing = false;
