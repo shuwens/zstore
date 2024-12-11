@@ -207,6 +207,7 @@ ChunkList deserializeMap(void *buffer)
 // of 4KB each
 std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj)
 {
+    assert(obj.datalen == Configuration::GetObjectSizeInBytes());
     u64 num_chunks = obj.datalen / Configuration::GetChunkSize();
     u64 remaining_data_len = obj.datalen;
 
@@ -226,11 +227,24 @@ std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj)
             chunk.datalen = remaining_data_len;
         }
         chunk.body = std::malloc(chunk.datalen);
-        std::memcpy(chunk.body, "A", chunk.datalen);
+        std::memcpy(chunk.body, (char *)obj.body + (i * chunk.datalen),
+                    chunk.datalen);
         std::strcpy(chunk.key_hash, obj.key_hash);
         chunk.key_size = obj.key_size;
         chunk_vec.push_back(chunk);
     }
 
     return chunk_vec;
+}
+
+// Helper function to merge chunks into a single object
+void mergeChunksIntoObject(std::vector<RequestContext *> chunk_vec,
+                           std::string req_body)
+{
+    // auto chunk_len = Configuration::GetChunkSize();
+    //
+    // for (int i = 0; i < chunk_vec.size(); i++) {
+    //     req_body.append(reinterpret_cast<char *>(chunk_vec[i].body),
+    //     chunk_len);
+    // }
 }

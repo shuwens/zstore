@@ -42,11 +42,11 @@ Result<MapEntry> createMapEntry(DevTuple tuple, u64 lba1, u32 len1, u64 lba2,
 class ZstoreController;
 class Device;
 
+// TODO: Use Length?
 Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
-                                         uint64_t offset, HttpRequest request);
+                                         uint64_t offset);
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          HttpRequest request,
                                           std::vector<uint8_t> data);
 
 Result<RequestContext *> MakeManagementRequest(ZstoreController *zctrl_,

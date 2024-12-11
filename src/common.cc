@@ -725,7 +725,7 @@ Result<MapEntry> createMapEntry(DevTuple tuple, u64 lba1, u32 len1, u64 lba2,
 }
 
 Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
-                                         uint64_t offset, HttpRequest request)
+                                         uint64_t offset)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
@@ -748,7 +748,6 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 }
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          HttpRequest request,
                                           std::vector<u8> data)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);

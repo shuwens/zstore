@@ -66,7 +66,10 @@ struct ZstoreObject {
 // Object and Map related
 void *serializeMap(const ChunkList &map, size_t &bufferSize);
 ChunkList deserializeMap(void *buffer);
+
 std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj);
+void mergeChunksIntoObject(std::vector<RequestContext *> chunk_vec,
+                           std::string req_body);
 
 // -----------------------------------------------------
 

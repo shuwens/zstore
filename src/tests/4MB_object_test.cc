@@ -5,8 +5,40 @@
 // Assuming the previous implementation of ZstoreObject, toBuffer, and
 // fromBuffer is available
 
+// Helper function to take a larger object and split it into chunks
+// of 4KB each
+std::vector<ZstoreObject> splitDummyObjectIntoChunks(ZstoreObject obj)
+{
+    u64 num_chunks = obj.datalen / Configuration::GetChunkSize();
+    u64 remaining_data_len = obj.datalen;
+
+    // we have n chunks and 1 chunk list to keep track of all the chunks
+    std::vector<ZstoreObject> chunk_vec;
+    chunk_vec.reserve(num_chunks);
+
+    for (u64 i = 0; i < num_chunks; i++) {
+        ZstoreObject chunk;
+        chunk.entry.type = LogEntryType::kData;
+        chunk.entry.seqnum = obj.entry.seqnum;
+        chunk.entry.chunk_seqnum = i + 1;
+        if (remaining_data_len >= Configuration::GetChunkSize()) {
+            chunk.datalen = Configuration::GetChunkSize();
+            remaining_data_len -= Configuration::GetChunkSize();
+        } else {
+            chunk.datalen = remaining_data_len;
+        }
+        chunk.body = std::malloc(chunk.datalen);
+        std::memcpy(chunk.body, "A", chunk.datalen);
+        std::strcpy(chunk.key_hash, obj.key_hash);
+        chunk.key_size = obj.key_size;
+        chunk_vec.push_back(chunk);
+    }
+
+    return chunk_vec;
+}
+
 // Helper function to merge chunks into a single object
-// ZstoreObject mergeChunksIntoObject(std::vector<ZstoreObject> chunk_vec)
+// ZstoreObject mergeDummyChunksIntoObject(std::vector<ZstoreObject> chunk_vec)
 // {
 //     ZstoreObject obj;
 //     obj.entry.type = chunk_vec[0].entry.type;
@@ -19,7 +51,8 @@
 //     obj.body = std::malloc(obj.datalen);
 //     u64 offset = 0;
 //     for (auto &chunk : chunk_vec) {
-//         std::memcpy(obj.body + offset, chunk.body, chunk.datalen);
+//         // std::memcpy(chunk.body, "A", chunk.datalen);
+//         std::memcpy(obj.body + offset, "A", chunk.datalen);
 //         offset += chunk.datalen;
 //     }
 //     std::strcpy(obj.key_hash, chunk_vec[0].key_hash);
@@ -49,7 +82,7 @@ void testObjectsWithMdts(u64 datalen)
     obj.key_size = std::strlen("test_key_hash");
 
     // get all chunks
-    std::vector<ZstoreObject> chunk_vec = splitObjectIntoChunks(obj);
+    std::vector<ZstoreObject> chunk_vec = splitDummyObjectIntoChunks(obj);
     log_info("Chunk vec size: {}", chunk_vec.size());
     std::free(obj.body);
 
