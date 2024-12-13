@@ -51,16 +51,13 @@ struct RequestContext {
     // The buffers are pre-allocated
     uint8_t *dataBuffer;
 
-    // A user request use the following field:
-    // Info: lba, size, req_type, data
-    // pbaArray, successBytes, and targetBytes
     uint64_t lba;
     uint32_t size;
-    uint8_t req_type;
+    // uint8_t req_type;
     uint8_t *data;
-    uint32_t successBytes;
-    uint32_t targetBytes;
-    uint32_t curOffset;
+    // uint32_t successBytes;
+    // uint32_t targetBytes;
+    // uint32_t curOffset;
     void *cb_args;
     uint32_t ioOffset;
     bool available;
@@ -74,7 +71,6 @@ struct RequestContext {
     double stime;
     double ctime;
     uint64_t timestamp;
-
     struct timeval timeA;
 
     struct {
@@ -93,6 +89,8 @@ struct RequestContext {
     // HttpRequest request;
     // bool keep_alive;
 
+    bool success;
+
     // For write append
     bool is_write;
     bool write_complete;
@@ -100,10 +98,10 @@ struct RequestContext {
     std::string response_body;
 
     void Clear();
-    void Queue();
-    double GetElapsedTime();
-    void PrintStats();
-    void CopyFrom(const RequestContext &o);
+    // void Queue();
+    // double GetElapsedTime();
+    // void PrintStats();
+    // void CopyFrom(const RequestContext &o);
 };
 
 struct IoThread {

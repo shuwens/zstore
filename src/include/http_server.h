@@ -248,73 +248,75 @@ auto awaitable_on_request(HttpRequest req,
 
         auto dev1 = zctrl_.GetDevice(tgt);
         auto s1 = MakeReadRequest(&zctrl_, dev1, lba).value();
-        auto res = co_await zoneRead(s1);
+        co_await zoneRead(s1);
         co_await async_sleep(co_await asio::this_coro::executor,
                              std::chrono::microseconds(0), asio::use_awaitable);
+        assert(s1->success && "Read request failed");
 
-        // Here is the part where we operate differently based on object size
+        // Here is the part where we operate differently based on object
+        // size
         if (Configuration::GetObjectSizeInBytes() >
             Configuration::GetChunkSize()) {
             // Object is larger than chunk size, we need to fetch chunk list
             // and read each chunk, and merge chunks into a single object
-            if (res.has_value()) {
-                u64 num_chunks = Configuration::GetObjectSizeInBytes() /
-                                 Configuration::GetChunkSize();
-                ChunkList chunk_list_read = deserializeMap(&s1->response_body);
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            // if (res.has_value()) {
+            u64 num_chunks = Configuration::GetObjectSizeInBytes() /
+                             Configuration::GetChunkSize();
+            ChunkList chunk_list_read = deserializeMap(&s1->response_body);
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
 
-                u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
+            u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
 
-                std::vector<RequestContext *> chunk_read_reqs;
-                for (u64 i = 0; i < num_chunks; i++) {
-                    auto [lba, _] = chunk_list_read[i];
-                    auto slot = MakeReadRequest(&zctrl_, dev1, lba).value();
-                    chunk_read_reqs.push_back(slot);
-                }
-
-                auto ex = co_await asio::this_coro::executor;
-                using Task =
-                    decltype(co_spawn(ex, zoneRead(s1), asio::deferred));
-                std::vector<Task> chunks_to_read;
-                for (auto &slot : chunk_read_reqs) {
-                    chunks_to_read.push_back(
-                        co_spawn(ex, zoneRead(slot), asio::deferred));
-                }
-
-                // Await them all and let them execute in parallel
-                auto grp = asio::experimental::make_parallel_group(
-                    std::move(chunks_to_read));
-
-                auto rr = co_await (grp.async_wait(
-                    asio::experimental::wait_for_all(), asio::use_awaitable));
-
-                mergeChunksIntoObject(chunk_read_reqs, req.body());
-
-                co_return handle_request(std::move(req));
-            } else {
-                // yields 378k IOPS
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-                co_return handle_not_found_request(std::move(req));
+            std::vector<RequestContext *> chunk_read_reqs;
+            for (u64 i = 0; i < num_chunks; i++) {
+                auto [lba, _] = chunk_list_read[i];
+                auto slot = MakeReadRequest(&zctrl_, dev1, lba).value();
+                chunk_read_reqs.push_back(slot);
             }
+
+            auto ex = co_await asio::this_coro::executor;
+            using Task = decltype(co_spawn(ex, zoneRead(s1), asio::deferred));
+            std::vector<Task> chunks_to_read;
+            for (auto &slot : chunk_read_reqs) {
+                chunks_to_read.push_back(
+                    co_spawn(ex, zoneRead(slot), asio::deferred));
+            }
+
+            // Await them all and let them execute in parallel
+            auto grp = asio::experimental::make_parallel_group(
+                std::move(chunks_to_read));
+
+            auto rr = co_await (grp.async_wait(
+                asio::experimental::wait_for_all(), asio::use_awaitable));
+
+            // TODO: check for success
+            mergeChunksIntoObject(chunk_read_reqs, req.body());
+
+            co_return handle_request(std::move(req));
+            // } else {
+            //     // yields 378k IOPS
+            //     s1->Clear();
+            //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            //     co_return handle_not_found_request(std::move(req));
+            // }
         } else {
             // Single read since object is smaller than chunk size
-            if (res.has_value()) {
-                // yields 320 to 310k IOPS
-                ZstoreObject deserialized_obj;
-                bool success = ReadBufferToZstoreObject(
-                    s1->dataBuffer, s1->size, deserialized_obj);
-                req.body() = s1->response_body; // not expensive
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-                co_return handle_request(std::move(req));
-            } else {
-                // yields 378k IOPS
-                s1->Clear();
-                zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-                co_return handle_not_found_request(std::move(req));
-            }
+            // if (res.has_value()) {
+            // yields 320 to 310k IOPS
+            ZstoreObject deserialized_obj;
+            bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
+                                                    deserialized_obj);
+            req.body() = s1->response_body; // not expensive
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            co_return handle_request(std::move(req));
+            // } else {
+            //     // yields 378k IOPS
+            //     s1->Clear();
+            //     zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            //     co_return handle_not_found_request(std::move(req));
+            // }
         }
 
     } else if (req.method() == http::verb::post ||
@@ -383,6 +385,8 @@ auto awaitable_on_request(HttpRequest req,
         auto s3 = MakeWriteRequest(&zctrl_, dev3, buffer).value();
 
         co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+        assert(s1->success && s2->success && s3->success &&
+               "Write request failed");
 
         co_await async_sleep(co_await asio::this_coro::executor,
                              std::chrono::microseconds(0), asio::use_awaitable);

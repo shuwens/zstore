@@ -26,9 +26,9 @@ inline uint64_t round_down(uint64_t value, uint64_t align)
 int ioWorker(void *args);
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args);
 
-auto zoneRead(void *args) -> asio::awaitable<Result<void>>;
-auto zoneAppend(void *args) -> asio::awaitable<Result<void>>;
-auto zoneFinish(void *args) -> asio::awaitable<Result<void>>;
+auto zoneRead(void *args) -> asio::awaitable<void>;
+auto zoneAppend(void *args) -> asio::awaitable<void>;
+auto zoneFinish(void *args) -> asio::awaitable<void>;
 
 double GetTimestampInUs();
 double timestamp();

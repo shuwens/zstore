@@ -167,7 +167,7 @@ class Configuration
     const int gCurrentZone = 0;
     // uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
-    uint32_t gObjectSizeInBytes = 4096 * 256;
+    uint32_t gObjectSizeInBytes = 4096 * 4;
 
     // FIXME:
     //

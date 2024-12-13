@@ -144,7 +144,7 @@ auto spdk_nvme_zone_finish_async_inst(
         init, asio::use_awaitable, &timer, thread, ns, qpair, offset, flags);
 }
 
-auto zoneFinish(void *arg1) -> asio::awaitable<Result<void>>
+auto zoneFinish(void *arg1) -> asio::awaitable<void>
 {
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
@@ -183,15 +183,12 @@ auto zoneFinish(void *arg1) -> asio::awaitable<Result<void>>
     //     co_return outcome::failure(std::errc::io_error);
     // }
 
-    // For read, we swap the read date into the request body
-    // std::string body(static_cast<char *>(ioCtx.data),
-    //                  ioCtx.size * Configuration::GetBlockSize());
-    // ctx->response_body = body;
+    ctx->success = true;
 
     ctx->ctrl->mManagementCounts++;
     assert(ctx->ctrl != nullptr);
 
-    co_return outcome::success();
+    // co_return outcome::success();
 }
 
 // Zone append operations.
@@ -309,7 +306,7 @@ auto spdk_nvme_zone_append_async_inst(
         size, flags);
 }
 
-auto zoneAppend(void *arg1) -> asio::awaitable<Result<void>>
+auto zoneAppend(void *arg1) -> asio::awaitable<void>
 {
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
@@ -355,8 +352,8 @@ auto zoneAppend(void *arg1) -> asio::awaitable<Result<void>>
             // seal current zone
             auto mgnt_slot =
                 MakeManagementRequest(ctx->ctrl, ctx->device).value();
-            auto ret = co_await zoneFinish(mgnt_slot);
-            assert(ret.has_value() && "zone finish failed");
+            co_await zoneFinish(mgnt_slot);
+            // assert(ret && "zone finish failed");
 
             // bump zone ID to next zone
             // ctx->device->OpenNextZone();
@@ -376,6 +373,7 @@ auto zoneAppend(void *arg1) -> asio::awaitable<Result<void>>
     // TODO: 1. update entry with LBA
     // TODO: 2. what do we return in response
     ctx->write_complete = true;
+    ctx->success = true;
     ctx->append_lba = cpl->cdw0;
 
     ctx->ctrl->mTotalCounts++;
@@ -384,7 +382,7 @@ auto zoneAppend(void *arg1) -> asio::awaitable<Result<void>>
         assert(ctx->ctrl != nullptr);
     }
 
-    co_return outcome::success();
+    // co_return outcome::success();
 }
 
 // Zone read operations.
@@ -502,7 +500,7 @@ auto spdk_nvme_zone_read_async_inst(
         size, flags);
 }
 
-auto zoneRead(void *arg1) -> asio::awaitable<Result<void>>
+auto zoneRead(void *arg1) -> asio::awaitable<void>
 {
     RequestContext *ctx = reinterpret_cast<RequestContext *>(arg1);
     auto ioCtx = ctx->ioContext;
@@ -546,11 +544,12 @@ auto zoneRead(void *arg1) -> asio::awaitable<Result<void>>
     std::string body(static_cast<char *>(ioCtx.data),
                      ioCtx.size * Configuration::GetBlockSize());
     ctx->response_body = body;
+    ctx->success = true;
 
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
 
-    co_return outcome::success();
+    // co_return outcome::success();
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
@@ -566,13 +565,15 @@ void RequestContext::Clear()
 {
     // TODO: double check clear is fully done
     available = true;
-    successBytes = 0;
-    targetBytes = 0;
+    // successBytes = 0;
+    // targetBytes = 0;
     lba = 0;
     // cb_fn = nullptr;
     cb_args = nullptr;
-    curOffset = 0;
+    // curOffset = 0;
     ioOffset = 0;
+    success = false;
+    response_body = "";
 
     timestamp = ~0ull;
 
@@ -580,69 +581,68 @@ void RequestContext::Clear()
     // associatedStripe = nullptr;
     // associatedRead = nullptr;
 
-    successBytes = 0;
-    targetBytes = 0;
-
-    response_body = "";
+    // successBytes = 0;
+    // targetBytes = 0;
 }
 
-double RequestContext::GetElapsedTime() { return ctime - stime; }
+// double RequestContext::GetElapsedTime() { return ctime - stime; }
 
-void RequestContext::Queue()
-{
-    // struct spdk_thread *th = ctrl->GetDispatchThread();
-    // thread_send_msg(ctrl->GetDispatchThread(), handleEventCompletion, this);
-    // } else {
-    //     event_call(Configuration::GetDispatchThreadCoreId(),
-    //                handleEventCompletion2, this, nullptr);
-    // }
-}
+// void RequestContext::Queue()
+// {
+//     // struct spdk_thread *th = ctrl->GetDispatchThread();
+//     // thread_send_msg(ctrl->GetDispatchThread(), handleEventCompletion,
+//     this);
+//     // } else {
+//     //     event_call(Configuration::GetDispatchThreadCoreId(),
+//     //                handleEventCompletion2, this, nullptr);
+//     // }
+// }
 
-void RequestContext::PrintStats()
-{
-    // printf("RequestStats: %d %d %lu %d, iocontext: %p %p %lu %d\n", type,
-    //        status, lba, size, ioContext.data, ioContext.metadata,
-    //        ioContext.offset, ioContext.size);
-}
+// void RequestContext::PrintStats()
+// {
+//     // printf("RequestStats: %d %d %lu %d, iocontext: %p %p %lu %d\n", type,
+//     //        status, lba, size, ioContext.data, ioContext.metadata,
+//     //        ioContext.offset, ioContext.size);
+// }
 
-void RequestContext::CopyFrom(const RequestContext &o)
-{
-    // type = o.type;
-    // status = o.status;
-
-    lba = o.lba;
-    size = o.size;
-    req_type = o.req_type;
-    data = o.data;
-    // meta = o.meta;
-    // pbaArray = o.pbaArray;
-    successBytes = o.successBytes;
-    targetBytes = o.targetBytes;
-    curOffset = o.curOffset;
-    // ioOffset = o.ioOffset;
-    // cb_fn = o.cb_fn;
-    cb_args = o.cb_args;
-
-    available = o.available;
-
-    ctrl = o.ctrl;
-    zoneId = o.zoneId;
-    offset = o.offset;
-    // append = o.append;
-
-    stime = o.stime;
-    ctime = o.ctime;
-
-    // associatedRequests = o.associatedRequests;
-    // associatedStripe = o.associatedStripe;
-    // associatedRead = o.associatedRead;
-
-    // needDegradedRead = o.needDegradedRead;
-    // needDegradedRead = o.needDecodeMeta;
-
-    ioContext = o.ioContext;
-    // gcTask = o.gcTask;
-}
+// void RequestContext::CopyFrom(const RequestContext &o)
+// {
+//     // type = o.type;
+//     // status = o.status;
+//
+//     lba = o.lba;
+//     size = o.size;
+//     req_type = o.req_type;
+//     data = o.data;
+//     // meta = o.meta;
+//     // pbaArray = o.pbaArray;
+//     successBytes = o.successBytes;
+//     targetBytes = o.targetBytes;
+//     curOffset = o.curOffset;
+//     // ioOffset = o.ioOffset;
+//     // cb_fn = o.cb_fn;
+//     cb_args = o.cb_args;
+//
+//     available = o.available;
+//
+//     ctrl = o.ctrl;
+//     zoneId = o.zoneId;
+//     offset = o.offset;
+//     // append = o.append;
+//
+//     stime = o.stime;
+//     ctime = o.ctime;
+//
+//     // associatedRequests = o.associatedRequests;
+//     // associatedStripe = o.associatedStripe;
+//     // associatedRead = o.associatedRead;
+//
+//     // needDegradedRead = o.needDegradedRead;
+//     // needDegradedRead = o.needDecodeMeta;
+//
+//     ioContext = o.ioContext;
+//     // gcTask = o.gcTask;
+// }
 
 RequestContextPool::RequestContextPool(uint32_t cap)
 {
