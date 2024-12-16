@@ -165,9 +165,9 @@ class Configuration
     // manually set the zone id
     // const int gCurrentZone = 21; // write
     const int gCurrentZone = 0;
-    // uint32_t gObjectSizeInBytes = 4096; // 4kB
+    uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
-    uint32_t gObjectSizeInBytes = 4096 * 4;
+    // uint32_t gObjectSizeInBytes = 4096 * 32;
 
     // FIXME:
     //

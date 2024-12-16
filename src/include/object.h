@@ -14,8 +14,14 @@
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID
 
+// Data structure used to track all chunks to LBA tuple (lba, len)
 typedef std::map<u64, LbaTuple> ChunkList;
 
+// Log entry types:
+// - Data: block following the log entry is data block
+// - Header: block following the log entry is header block, which contains
+// information to all the chunks
+// - Spliter: block following the log entry is spliter block
 enum class LogEntryType : uint8_t {
     kInvalid = 0,
     kData = 1,
@@ -63,21 +69,23 @@ struct ZstoreObject {
     }
 };
 
-// Object and Map related
+// Serialize and deserialize the ChunkList map
 void *serializeMap(const ChunkList &map, size_t &bufferSize);
 ChunkList deserializeMap(void *buffer);
 
+// Split an object into chunks
 std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj);
+// Merge chunks into an object
 void mergeChunksIntoObject(std::vector<RequestContext *> chunk_vec,
                            std::string req_body);
 
-// -----------------------------------------------------
-
 // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c/10632725
+
 void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
                         char outputBuffer[65]);
 void sha256_string(const char *string, char outputBuffer[65]);
 
+// Function to compute SHA-256 hash from a string_view
 std::string sha256(std::string_view input);
 
 // -----------------------------------------------------
