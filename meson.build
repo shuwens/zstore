@@ -19,6 +19,7 @@ project(
 )
 fs = import('fs')
 cc = meson.get_compiler('c')
+cpp = meson.get_compiler('cpp')
 
 add_project_arguments(
 	'-Wuninitialized',
@@ -32,7 +33,6 @@ add_project_arguments(
 )
 
 if get_option('buildtype') == 'release'
-	# add_project_arguments('-g', language: 'c')
 	add_project_arguments('-DPERF=1', language: 'cpp')
 endif
 
@@ -50,6 +50,12 @@ if get_option('buildtype') == 'debug'
 	# 	language: 'cpp',
 	# )
 endif
+
+zk_inc_dir = [
+	include_directories(
+		'/home/shwsun/tools/apache-zookeeper-3.9.3/zookeeper-client/zookeeper-client-c/include',
+	),
+]
 
 zstore_deps = [
 	dependency('uuid'),
@@ -129,6 +135,11 @@ foreach libname : custom_libnames
 	endforeach
 endforeach
 
+# add zookeeper library
+zookeeper_path = meson.current_source_dir() / '..' / '..' / '..' / '..' / 'usr' / 'local' / 'lib' / 'libzookeeper_mt.so'
+
+spdk_paths += zookeeper_path
+
 # https://spdk.io/doc/pkgconfig.html
 spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
@@ -145,7 +156,7 @@ zstore_src = [
 executable(
 	'zstore',
 	zstore_src,
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	dependencies: [zstore_deps],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -155,7 +166,7 @@ executable(
 t1 = executable(
 	'test_simple_object',
 	files('src/tests/simple_object_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	dependencies: [zstore_deps],
 	link_args: spdk_link_args,
 )
 test('Simple object', t1)
@@ -163,7 +174,7 @@ test('Simple object', t1)
 t2 = executable(
 	'test_different_objects',
 	files('src/tests/different_objects_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	dependencies: [zstore_deps],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -172,7 +183,7 @@ test('Different object', t2)
 t3 = executable(
 	'unittest_map',
 	files('src/tests/map_unittest.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	dependencies: [zstore_deps],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -181,7 +192,7 @@ test('Map dump and load unit tests', t3)
 t4 = executable(
 	'test_4KB_object',
 	files('src/tests/4KB_object_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	dependencies: [zstore_deps],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -190,7 +201,7 @@ test('4KB object', t4)
 t5 = executable(
 	'test_4MB_object',
 	files('src/tests/4MB_object_test.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
+	dependencies: [zstore_deps],
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -199,7 +210,7 @@ test('4MB object', t5)
 # executable(
 # 	'test_map',
 # 	files('src/tests/map_test.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	dependencies: [zstore_deps] ,
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
@@ -321,11 +332,11 @@ executable(
 # )
 
 # zookeeper
-# FIXME
-# executable(
-# 	'simple_zk',
-# 	files('examples/zookeeper/simple-client.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
+executable(
+	'zkclient',
+	files('examples/zookeeper/zkclient.cc'),
+	dependencies: [zstore_deps],
+	include_directories: zk_inc_dir,
+	link_args: spdk_link_args,
+	install: true,
+)
