@@ -57,8 +57,15 @@ zk_inc_dir = [
 	),
 ]
 
+rdma_libs = [
+	cc.find_library('rdmacm'),
+	cc.find_library('ibverbs'),
+]
+rdma = declare_dependency(dependencies: rdma_libs)
+
 zstore_deps = [
 	dependency('uuid'),
+	# dependency('rdma'),
 	dependency('numa'),
 	dependency('openssl'),
 	dependency('fmt'),
@@ -151,6 +158,7 @@ zstore_src = [
 	'src/main.cc',
 	'src/tinyxml2.cpp',
 	'src/zone.cc',
+	'src/rdma_common.cc',
 ]
 
 executable(
@@ -337,6 +345,22 @@ executable(
 	files('examples/zookeeper/zkclient.cc'),
 	dependencies: [zstore_deps],
 	include_directories: zk_inc_dir,
+	link_args: spdk_link_args,
+	install: true,
+)
+
+# rdma
+executable(
+	'rdma_client',
+	files('examples/rdma/rdma_client.cc'),
+	dependencies: [zstore_deps] + [rdma],
+	link_args: spdk_link_args,
+	install: true,
+)
+executable(
+	'rdma_server',
+	files('examples/rdma/rdma_server.cc'),
+	dependencies: [zstore_deps] + [rdma],
 	link_args: spdk_link_args,
 	install: true,
 )
