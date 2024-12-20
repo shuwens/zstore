@@ -34,6 +34,8 @@ install-boost:
 	cd boost_1_86_0 && sudo ./b2 install
 	cat /usr/include/boost/version.hpp | grep "define BOOST_LIB_VERSION"
 	sudo ldconfig
+	# meson.build:67:1: ERROR: Dependency "boost" not found, tried system
+
 
 install-deps:
 	sudo apt install -y meson nvme-cli net-tools

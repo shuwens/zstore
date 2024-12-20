@@ -131,6 +131,8 @@ class Configuration
 
     static uint64_t GetZoneId() { return GetInstance().gCurrentZone; }
 
+    static std::string GetZookeeperUrl() { return GetInstance().gZookeeperUrl; }
+
   private:
     // Hardcode because they won't change
     const uint64_t gZoneDist = 524288; // zone size: 0x80000
@@ -168,6 +170,8 @@ class Configuration
     uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
     // uint32_t gObjectSizeInBytes = 4096 * 32;
+
+    std::string gZookeeperUrl = "localhost:2181";
 
     // FIXME:
     //

@@ -57,16 +57,9 @@ zk_inc_dir = [
 	),
 ]
 
-rdma_libs = [
-	cc.find_library('rdmacm'),
-	cc.find_library('ibverbs'),
-]
-rdma = declare_dependency(dependencies: rdma_libs)
-
 zstore_deps = [
 	dependency('uuid'),
-	# dependency('rdma'),
-	dependency('numa'),
+	# dependency('numa'),
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('_spdk'),
@@ -85,6 +78,12 @@ zstore_deps = [
 		],
 	),
 ]
+
+rdma_libs = [
+	cc.find_library('rdmacm'),
+	cc.find_library('ibverbs'),
+]
+rdma = declare_dependency(dependencies: rdma_libs)
 
 # FIXME: there should be a better of doing this, but I don't know it yet.
 custom_libnames = [

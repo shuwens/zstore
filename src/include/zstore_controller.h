@@ -1,6 +1,7 @@
 #pragma once
 #include "types.h"
 #include <boost/asio/awaitable.hpp>
+#include <boost/circular_buffer.hpp>
 #include <boost/unordered/concurrent_flat_map.hpp>
 #include <boost/unordered/concurrent_flat_set.hpp>
 #include <cstring>
@@ -9,11 +10,30 @@
 #include <spdk/env.h>
 #include <spdk/thread.h>
 #include <unistd.h>
+#include <zookeeper/zookeeper.h>
 
 namespace asio = boost::asio; // from <boost/asio.hpp>
+
+// We store the SHA256 hash of the object key as the key in the Zstore Map, and
+// the value in the Zstore Map is the tuple of the target device and the LBA
 using ZstoreMap = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
-using ZstoreBloomFilter = boost::concurrent_flat_set<ObjectKeyHash>;
+
+// We record hash of recent writes as a concurrent hashmap, where the key is
+// the hash, and the value is the gateway of the writes.
+using ZstoreBloomFilter = boost::concurrent_flat_map<ObjectKeyHash, int>;
+
+// We record the target device and LBA of the blocks that we need to GC
 using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
+
+// We use a circular buffer to store RDMA writes, note that we have two designs
+// for this. We are choosing the first design for now, as it is more efficient:
+// 1. use a 64 bits entry for the circular buffer, where the upper 32 bits is
+//    the hash of object key, and the lower 32 bits stores the current epoch,
+//    and the value is the target device and LBA
+// 2. use a 32 bits entry for the circular buffer, where the upper 31 bites is
+//   the hash of object key, and the lower bit signals the epoch change
+//  (0: no change, 1: epoch change), and the value is the target device and LBA
+using RdmaBuffer = boost::circular_buffer<ObjectKeyHash>;
 
 class Device;
 class Zone;
@@ -34,12 +54,18 @@ class ZstoreController
     // 1: prepare
     // 2: run
 
+    // Zookeeper
+    Result<void> ZookeeperJoin();
+    Result<void> ZookeeperElect();
+
     /* NOTE workflow for persisting map
      * 1. zookeeper will select a server (leader) perform checkpoint
      * 2. leader will announce epoch change to all servers (N -> N+1). Each
      *    follower will (1) create new map and new bloom filter for N+1, and
      *    (2) return list of writes and wp for each device
      */
+    Result<void> PersistMap();
+
     int PopulateMap();
     Result<void> DumpAllMap();
     Result<void> ReadAllMap();
@@ -187,12 +213,17 @@ class ZstoreController
         }
     };
 
+    // watcher function would process events
+    void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
+                   void *watcherCtx);
+
   private:
     // number of devices
     int mN;
     // context pool size
     int mContextPoolSize;
     int _map_size = 1'000'000;
+    int _rdma_buffer_size = 1024;
 
     // RequestContext *getContextForUserRequest();
     // void doWrite(RequestContext *context);
@@ -219,4 +250,16 @@ class ZstoreController
     // std::queue<RequestContext *> mReadQueue;
 
     std::vector<Zone *> mZones;
+
+    // zookeeper handler
+
+    // Keeping track of the connection state
+    static int mZkConnected;
+    static int mZkExpired;
+
+    // RDMA buffers
+    RdmaBuffer mRdmaBuffer(_rdma_buffer_size);
+
+    // *zkHandler handles the connection with Zookeeper
+    static zhandle_t *mZkHandler;
 };

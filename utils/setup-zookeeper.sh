@@ -5,18 +5,20 @@ set -xeuo pipefail
 
 zstore_dir=$(git rev-parse --show-toplevel)
 source $zstore_dir/.env
+cd ../../
 
 sudo snap install ant --classic
 sudo apt install openjdk-8-jdk-headless maven
-sudo apt-get install libcppunit-dev 
+sudo apt-get install libcppunit-dev autoconf automake libtool
 
+mkdir -p tools
 wget https://dlcdn.apache.org/zookeeper/zookeeper-3.9.3/apache-zookeeper-3.9.3.tar.gz
 tar -xvf apache-zookeeper-3.9.3.tar.gz
 
 # jute
-cd zookeeper-release-3.9.3/zookeeper-jute/; mvn compile
+cd apache-zookeeper-3.9.3/zookeeper-jute/; mvn compile
 
 # c client
 cd /home/shwsun/tools/apache-zookeeper-3.9.3/zookeeper-client/zookeeper-client-c
-# autoreconf -if
+autoreconf -if
 ./configure; make; sudo make install
