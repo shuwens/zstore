@@ -29,7 +29,7 @@ install-boost:
 	# mkdir lib
 	wget -O boost_1_86_0.tar.bz2 https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.bz2
 	tar --bzip2 -xf boost_1_86_0.tar.bz2
-	cd boost_1_86_0 && ./bootstrap.sh --prefix=/usr/local
+	cd boost_1_86_0 && ./bootstrap.sh --prefix=/usr/local/
 	cd boost_1_86_0 && ./b2
 	cd boost_1_86_0 && sudo ./b2 install
 	cat /usr/local/include/boost/version.hpp | grep "define BOOST_LIB_VERSION"
