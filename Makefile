@@ -29,13 +29,12 @@ install-boost:
 	# mkdir lib
 	wget -O boost_1_86_0.tar.bz2 https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.bz2
 	tar --bzip2 -xf boost_1_86_0.tar.bz2
-	cd boost_1_86_0 && ./bootstrap.sh --prefix=/usr/
+	cd boost_1_86_0 && ./bootstrap.sh --prefix=/usr/local
 	cd boost_1_86_0 && ./b2
 	cd boost_1_86_0 && sudo ./b2 install
-	cat /usr/include/boost/version.hpp | grep "define BOOST_LIB_VERSION"
+	cat /usr/local/include/boost/version.hpp | grep "define BOOST_LIB_VERSION"
 	sudo ldconfig
-	# meson.build:67:1: ERROR: Dependency "boost" not found, tried system
-
+	# remember to add /etc/ld.so.conf.d/boost.conf with /usr/local/lib in it
 
 install-deps:
 	sudo apt install -y meson nvme-cli net-tools
