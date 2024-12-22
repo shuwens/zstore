@@ -16,10 +16,22 @@ typedef http::response<http::string_body> HttpResponse;
 
 // Basic Zstore types
 typedef std::string ObjectKey;
-typedef unsigned long long ObjectKeyHash;
+typedef std::array<uint8_t, 32> ObjectKeyHash;
 typedef std::string TargetDev;
 typedef u64 Lba;
 typedef u32 Length;
+
+// Custom hash function for std::array<uint8_t, 32>
+typedef struct ArrayHash {
+    std::size_t operator()(const std::array<uint8_t, 32> &key) const
+    {
+        std::size_t hash = 0;
+        for (auto byte : key) {
+            hash = hash * 31 + byte; // Simple hash combination
+        }
+        return hash;
+    }
+};
 
 // Device types
 typedef std::tuple<TargetDev, Lba, Length> TargetLbaTuple;
@@ -38,6 +50,15 @@ typedef std::tuple<std::pair<TargetDev, u32>, std::pair<TargetDev, u32>,
 // operation on the map
 // https://www.boost.org/doc/libs/1_86_0/libs/unordered/doc/html/unordered.html#concurrent_blocking_operations
 using MapEntry = std::tuple<TargetLbaTuple, TargetLbaTuple, TargetLbaTuple>;
+
+// Circular buffer for RDMA writes
+struct BufferEntry {
+    ObjectKeyHash sha256_hash; // SHA256 hash: 32 bytes
+    uint8_t epoch;             // Epoch: 1 byte
+    uint8_t target_device_id;  // Target device ID: 1 byte
+    uint64_t lba;              // Logical Block Address: 8 bytes
+    uint32_t length;           // Length: 4 bytes
+};
 
 class ZstoreController;
 

@@ -81,12 +81,20 @@ void mergeChunksIntoObject(std::vector<RequestContext *> chunk_vec,
 
 // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c/10632725
 
-void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
-                        char outputBuffer[65]);
-void sha256_string(const char *string, char outputBuffer[65]);
+// void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
+//                         char outputBuffer[65]);
+// void sha256_string(const char *string, char outputBuffer[65]);
 
 // Function to compute SHA-256 hash from a string_view
-std::string sha256(std::string_view input);
+// std::string sha256(std::string_view input);
+ObjectKeyHash computeSHA256(const std::string &data);
+
+std::string hashToCString(const ObjectKeyHash &hashKey);
+
+// Function to convert a hexadecimal string to a std::array<uint8_t, 32>
+ObjectKeyHash stringToHashKey(const std::string &hexString);
+
+unsigned int arrayToSeed(const ObjectKeyHash &hashKey);
 
 // -----------------------------------------------------
 

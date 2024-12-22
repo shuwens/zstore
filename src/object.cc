@@ -11,6 +11,53 @@
 #include <string.h>
 #include <string>
 
+// Function to compute SHA256 hash
+ObjectKeyHash computeSHA256(const std::string &data)
+{
+    ObjectKeyHash hash{};
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, data.data(), data.size());
+    SHA256_Final(hash.data(), &sha256);
+    return hash;
+}
+
+std::string hashToCString(const ObjectKeyHash &hashKey)
+{
+    char hashString[65]; // 64 characters for hex + 1 for null terminator
+    for (size_t i = 0; i < hashKey.size(); ++i) {
+        snprintf(&hashString[i * 2], 3, "%02x",
+                 hashKey[i]); // Format each byte as two hex digits
+    }
+    return std::string(hashString);
+}
+
+ObjectKeyHash stringToHashKey(const std::string &hexString)
+{
+    if (hexString.size() != 64) {
+        throw std::invalid_argument(
+            "Invalid hash string length. Expected 64 hexadecimal characters.");
+    }
+
+    ObjectKeyHash hashKey{};
+    for (size_t i = 0; i < hashKey.size(); ++i) {
+        unsigned int byte;
+        std::istringstream(hexString.substr(i * 2, 2)) >> std::hex >> byte;
+        hashKey[i] = static_cast<uint8_t>(byte);
+    }
+    return hashKey;
+}
+
+// Function to convert a 32-byte array to an unsigned int seed
+unsigned int arrayToSeed(const ObjectKeyHash &hashKey)
+{
+    unsigned int seed = 0;
+    for (size_t i = 0; i < hashKey.size(); ++i) {
+        seed = seed * 31 + hashKey[i]; // Combine bytes into a single value
+    }
+    return seed;
+}
+
 // void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
 //                         char outputBuffer[65])
 // {

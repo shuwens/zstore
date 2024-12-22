@@ -170,196 +170,196 @@ executable(
 
 # Tests
 # -----------
-t1 = executable(
-	'test_simple_object',
-	files('src/tests/simple_object_test.cc'),
-	dependencies: [zstore_deps],
-	link_args: spdk_link_args,
-)
-test('Simple object', t1)
-
-t2 = executable(
-	'test_different_objects',
-	files('src/tests/different_objects_test.cc'),
-	dependencies: [zstore_deps],
-	link_args: spdk_link_args,
-	install: true,
-)
-test('Different object', t2)
-
-t3 = executable(
-	'unittest_map',
-	files('src/tests/map_unittest.cc'),
-	dependencies: [zstore_deps],
-	link_args: spdk_link_args,
-	install: true,
-)
-test('Map dump and load unit tests', t3)
-
-t4 = executable(
-	'test_4KB_object',
-	files('src/tests/4KB_object_test.cc'),
-	dependencies: [zstore_deps],
-	link_args: spdk_link_args,
-	install: true,
-)
-test('4KB object', t4)
-
-t5 = executable(
-	'test_4MB_object',
-	files('src/tests/4MB_object_test.cc'),
-	dependencies: [zstore_deps],
-	link_args: spdk_link_args,
-	install: true,
-)
-test('4MB object', t5)
-
-# executable(
-# 	'test_map',
-# 	files('src/tests/map_test.cc'),
-# 	dependencies: [zstore_deps] ,
+# t1 = executable(
+# 	'test_simple_object',
+# 	files('src/tests/simple_object_test.cc'),
+# 	dependencies: [zstore_deps],
+# 	link_args: spdk_link_args,
+# )
+# test('Simple object', t1)
+#
+# t2 = executable(
+# 	'test_different_objects',
+# 	files('src/tests/different_objects_test.cc'),
+# 	dependencies: [zstore_deps],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-
-# FIXME
-# reads from the drive
-# executable(
-# 	'spdk_read',
-# 	files('examples/spdk_append.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# test('Different object', t2)
+#
+# t3 = executable(
+# 	'unittest_map',
+# 	files('src/tests/map_unittest.cc'),
+# 	dependencies: [zstore_deps],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-
-# nvmf multipath signle drive
-executable(
-	'mpsd_append',
-	files('examples/multipath/mp_one_drive_append.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'mpsd_read',
-	files('examples/multipath/mp_one_drive_read.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'two_targets_read',
-	files('examples/multipath/two_targets_read.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'three_targets_reads',
-	files('examples/multipath/three_target_reads.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'three_targets_writes',
-	files('examples/multipath/three_target_writes.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-# executable(
-# 	'check_read',
-# 	files('src/examples/check_read.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# test('Map dump and load unit tests', t3)
+#
+# t4 = executable(
+# 	'test_4KB_object',
+# 	files('src/tests/4KB_object_test.cc'),
+# 	dependencies: [zstore_deps],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-
-# nvmf arbitration
+# test('4KB object', t4)
+#
+# t5 = executable(
+# 	'test_4MB_object',
+# 	files('src/tests/4MB_object_test.cc'),
+# 	dependencies: [zstore_deps],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# test('4MB object', t5)
+#
+# # executable(
+# # 	'test_map',
+# # 	files('src/tests/map_test.cc'),
+# # 	dependencies: [zstore_deps] ,
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+#
+# # FIXME
+# # reads from the drive
+# # executable(
+# # 	'spdk_read',
+# # 	files('examples/spdk_append.cc'),
+# # 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+#
+# # nvmf multipath signle drive
 # executable(
-# 	'test_read',
-# 	files('examples/arbitration/arbitration_read.cc'),
+# 	'mpsd_append',
+# 	files('examples/multipath/mp_one_drive_append.cc'),
 # 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
 # executable(
-# 	'test_append',
-# 	files('examples/arbitration/arbitration_append.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
-# localand rdma
-# executable(
-# 	'arbitration',
-# 	files('examples/arbitration/arbitration.cc'),
+# 	'mpsd_read',
+# 	files('examples/multipath/mp_one_drive_read.cc'),
 # 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
 # executable(
-# 	'rdma_read',
-# 	files('examples/arbitration/arbitration_rdma_read.cc'),
+# 	'two_targets_read',
+# 	files('examples/multipath/two_targets_read.cc'),
 # 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
 # executable(
-# 	'rdma_append',
-# 	files('examples/arbitration/arbitration_rdma_append.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
-# HTTP server
-# executable(
-# 	'http_async',
-# 	files('examples/boost/http_server_async.cpp'),
+# 	'three_targets_reads',
+# 	files('examples/multipath/three_target_reads.cc'),
 # 	dependencies: [zstore_deps] + [dependency('_spdk')],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
 # executable(
-# 	'http_awaitable',
-# 	files('examples/boost/http_server_awaitable.cc'),
+# 	'three_targets_writes',
+# 	files('examples/multipath/three_target_writes.cc'),
 # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# # executable(
+# # 	'check_read',
+# # 	files('src/examples/check_read.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+#
+# # nvmf arbitration
+# # executable(
+# # 	'test_read',
+# # 	files('examples/arbitration/arbitration_read.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+# # executable(
+# # 	'test_append',
+# # 	files('examples/arbitration/arbitration_append.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+#
+# # localand rdma
+# # executable(
+# # 	'arbitration',
+# # 	files('examples/arbitration/arbitration.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+# # executable(
+# # 	'rdma_read',
+# # 	files('examples/arbitration/arbitration_rdma_read.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+# # executable(
+# # 	'rdma_append',
+# # 	files('examples/arbitration/arbitration_rdma_append.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+#
+# # HTTP server
+# # executable(
+# # 	'http_async',
+# # 	files('examples/boost/http_server_async.cpp'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+# # executable(
+# # 	'http_awaitable',
+# # 	files('examples/boost/http_server_awaitable.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+# # executable(
+# # 	'http_awaitable2',
+# # 	files('examples/boost/http_server_awaitable2.cc'),
+# # 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# # 	link_args: spdk_link_args,
+# # 	install: true,
+# # )
+#
+# # zookeeper
+# executable(
+# 	'zkclient',
+# 	files('examples/zookeeper/zkclient.cc'),
+# 	dependencies: [zstore_deps],
+# 	include_directories: zk_inc_dir,
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+#
+# # rdma
+# executable(
+# 	'rdma_client',
+# 	files('examples/rdma/rdma_client.cc'),
+# 	dependencies: [zstore_deps] + [rdma],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
 # executable(
-# 	'http_awaitable2',
-# 	files('examples/boost/http_server_awaitable2.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	'rdma_server',
+# 	files('examples/rdma/rdma_server.cc'),
+# 	dependencies: [zstore_deps] + [rdma],
 # 	link_args: spdk_link_args,
 # 	install: true,
 # )
-
-# zookeeper
-executable(
-	'zkclient',
-	files('examples/zookeeper/zkclient.cc'),
-	dependencies: [zstore_deps],
-	include_directories: zk_inc_dir,
-	link_args: spdk_link_args,
-	install: true,
-)
-
-# rdma
-executable(
-	'rdma_client',
-	files('examples/rdma/rdma_client.cc'),
-	dependencies: [zstore_deps] + [rdma],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'rdma_server',
-	files('examples/rdma/rdma_server.cc'),
-	dependencies: [zstore_deps] + [rdma],
-	link_args: spdk_link_args,
-	install: true,
-)

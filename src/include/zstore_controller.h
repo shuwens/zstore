@@ -16,24 +16,30 @@ namespace asio = boost::asio; // from <boost/asio.hpp>
 
 // We store the SHA256 hash of the object key as the key in the Zstore Map, and
 // the value in the Zstore Map is the tuple of the target device and the LBA
-using ZstoreMap = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
+using ZstoreMap =
+    boost::concurrent_flat_map<ObjectKeyHash, MapEntry, ArrayHash>;
 
 // We record hash of recent writes as a concurrent hashmap, where the key is
 // the hash, and the value is the gateway of the writes.
-using ZstoreBloomFilter = boost::concurrent_flat_map<ObjectKeyHash, int>;
+using ZstoreRecentWriteMap = boost::concurrent_flat_map<ObjectKeyHash, u8>;
+// TODO: query neighbour info on this hash with udp
+
+// TODO: announcement with zoop keeper
+// hash we send is with epoch
 
 // We record the target device and LBA of the blocks that we need to GC
 using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
 
 // We use a circular buffer to store RDMA writes, note that we have two designs
 // for this. We are choosing the first design for now, as it is more efficient:
-// 1. use a 64 bits entry for the circular buffer, where the upper 32 bits is
-//    the hash of object key, and the lower 32 bits stores the current epoch,
+// 1. use a 64 bytes entry for the circular buffer, where the upper 32 bytes is
+//    the hash of object key, and the lower 32 bytes stores the current epoch,
 //    and the value is the target device and LBA
-// 2. use a 32 bits entry for the circular buffer, where the upper 31 bites is
+// 2. use a 64 bits entry for the circular buffer, where the upper 31 bytes is
 //   the hash of object key, and the lower bit signals the epoch change
 //  (0: no change, 1: epoch change), and the value is the target device and LBA
-using RdmaBuffer = boost::circular_buffer<ObjectKeyHash>;
+//
+// using RdmaBuffer = boost::circular_buffer<BufferEntry>;
 
 class Device;
 class Zone;
@@ -97,12 +103,12 @@ class ZstoreController
     // ZStore Bloom Filter: this maintains a bloom filter of hashes of
     // object name (key).
     //
-    // For simplicity, right now we are just using a set to keep track of
-    // the hashes
-    ZstoreBloomFilter mBF;
+    // For simplicity, right now we are just using a hash map set to keep track
+    // of the hashes
+    ZstoreRecentWriteMap mRecentWriteMap;
     // Bloomfilter APIs
-    Result<bool> SearchBF(const ObjectKeyHash &key_hash);
-    Result<bool> UpdateBF(const ObjectKeyHash &key_hash);
+    Result<bool> SearchRecentWriteMap(const ObjectKeyHash &key_hash);
+    Result<bool> UpdateRecentWriteMap(const ObjectKeyHash &key_hash);
 
     // ZStore GC Map: we keep tracks of blocks that we need to GC. Note that we
     // can potentially optimize this to be per zone tracking, which will help
@@ -190,6 +196,7 @@ class ZstoreController
     uint64_t mTotalCounts = 0;
     uint64_t mManagementCounts = 0;
 
+    // Device API: getters
     Device *GetDevice(const std::string &target_dev)
     {
         // NOTE currently we don't create mapping between target device to
@@ -207,17 +214,34 @@ class ZstoreController
             return mDevices[4];
         } else if (target_dev == "Zstore4Dev2") {
             return mDevices[5];
+        } else if (target_dev == "Zstore5Dev1") {
+            return mDevices[6];
+        } else if (target_dev == "Zstore5Dev2") {
+            return mDevices[7];
         } else {
             log_error("target device does not exist {}", target_dev);
             return nullptr;
         }
     };
 
+    Device *GetDevice(const int &index)
+    {
+        if (index >= mDevices.size()) {
+            log_error("Get Device: index out of bound {}", index);
+            return nullptr;
+        }
+        return mDevices[index];
+    };
+
     // watcher function would process events
     void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
                    void *watcherCtx);
 
+    void SetGateway(u8 gateway) { mGateway = gateway; };
+    u8 GetGateway() { return mGateway; };
+
   private:
+    u8 mGateway = 0;
     // number of devices
     int mN;
     // context pool size
@@ -254,11 +278,11 @@ class ZstoreController
     // zookeeper handler
 
     // Keeping track of the connection state
-    static int mZkConnected;
-    static int mZkExpired;
+    int mZkConnected;
+    int mZkExpired;
 
-    // RDMA buffers
-    RdmaBuffer mRdmaBuffer(_rdma_buffer_size);
+    // RDMA buffers: 64 entry
+    boost::circular_buffer<BufferEntry> mRdmaBuffer;
 
     // *zkHandler handles the connection with Zookeeper
     static zhandle_t *mZkHandler;

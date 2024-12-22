@@ -53,11 +53,14 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     } else if (mKeyExperiment == 6) {
         // Checkpoint
         if (mPhase == 1) {
-            log_info("Init Zstore for Checkpointing.", mKeyExperiment, mPhase);
+            log_info("Init Zstore for Checkpointing Gateway 1", mKeyExperiment,
+                     mPhase);
+            SetGateway(1);
         } else if (mPhase == 2) {
-            log_info("Init Zstore for Checkpointing.", mKeyExperiment, mPhase);
+            log_info("Init Zstore for Checkpointing Gateway 2", mKeyExperiment,
+                     mPhase);
+            SetGateway(2);
         }
-
     } else if (mKeyExperiment == 7) {
         // GC
     }
@@ -70,16 +73,41 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
         Configuration::GetNumOfTargets(), Configuration::GetNumOfDevices());
 
     std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
-        ip_port_devs{
-            std::make_tuple("nqn.2024-04.io.zstore2:cnode1", "12.12.12.2",
-                            "5520", Configuration::GetZoneId(),
-                            Configuration::GetZoneId()),
-            std::make_tuple("nqn.2024-04.io.zstore3:cnode1", "12.12.12.3",
-                            "5520", Configuration::GetZoneId(),
-                            Configuration::GetZoneId()),
-            std::make_tuple("nqn.2024-04.io.zstore4:cnode1", "12.12.12.4",
-                            "5520", Configuration::GetZoneId(),
-                            Configuration::GetZoneId())};
+        ip_port_devs;
+    boost::asio::ip::address address;
+    if (mKeyExperiment == 6) {
+        if (mPhase == 1) {
+            address = asio::ip::make_address("12.12.12.1");
+            ip_port_devs.push_back(std::make_tuple(
+                "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
+                Configuration::GetZoneId(), Configuration::GetZoneId()));
+            ip_port_devs.push_back(std::make_tuple(
+                "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
+                Configuration::GetZoneId(), Configuration::GetZoneId()));
+        }
+    } else if (mPhase == 2) {
+        address = asio::ip::make_address("12.12.12.6");
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+    } else {
+        address = asio::ip::make_address("12.12.12.1");
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+    }
 
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
@@ -128,7 +156,6 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
     initIoThread();
 
-    auto const address = asio::ip::make_address("12.12.12.1");
     auto const port = 2000;
 
     // The io_context is required for all I/O
@@ -218,7 +245,8 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
 // this yields a list of devices for a given object key
 //
-// right now we create 120 (6*5*4) tuples, to consider ordering of every tuple
+// right now we create 120 (6*5*4) tuples, to consider ordering of every
+// tuple
 int ZstoreController::PopulateDevHash()
 {
     std::unique_lock lock(mDevHashMutex);
@@ -328,22 +356,24 @@ static void busyWait(bool *ready)
 }
 
 // Bloom filter APIs
-Result<bool> ZstoreController::SearchBF(const ObjectKeyHash &key_hash)
+Result<bool>
+ZstoreController::SearchRecentWriteMap(const ObjectKeyHash &key_hash)
 {
-    return mBF.contains(key_hash);
+    return mRecentWriteMap.contains(key_hash);
 }
 
-Result<bool> ZstoreController::UpdateBF(const ObjectKeyHash &key_hash)
+Result<bool>
+ZstoreController::UpdateRecentWriteMap(const ObjectKeyHash &key_hash)
 {
-    return mBF.insert(key_hash);
+    return mRecentWriteMap.insert_or_assign(key_hash, GetGateway());
 }
 
 // Map APIs
-
 Result<DevTuple> ZstoreController::GetDevTuple(ObjectKeyHash key_hash)
 {
-    std::srand(key_hash); // seed the random number generator
-                          // with the hash of the object key
+    unsigned int seed = arrayToSeed(key_hash);
+    std::srand(seed); // seed the random number generator
+                      // with the hash of the object key
     int random_index = std::rand() % mDevHash.size();
     return mDevHash[random_index];
 }
@@ -604,8 +634,8 @@ void ZstoreController::Drain()
 // void ZstoreController::writeMapToFile(const std::string &filename)
 // {
 //     try {
-//         std::ofstream file_out(filename, std::ios::out | std::ios::trunc);
-//         if (!file_out.is_open()) {
+//         std::ofstream file_out(filename, std::ios::out |
+//         std::ios::trunc); if (!file_out.is_open()) {
 //             throw std::runtime_error("Could not open file for writing");
 //         }
 //         boost::archive::text_oarchive archive(file_out);
@@ -614,7 +644,8 @@ void ZstoreController::Drain()
 //         std::cout << "Map successfully written to file: " << filename
 //                   << std::endl;
 //     } catch (const std::exception &e) {
-//         std::cerr << "Error writing map to file: " << e.what() << std::endl;
+//         std::cerr << "Error writing map to file: " << e.what() <<
+//         std::endl;
 //     }
 // }
 //
@@ -701,12 +732,7 @@ int ZstoreController::PopulateMap()
                     Configuration::GetObjectSizeInBytes() /
                         Configuration::GetBlockSize())
                     .value();
-            std::string hash_hex = sha256(std::to_string(i));
-            // log_debug("Populate Map: index {}, key {}", i,
-            //           "/db/" + std::to_string(i));
-            unsigned long long hash =
-                std::stoull(hash_hex.substr(0, 16), nullptr, 16);
-            mMap.emplace(hash, entry);
+            mMap.emplace(computeSHA256(std::to_string(i)), entry);
             current_lba++;
         }
     } else if (mKeyExperiment == 2) {
@@ -754,8 +780,8 @@ void ZstoreController::ZkWatcher(zhandle_t *zkH, int type, int state,
         // state refers to states of zookeeper connection.
         // To keep it simple, we would demonstrate these 3:
         // ZOO_EXPIRED_SESSION_STATE, ZOO_CONNECTED_STATE,
-        // ZOO_NOTCONNECTED_STATE If you are using ACL, you should be aware of
-        // an authentication failure state - ZOO_AUTH_FAILED_STATE
+        // ZOO_NOTCONNECTED_STATE If you are using ACL, you should be aware
+        // of an authentication failure state - ZOO_AUTH_FAILED_STATE
         if (state == ZOO_CONNECTED_STATE) {
             mZkConnected = 1;
         } else if (state == ZOO_NOTCONNECTED_STATE) {

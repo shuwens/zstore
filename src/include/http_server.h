@@ -91,7 +91,7 @@ void create_s3_list_objects_response(
         tinyxml2::XMLElement *contents = doc.NewElement("Contents");
 
         tinyxml2::XMLElement *key = doc.NewElement("Key");
-        key->SetText(std::to_string(hash).c_str());
+        key->SetText(hashToCString(hash).c_str());
         contents->InsertEndChild(key);
 
         tinyxml2::XMLElement *lastModified = doc.NewElement("LastModified");
@@ -148,8 +148,7 @@ auto awaitable_on_request(HttpRequest req,
     if (Configuration::Debugging())
         log_debug("Bucket: {}, Object Key: {}, url {}", bucket, object_key,
                   url);
-    std::string hash_hex = sha256(object_key);
-    ObjectKeyHash key_hash = std::stoull(hash_hex.substr(0, 16), nullptr, 16);
+    ObjectKeyHash key_hash = computeSHA256(object_key);
 
     if (Configuration::Debugging()) {
         if (req.method() == http::verb::get)
@@ -231,7 +230,7 @@ auto awaitable_on_request(HttpRequest req,
             entry = e.value();
         }
 
-        if (zctrl_.SearchBF(key_hash).value()) {
+        if (zctrl_.SearchRecentWriteMap(key_hash).value()) {
             if (zctrl_.mPhase == 3) {
                 // log_info("Object {} is recently modified", object_key);
                 // log_error("Unimplemented!!!");
@@ -354,7 +353,7 @@ auto awaitable_on_request(HttpRequest req,
         auto [tgt3, _, _] = third;
 
         // update and broadcast BF
-        auto rc2 = zctrl_.UpdateBF(key_hash);
+        auto rc2 = zctrl_.UpdateRecentWriteMap(key_hash);
         assert(rc2.has_value());
 
         auto dev1 = zctrl_.GetDevice(tgt1);
