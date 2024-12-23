@@ -3,6 +3,7 @@
 #include "include/http_server.h"
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <boost/outcome/utils.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/utility.hpp>
@@ -15,9 +16,9 @@
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
-// NOTE we run Zstore experiments with different scenarios, hence we need to
-// constantly change the behavior of how we handle map/bloom filter/rdma
-// hashmap. These functions are moved to the top
+#define ZK_PATH "/election/node_"
+#define SESSION_TIMEOUT 30000
+std::string g_data;
 
 int ZstoreController::Init(bool object, int key_experiment, int phase)
 {
@@ -232,9 +233,9 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
         // mDevices[i]->GetZoneHeaders(zonesAndHeaders[i]);
     }
 
-    // Zookeeper initialization
-    mZkConnected = 0;
-    mZkExpired = 0;
+    if (mKeyExperiment == 6) {
+        startZooKeeper();
+    }
 
     // RDMA circular buffer initialization
 
@@ -771,32 +772,100 @@ int ZstoreController::PopulateMap()
     return 0;
 }
 
-// watcher function would process events
-void ZstoreController::ZkWatcher(zhandle_t *zkH, int type, int state,
-                                 const char *path, void *watcherCtx)
-{
-    if (type == ZOO_SESSION_EVENT) {
+// The following functions are used to perform leader election and announcement
+// using Zookeeper.
+// Zookeeper recipers:
+// https://zookeeper.apache.org/doc/current/recipes.html
+// other source:
+// https://www.geeksforgeeks.org/leader-election-in-a-distributed-system-using-zookeeper/
+// https://www.tutorialspoint.com/zookeeper/zookeeper_leader_election.htm
 
+void ZstoreController::createEphemeralSequentialNode()
+{
+    zoo_create(mZkHandler, ZK_PATH, g_data.c_str(), g_data.size(),
+               &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL_SEQUENTIAL, NULL, 0);
+}
+
+static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
+                      void *watcherCtx);
+
+void ZstoreController::reEvaluateLeadership(
+    const std::vector<std::string> &children)
+{
+    // Extract the sequence numbers and sort
+    std::vector<std::string> sortedChildren = children;
+    std::sort(sortedChildren.begin(), sortedChildren.end());
+
+    auto it = std::find(sortedChildren.begin(), sortedChildren.end(),
+                        currentNodePath.substr(strlen(ZK_PATH)));
+    if (it == sortedChildren.begin()) {
+        // Current node has the smallest sequence number, becomes the leader
+        std::cout << "Node " << currentNodePath << " is now the leader."
+                  << std::endl;
+    } else {
+        // Watch the predecessor node
+        predecessorNodePath = ZK_PATH + *(--it);
+        zoo_wexists(mZkHandler, predecessorNodePath.c_str(), ZkWatcher, this,
+                    nullptr);
+        std::cout << "Watching predecessor: " << predecessorNodePath
+                  << std::endl;
+    }
+}
+
+// watcher function would process events
+static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
+                      void *watcherCtx)
+{
+    ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
+    if (type == ZOO_SESSION_EVENT) {
         // state refers to states of zookeeper connection.
         // To keep it simple, we would demonstrate these 3:
         // ZOO_EXPIRED_SESSION_STATE, ZOO_CONNECTED_STATE,
         // ZOO_NOTCONNECTED_STATE If you are using ACL, you should be aware
         // of an authentication failure state - ZOO_AUTH_FAILED_STATE
         if (state == ZOO_CONNECTED_STATE) {
-            mZkConnected = 1;
+            ctrl->mZkConnected = 1;
         } else if (state == ZOO_NOTCONNECTED_STATE) {
-            mZkConnected = 0;
+            ctrl->mZkConnected = 0;
         } else if (state == ZOO_EXPIRED_SESSION_STATE) {
-            mZkExpired = 1;
-            mZkConnected = 0;
+            ctrl->mZkExpired = 1;
+            ctrl->mZkConnected = 0;
             zookeeper_close(zkH);
+        }
+    } else if (type == ZOO_DELETED_EVENT) {
+        std::cout << "Predecessor node deleted: " << path
+                  << ". Re-evaluating leadership..." << std::endl;
+        // Get the list of children to re-evaluate leadership
+        struct String_vector str_vec;
+        allocate_String_vector(&str_vec, 0);
+        bool is_watch = true;
+        int rc =
+            zoo_get_children(ctrl->mZkHandler, ZK_PATH, is_watch, &str_vec);
+
+        if (rc == ZOK && str_vec.count) {
+            std::vector<std::string> children;
+            for (int i = 0; i < str_vec.count; ++i) {
+                children.emplace_back(str_vec.data[i]);
+            }
+            ctrl->reEvaluateLeadership(children);
+        } else {
+            std::cerr << "Error fetching children: " << rc << std::endl;
         }
     }
 }
 
-Result<void> ZookeeperJoin() {}
+void ZstoreController::startZooKeeper()
+{
+    mZkHandler = zookeeper_init("localhost:2181", ZkWatcher, SESSION_TIMEOUT, 0,
+                                this, 0);
+    if (!mZkHandler) {
+        std::cerr << "Error connecting to ZooKeeper server." << std::endl;
+        return;
+    }
+    std::cout << "Connected to ZooKeeper server." << std::endl;
 
-Result<void> ZookeeperElect() {}
+    createEphemeralSequentialNode();
+}
 
 /* NOTE workflow for persisting map
  * 1. zookeeper will select a server (leader) perform checkpoint

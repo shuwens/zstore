@@ -10,6 +10,8 @@
 #include <spdk/env.h>
 #include <spdk/thread.h>
 #include <unistd.h>
+
+#define THREADED 1
 #include <zookeeper/zookeeper.h>
 
 namespace asio = boost::asio; // from <boost/asio.hpp>
@@ -24,8 +26,11 @@ using ZstoreMap =
 using ZstoreRecentWriteMap = boost::concurrent_flat_map<ObjectKeyHash, u8>;
 // TODO: query neighbour info on this hash with udp
 
-// TODO: announcement with zoop keeper
-// hash we send is with epoch
+// TODO: announcement with zoop keeper hash we send is with epoch
+
+// TODO:zookeeper api
+
+// TODO: rdma buffer api
 
 // We record the target device and LBA of the blocks that we need to GC
 using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
@@ -38,8 +43,7 @@ using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
 // 2. use a 64 bits entry for the circular buffer, where the upper 31 bytes is
 //   the hash of object key, and the lower bit signals the epoch change
 //  (0: no change, 1: epoch change), and the value is the target device and LBA
-//
-// using RdmaBuffer = boost::circular_buffer<BufferEntry>;
+using RdmaBuffer = boost::circular_buffer<BufferEntry>;
 
 class Device;
 class Zone;
@@ -63,6 +67,7 @@ class ZstoreController
     // Zookeeper
     Result<void> ZookeeperJoin();
     Result<void> ZookeeperElect();
+    Result<void> ZookeeperAnnounce();
 
     /* NOTE workflow for persisting map
      * 1. zookeeper will select a server (leader) perform checkpoint
@@ -233,12 +238,23 @@ class ZstoreController
         return mDevices[index];
     };
 
-    // watcher function would process events
-    void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
-                   void *watcherCtx);
-
     void SetGateway(u8 gateway) { mGateway = gateway; };
     u8 GetGateway() { return mGateway; };
+
+    // zookeeper handler: these have to be public
+    void reEvaluateLeadership(const std::vector<std::string> &children);
+    void watchPredecessor(zhandle_t *zzh, int type, int state, const char *path,
+                          void *watcherCtx);
+    void createEphemeralSequentialNode();
+    void startZooKeeper();
+
+    // Keeping track of the connection state
+    int mZkConnected;
+    int mZkExpired;
+    // *zkHandler handles the connection with Zookeeper
+    zhandle_t *mZkHandler;
+    std::string currentNodePath;
+    std::string predecessorNodePath;
 
   private:
     u8 mGateway = 0;
@@ -275,15 +291,6 @@ class ZstoreController
 
     std::vector<Zone *> mZones;
 
-    // zookeeper handler
-
-    // Keeping track of the connection state
-    int mZkConnected;
-    int mZkExpired;
-
     // RDMA buffers: 64 entry
-    boost::circular_buffer<BufferEntry> mRdmaBuffer;
-
-    // *zkHandler handles the connection with Zookeeper
-    static zhandle_t *mZkHandler;
+    RdmaBuffer mRdmaBuffer;
 };

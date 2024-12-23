@@ -164,6 +164,7 @@ executable(
 	'zstore',
 	zstore_src,
 	dependencies: [zstore_deps],
+	include_directories: zk_inc_dir,
 	link_args: spdk_link_args,
 	install: true,
 )
@@ -344,6 +345,33 @@ executable(
 executable(
 	'zkclient',
 	files('examples/zookeeper/zkclient.cc'),
+	dependencies: [zstore_deps],
+	include_directories: zk_inc_dir,
+	link_args: spdk_link_args,
+	install: true,
+)
+
+executable(
+	'zkleader',
+	files('examples/zookeeper/zkleader.cc'),
+	dependencies: [zstore_deps],
+	include_directories: zk_inc_dir,
+	link_args: spdk_link_args,
+	install: true,
+)
+
+executable(
+	'zklock',
+	files('examples/zookeeper/zklock.cc'),
+	dependencies: [zstore_deps],
+	include_directories: zk_inc_dir,
+	link_args: spdk_link_args,
+	install: true,
+)
+
+executable(
+	'zktest',
+	files('examples/zookeeper/zktest.cc'),
 	dependencies: [zstore_deps],
 	include_directories: zk_inc_dir,
 	link_args: spdk_link_args,
