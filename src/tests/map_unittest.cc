@@ -11,13 +11,11 @@
 #include <unordered_map>
 #include <vector>
 
-using ObjectKeyHash = unsigned long long;
 using TargetDev = std::string;
 using Lba = u64;
 using Length = unsigned int;
 using TargetLbaTuple = std::tuple<TargetDev, Lba, Length>;
 using MapEntry = std::tuple<TargetLbaTuple, TargetLbaTuple, TargetLbaTuple>;
-using ZstoreMap = boost::concurrent_flat_map<ObjectKeyHash, MapEntry>;
 
 ZstoreMap mMap;
 
