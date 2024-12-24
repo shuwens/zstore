@@ -242,11 +242,12 @@ class ZstoreController
     u8 GetGateway() { return mGateway; };
 
     // zookeeper handler: these have to be public
-    void reEvaluateLeadership(const std::vector<std::string> &children);
+    void checkChildrenChange();
     void watchPredecessor(zhandle_t *zzh, int type, int state, const char *path,
                           void *watcherCtx);
-    void createEphemeralSequentialNode();
+    void createZnodes();
     void startZooKeeper();
+    std::string getNodeData(const std::string &path);
 
     // Keeping track of the connection state
     int mZkConnected;
@@ -254,7 +255,9 @@ class ZstoreController
     // *zkHandler handles the connection with Zookeeper
     zhandle_t *mZkHandler;
     std::string currentNodePath;
+    std::string nodeName_;
     std::string predecessorNodePath;
+    std::string leaderNodePath;
 
   private:
     u8 mGateway = 0;

@@ -1,6 +1,7 @@
 #include "include/zstore_controller.h"
 #include "include/configuration.h"
 #include "include/http_server.h"
+#include "src/include/utils.h"
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/outcome/utils.hpp>
@@ -16,9 +17,8 @@
 #include <zookeeper/zookeeper.h>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
-
-#define ELECTION_PATH "/election"
-const std::string znode_path = "/election/node_";
+const std::string root_ = "/election";
+const std::string election_node_path = "/election/node_";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
 
@@ -64,6 +64,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
                      mPhase);
             SetGateway(2);
         }
+        nodeName_ = "gateway_" + std::to_string(GetGateway());
     } else if (mKeyExperiment == 7) {
         // GC
     }
@@ -783,56 +784,80 @@ int ZstoreController::PopulateMap()
 // https://www.geeksforgeeks.org/leader-election-in-a-distributed-system-using-zookeeper/
 // https://www.tutorialspoint.com/zookeeper/zookeeper_leader_election.htm
 
-void ZstoreController::createEphemeralSequentialNode()
+void ZstoreController::createZnodes()
 {
-    if (mPhase == 1) {
-        g_data = "Create znode for leader election";
-        int rc =
-            zoo_create(mZkHandler, ELECTION_PATH, g_data.c_str(), g_data.size(),
-                       &ZOO_OPEN_ACL_UNSAFE, ZOO_PERSISTENT, NULL, 0);
-        if (rc == ZOK) {
-            log_info("Created node for leader election: /election");
-        } else if (rc == ZNODEEXISTS) {
-            log_info("Node for leader election already exists: /election");
-        } else {
-            log_error("Error creating node for leader election: {}", rc);
+    Stat stat;
+    if (zoo_exists(mZkHandler, root_.c_str(), false, &stat) != ZOK) {
+        log_info("{} does not exist", root_);
+        zoo_create(mZkHandler, root_.c_str(), "data", 4, &ZOO_OPEN_ACL_UNSAFE,
+                   0, 0, 0);
+    }
+
+    std::string path = root_ + "/n_";
+
+    if (!nodeName_.empty()) {
+        if (zoo_create(mZkHandler, path.c_str(), nodeName_.data(),
+                       nodeName_.length(), &ZOO_OPEN_ACL_UNSAFE,
+                       ZOO_SEQUENCE | ZOO_EPHEMERAL, 0, 0) == ZOK) {
+            std::cout << "success to create " << path << std::endl;
         }
     }
 
-    currentNodePath = znode_path + std::to_string(GetGateway());
-    log_info("Current node path: {}", currentNodePath);
-    g_data = "Create znode for Gateway " + std::to_string(GetGateway());
-    int rc =
-        zoo_create(mZkHandler, currentNodePath.c_str(), g_data.c_str(),
-                   g_data.size(), &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, NULL, 0);
-    if (rc == ZOK) {
-        log_info("Created node for Gateway: {}", GetGateway());
-    } else {
-        log_error("Error creating Gateway node {}: {}", GetGateway(), rc);
-    }
+    checkChildrenChange();
 }
 
 static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
                       void *watcherCtx);
 
-void ZstoreController::reEvaluateLeadership(
-    const std::vector<std::string> &children)
+std::string ZstoreController::getNodeData(const std::string &path)
 {
-    // Extract the sequence numbers and sort
-    std::vector<std::string> sortedChildren = children;
-    std::sort(sortedChildren.begin(), sortedChildren.end());
+    char *buf = new char[256];
+    int len = 256;
 
-    auto it = std::find(sortedChildren.begin(), sortedChildren.end(),
-                        currentNodePath.substr(strlen(znode_path.c_str())));
-    if (it == sortedChildren.begin()) {
-        // Current node has the smallest sequence number, becomes the leader
-        log_info("Node {} is now the leader.", currentNodePath);
-    } else {
-        // Watch the predecessor node
-        predecessorNodePath = znode_path + *(--it);
-        zoo_wexists(mZkHandler, predecessorNodePath.c_str(), ZkWatcher, this,
-                    nullptr);
-        log_info("Watching predecessor: {}", predecessorNodePath);
+    for (;;) {
+        Stat stat;
+
+        if (zoo_get(mZkHandler, path.c_str(), false, buf, &len, &stat) == ZOK) {
+            if (stat.dataLength > len) {
+                delete[] buf;
+                buf = new char[stat.dataLength];
+                len = stat.dataLength;
+            } else {
+                std::string result(buf, len);
+                delete[] buf;
+                return result;
+            }
+
+        } else {
+            delete[] buf;
+            return "";
+        }
+    }
+}
+
+void ZstoreController::checkChildrenChange()
+{
+    String_vector children;
+    if (zoo_get_children(mZkHandler, root_.c_str(), true, &children) == ZOK) {
+        if (children.count > 0) {
+            int min_seq = 0;
+            int j = 0;
+
+            // find the leader
+            for (int i = 0; i < children.count; i++) {
+                std::cout << children.data[i] << std::endl;
+                int t = ::atoi(&children.data[i][2]);
+                if (i == 0 || min_seq > t) {
+                    min_seq = t;
+                    j = i;
+                }
+            }
+
+            // get the data
+            std::string path = root_ + "/" + children.data[j];
+            log_info("leader: {}", getNodeData(path));
+        }
+        deallocate_String_vector(&children);
     }
 }
 
@@ -856,24 +881,12 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
             ctrl->mZkConnected = 0;
             zookeeper_close(zkH);
         }
-    } else if (type == ZOO_DELETED_EVENT) {
-        log_info("Predecessor node deleted: {}. Re-evaluating leadership...",
-                 path);
-        // Get the list of children to re-evaluate leadership
-        struct String_vector str_vec;
-        allocate_String_vector(&str_vec, 0);
-        bool is_watch = true;
-        int rc = zoo_get_children(ctrl->mZkHandler, ELECTION_PATH, is_watch,
-                                  &str_vec);
-
-        if (rc == ZOK && str_vec.count) {
-            std::vector<std::string> children;
-            for (int i = 0; i < str_vec.count; ++i) {
-                children.emplace_back(str_vec.data[i]);
-            }
-            ctrl->reEvaluateLeadership(children);
+    }
+    if (state == ZOO_CONNECTED_STATE) {
+        if (type == ZOO_CHILD_EVENT) {
+            ctrl->checkChildrenChange();
         } else {
-            log_error("Error fetching children: {}", rc);
+            ctrl->createZnodes();
         }
     }
 }
@@ -887,8 +900,6 @@ void ZstoreController::startZooKeeper()
         return;
     }
     log_info("Connecting to ZooKeeper server...");
-
-    createEphemeralSequentialNode();
 }
 
 /* NOTE workflow for persisting map
@@ -897,4 +908,4 @@ void ZstoreController::startZooKeeper()
  *    follower will (1) create new map and new bloom filter for N+1, and
  *    (2) return list of writes and wp for each device
  */
-Result<void> PersistMap();
+// Result<void> PersistMap() {}
