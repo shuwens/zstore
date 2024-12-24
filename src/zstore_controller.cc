@@ -975,6 +975,8 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
 
 void ZstoreController::startZooKeeper()
 {
+    // zoo_set_debug_level(ZOO_LOG_LEVEL_DEBUG);
+    zoo_set_debug_level(ZOO_LOG_LEVEL_ERROR);
     mZkHandler = zookeeper_init(Configuration::GetZkHost().c_str(), ZkWatcher,
                                 SESSION_TIMEOUT, 0, this, 0);
     if (!mZkHandler) {
