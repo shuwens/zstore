@@ -13,10 +13,12 @@
 #include <spdk/string.h>
 #include <string>
 #include <thread>
+#include <zookeeper/zookeeper.h>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
-#define ZK_PATH "/election/node_"
+#define ELECTION_PATH "/election"
+const std::string znode_path = "/election/node_";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
 
@@ -85,15 +87,17 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
             ip_port_devs.push_back(std::make_tuple(
                 "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
+        } else if (mPhase == 2) {
+            address = asio::ip::make_address("12.12.12.6");
+            ip_port_devs.push_back(std::make_tuple(
+                "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
+                Configuration::GetZoneId(), Configuration::GetZoneId()));
+            ip_port_devs.push_back(std::make_tuple(
+                "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
+                Configuration::GetZoneId(), Configuration::GetZoneId()));
+        } else {
+            log_error("Invalid phase");
         }
-    } else if (mPhase == 2) {
-        address = asio::ip::make_address("12.12.12.6");
-        ip_port_devs.push_back(std::make_tuple(
-            "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
-            Configuration::GetZoneId(), Configuration::GetZoneId()));
-        ip_port_devs.push_back(std::make_tuple(
-            "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
-            Configuration::GetZoneId(), Configuration::GetZoneId()));
     } else {
         address = asio::ip::make_address("12.12.12.1");
         ip_port_devs.push_back(std::make_tuple(
@@ -572,9 +576,9 @@ ZstoreController::~ZstoreController()
 
 void ZstoreController::zstore_cleanup()
 {
-    // log_info("unreg controllers");
+    log_info("unreg controllers");
     unregister_controllers(mDevices);
-    // log_info("cleanup ");
+    log_info("cleanup ");
     cleanup(0);
     spdk_env_fini();
 }
@@ -772,9 +776,8 @@ int ZstoreController::PopulateMap()
     return 0;
 }
 
-// The following functions are used to perform leader election and announcement
-// using Zookeeper.
-// Zookeeper recipers:
+// The following functions are used to perform leader election and
+// announcement using Zookeeper. Zookeeper recipers:
 // https://zookeeper.apache.org/doc/current/recipes.html
 // other source:
 // https://www.geeksforgeeks.org/leader-election-in-a-distributed-system-using-zookeeper/
@@ -782,8 +785,31 @@ int ZstoreController::PopulateMap()
 
 void ZstoreController::createEphemeralSequentialNode()
 {
-    zoo_create(mZkHandler, ZK_PATH, g_data.c_str(), g_data.size(),
-               &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL_SEQUENTIAL, NULL, 0);
+    if (mPhase == 1) {
+        g_data = "Create znode for leader election";
+        int rc =
+            zoo_create(mZkHandler, ELECTION_PATH, g_data.c_str(), g_data.size(),
+                       &ZOO_OPEN_ACL_UNSAFE, ZOO_PERSISTENT, NULL, 0);
+        if (rc == ZOK) {
+            log_info("Created node for leader election: /election");
+        } else if (rc == ZNODEEXISTS) {
+            log_info("Node for leader election already exists: /election");
+        } else {
+            log_error("Error creating node for leader election: {}", rc);
+        }
+    }
+
+    currentNodePath = znode_path + std::to_string(GetGateway());
+    log_info("Current node path: {}", currentNodePath);
+    g_data = "Create znode for Gateway " + std::to_string(GetGateway());
+    int rc =
+        zoo_create(mZkHandler, currentNodePath.c_str(), g_data.c_str(),
+                   g_data.size(), &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, NULL, 0);
+    if (rc == ZOK) {
+        log_info("Created node for Gateway: {}", GetGateway());
+    } else {
+        log_error("Error creating Gateway node {}: {}", GetGateway(), rc);
+    }
 }
 
 static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
@@ -797,18 +823,16 @@ void ZstoreController::reEvaluateLeadership(
     std::sort(sortedChildren.begin(), sortedChildren.end());
 
     auto it = std::find(sortedChildren.begin(), sortedChildren.end(),
-                        currentNodePath.substr(strlen(ZK_PATH)));
+                        currentNodePath.substr(strlen(znode_path.c_str())));
     if (it == sortedChildren.begin()) {
         // Current node has the smallest sequence number, becomes the leader
-        std::cout << "Node " << currentNodePath << " is now the leader."
-                  << std::endl;
+        log_info("Node {} is now the leader.", currentNodePath);
     } else {
         // Watch the predecessor node
-        predecessorNodePath = ZK_PATH + *(--it);
+        predecessorNodePath = znode_path + *(--it);
         zoo_wexists(mZkHandler, predecessorNodePath.c_str(), ZkWatcher, this,
                     nullptr);
-        std::cout << "Watching predecessor: " << predecessorNodePath
-                  << std::endl;
+        log_info("Watching predecessor: {}", predecessorNodePath);
     }
 }
 
@@ -833,14 +857,14 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
             zookeeper_close(zkH);
         }
     } else if (type == ZOO_DELETED_EVENT) {
-        std::cout << "Predecessor node deleted: " << path
-                  << ". Re-evaluating leadership..." << std::endl;
+        log_info("Predecessor node deleted: {}. Re-evaluating leadership...",
+                 path);
         // Get the list of children to re-evaluate leadership
         struct String_vector str_vec;
         allocate_String_vector(&str_vec, 0);
         bool is_watch = true;
-        int rc =
-            zoo_get_children(ctrl->mZkHandler, ZK_PATH, is_watch, &str_vec);
+        int rc = zoo_get_children(ctrl->mZkHandler, ELECTION_PATH, is_watch,
+                                  &str_vec);
 
         if (rc == ZOK && str_vec.count) {
             std::vector<std::string> children;
@@ -849,20 +873,20 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
             }
             ctrl->reEvaluateLeadership(children);
         } else {
-            std::cerr << "Error fetching children: " << rc << std::endl;
+            log_error("Error fetching children: {}", rc);
         }
     }
 }
 
 void ZstoreController::startZooKeeper()
 {
-    mZkHandler = zookeeper_init("localhost:2181", ZkWatcher, SESSION_TIMEOUT, 0,
-                                this, 0);
+    mZkHandler = zookeeper_init(Configuration::GetZkHost().c_str(), ZkWatcher,
+                                SESSION_TIMEOUT, 0, this, 0);
     if (!mZkHandler) {
-        std::cerr << "Error connecting to ZooKeeper server." << std::endl;
+        log_error("Error connecting to ZooKeeper server.");
         return;
     }
-    std::cout << "Connected to ZooKeeper server." << std::endl;
+    log_info("Connecting to ZooKeeper server...");
 
     createEphemeralSequentialNode();
 }

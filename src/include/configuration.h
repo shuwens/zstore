@@ -131,7 +131,7 @@ class Configuration
 
     static uint64_t GetZoneId() { return GetInstance().gCurrentZone; }
 
-    static std::string GetZookeeperUrl() { return GetInstance().gZookeeperUrl; }
+    static std::string GetZkHost() { return GetInstance().gZookeeperUrl; }
 
   private:
     // Hardcode because they won't change
@@ -157,7 +157,7 @@ class Configuration
     u64 gChunkSize = 4096 * 32; // 4KB
 
     // how many targets one gateway talks to
-    int gNumOfTargets = 3;
+    int gNumOfTargets = 2;
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 
@@ -171,7 +171,7 @@ class Configuration
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
     // uint32_t gObjectSizeInBytes = 4096 * 32;
 
-    std::string gZookeeperUrl = "localhost:2181";
+    std::string gZookeeperUrl = "12.12.12.1:2181";
 
     // FIXME:
     //
