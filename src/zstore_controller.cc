@@ -847,6 +847,7 @@ std::string ZstoreController::getNodeData(const std::string &path)
 
 void ZstoreController::checkTxChange()
 {
+    log_info("checkTxChange");
     char *buf = new char[256];
     int len = 256;
 
@@ -859,12 +860,12 @@ void ZstoreController::checkTxChange()
                 auto node = getNodeData(path);
 
                 std::string tx_path = tx_root_ + "/" + node;
-
                 int rc = zoo_get(mZkHandler, tx_path.c_str(), false, buf, &len,
                                  NULL);
                 if (rc != ZOK) {
                     log_error("Error getting data from {}", tx_path);
                 } else {
+                    log_info("data from {}: {}", tx_path, buf);
                     if (buf == "empty") {
                         log_info("node {} has not changed ", tx_path);
                     } else if (buf == "commit") {
@@ -911,7 +912,15 @@ void ZstoreController::checkChildrenChange()
     }
 }
 
-// watcher function would process events
+static void TxWatcher(zhandle_t *zkH, int type, int state, const char *path,
+                      void *watcherCtx)
+{
+    ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
+    if (type == ZOO_CHANGED_EVENT) {
+        ctrl->checkTxChange();
+    }
+}
+
 static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
                       void *watcherCtx)
 {
@@ -931,8 +940,6 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
             ctrl->mZkConnected = 0;
             zookeeper_close(zkH);
         }
-    } else if (type == ZOO_CHANGED_EVENT) {
-        ctrl->checkTxChange();
     }
     if (state == ZOO_CONNECTED_STATE) {
         if (type == ZOO_CHILD_EVENT) {
@@ -990,6 +997,8 @@ Result<void> ZstoreController::Checkpoint()
                         log_info("{} does not exist", tx_path);
                         zoo_create(mZkHandler, tx_path.c_str(), "empty", 5,
                                    &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
+                        zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
+                                    this, NULL);
                     }
                 }
             }
