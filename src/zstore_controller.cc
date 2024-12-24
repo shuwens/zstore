@@ -793,17 +793,28 @@ void ZstoreController::createZnodes()
     Stat stat;
     // create root node for leader election
     if (zoo_exists(mZkHandler, election_root_.c_str(), false, &stat) != ZOK) {
-        log_info("{} does not exist", election_root_);
-        zoo_create(mZkHandler, election_root_.c_str(), "leader election", 10,
-                   &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
-    }
-    // create root node for transaction: persist map
-    if (zoo_exists(mZkHandler, tx_root_.c_str(), false, &stat) != ZOK) {
-        log_info("{} does not exist", tx_root_);
-        zoo_create(mZkHandler, tx_root_.c_str(), "transaction", 10,
-                   &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
+        // log_info("{} does not exist", election_root_);
+        int rc =
+            zoo_create(mZkHandler, election_root_.c_str(), "leader election",
+                       10, &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
+        if (rc != ZOK) {
+            log_error("Error creating znode {}", election_root_);
+        } else {
+            log_info("Success creating znode {}", election_root_);
+        }
     }
 
+    // create root node for transaction: persist map
+    if (zoo_exists(mZkHandler, tx_root_.c_str(), false, &stat) != ZOK) {
+        // log_info("{} does not exist", tx_root_);
+        int rc = zoo_create(mZkHandler, tx_root_.c_str(), "transaction", 10,
+                            &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
+        if (rc != ZOK) {
+            log_error("Error creating znode {}", tx_root_);
+        } else {
+            log_info("Success creating znode {}", tx_root_);
+        }
+    }
     std::string path = election_root_ + "/n_";
 
     if (!nodeName_.empty()) {
@@ -865,17 +876,29 @@ void ZstoreController::checkTxChange()
                 if (rc != ZOK) {
                     log_error("Error getting data from {}", tx_path);
                 } else {
+                    std::string input(buf);
                     log_info("data from {}: {}", tx_path, buf);
-                    if (buf == "empty") {
+                    if (input == "empty") {
                         log_info("node {} has not changed ", tx_path);
-                    } else if (buf == "commit") {
-                        log_info("commit data from {}", tx_path);
+                    } else if (input == "commit") {
+                        // log_info("commit data from {}", tx_path);
                         // clear the data
-                        zoo_delete(mZkHandler, tx_path.c_str(), -1);
-                    } else if (buf == "abort") {
-                        log_info("abort data from {}", tx_path);
+                        int rc = zoo_delete(mZkHandler, tx_path.c_str(), -1);
+                        if (rc != ZOK) {
+                            log_error("Error deleting data from {}", tx_path);
+                        } else {
+                            log_info("Success deleting data from {}", tx_path);
+                        }
+
+                    } else if (input == "abort") {
+                        // log_info("abort data from {}", tx_path);
                         // clear the data
-                        zoo_delete(mZkHandler, tx_path.c_str(), -1);
+                        int rc = zoo_delete(mZkHandler, tx_path.c_str(), -1);
+                        if (rc != ZOK) {
+                            log_error("Error deleting data from {}", tx_path);
+                        } else {
+                            log_info("Success deleting data from {}", tx_path);
+                        }
                     }
                 }
             }
@@ -995,10 +1018,21 @@ Result<void> ZstoreController::Checkpoint()
                     if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
                         ZOK) {
                         log_info("{} does not exist", tx_path);
-                        zoo_create(mZkHandler, tx_path.c_str(), "empty", 5,
-                                   &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
-                        zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
-                                    this, NULL);
+                        int rc = zoo_create(mZkHandler, tx_path.c_str(),
+                                            "empty", 10, &ZOO_OPEN_ACL_UNSAFE,
+                                            ZOO_EPHEMERAL, 0, 0);
+                        if (rc != ZOK) {
+                            log_error("Error creating znode {}", tx_path);
+                        } else {
+                            log_info("Success creating znode {}", tx_path);
+                        }
+                        rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
+                                         this, NULL);
+                        if (rc != ZOK) {
+                            log_error("Error setting watcher on {}", tx_path);
+                        } else {
+                            log_info("Success setting watcher on {}", tx_path);
+                        }
                     }
                 }
             }
@@ -1008,7 +1042,12 @@ Result<void> ZstoreController::Checkpoint()
 
     sleep(5);
     std::string path = tx_root_ + "/" + nodeName_;
-    zoo_set(mZkHandler, path.c_str(), "commit", 6, -1);
+    int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
+    if (rc != ZOK) {
+        log_error("Error setting data to {}", path);
+    } else {
+        log_info("Success setting data to {}", path);
+    }
 
     // move map
     {
