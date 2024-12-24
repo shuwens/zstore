@@ -75,7 +75,7 @@ class ZstoreController
      *    follower will (1) create new map and new bloom filter for N+1, and
      *    (2) return list of writes and wp for each device
      */
-    Result<void> PersistMap();
+    Result<void> Checkpoint();
 
     int PopulateMap();
     Result<void> DumpAllMap();
@@ -170,7 +170,6 @@ class ZstoreController
     int associate_workers_with_ns(Device *device);
     void cleanup_ns_worker_ctx();
     void cleanup(uint32_t task_count);
-
     int init_ns_worker_ctx(struct ns_worker_ctx *ns_ctx,
                            enum spdk_nvme_qprio qprio);
 
@@ -243,8 +242,10 @@ class ZstoreController
 
     // zookeeper handler: these have to be public
     void checkChildrenChange();
-    void watchPredecessor(zhandle_t *zzh, int type, int state, const char *path,
-                          void *watcherCtx);
+    void checkTxChange();
+    // void watchPredecessor(zhandle_t *zzh, int type, int state, const char
+    // *path,
+    //                       void *watcherCtx);
     void createZnodes();
     void startZooKeeper();
     std::string getNodeData(const std::string &path);
@@ -254,12 +255,17 @@ class ZstoreController
     int mZkExpired;
     // *zkHandler handles the connection with Zookeeper
     zhandle_t *mZkHandler;
-    std::string currentNodePath;
+    // std::string currentNodePath;
     std::string nodeName_;
-    std::string predecessorNodePath;
-    std::string leaderNodePath;
+    // std::string predecessorNodePath;
+    std::string leaderNodeName_;
+
+    // epoch
+    u8 GetEpoch() { return mEpoch; };
+    void SetEpoch(u8 epoch) { mEpoch = epoch; };
 
   private:
+    u8 mEpoch = 0;
     u8 mGateway = 0;
     // number of devices
     int mN;

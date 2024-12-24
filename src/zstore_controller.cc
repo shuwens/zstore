@@ -17,7 +17,8 @@
 #include <zookeeper/zookeeper.h>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
-const std::string root_ = "/election";
+const std::string election_root_ = "/election";
+const std::string tx_root_ = "/tx";
 const std::string election_node_path = "/election/node_";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
@@ -240,6 +241,8 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
 
     if (mKeyExperiment == 6) {
         startZooKeeper();
+        sleep(5);
+        Checkpoint();
     }
 
     // RDMA circular buffer initialization
@@ -529,6 +532,7 @@ Result<void> ZstoreController::DumpAllMap()
     // Write the map to a file
     std::string filename = "map_data.bin";
     // writeMapToFile(filename);
+    return outcome::success();
 }
 
 Result<void> ZstoreController::ReadAllMap()
@@ -537,6 +541,7 @@ Result<void> ZstoreController::ReadAllMap()
     std::string filename = "map_data.bin";
     // Read the map back from the file
     // readMapFromFile(filename);
+    return outcome::success();
 }
 
 // TODO: assume we only have one device, we should check all device in the
@@ -786,13 +791,20 @@ int ZstoreController::PopulateMap()
 void ZstoreController::createZnodes()
 {
     Stat stat;
-    if (zoo_exists(mZkHandler, root_.c_str(), false, &stat) != ZOK) {
-        log_info("{} does not exist", root_);
-        zoo_create(mZkHandler, root_.c_str(), "data", 4, &ZOO_OPEN_ACL_UNSAFE,
-                   0, 0, 0);
+    // create root node for leader election
+    if (zoo_exists(mZkHandler, election_root_.c_str(), false, &stat) != ZOK) {
+        log_info("{} does not exist", election_root_);
+        zoo_create(mZkHandler, election_root_.c_str(), "leader election", 10,
+                   &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
+    }
+    // create root node for transaction: persist map
+    if (zoo_exists(mZkHandler, tx_root_.c_str(), false, &stat) != ZOK) {
+        log_info("{} does not exist", tx_root_);
+        zoo_create(mZkHandler, tx_root_.c_str(), "transaction", 10,
+                   &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
     }
 
-    std::string path = root_ + "/n_";
+    std::string path = election_root_ + "/n_";
 
     if (!nodeName_.empty()) {
         if (zoo_create(mZkHandler, path.c_str(), nodeName_.data(),
@@ -815,7 +827,6 @@ std::string ZstoreController::getNodeData(const std::string &path)
 
     for (;;) {
         Stat stat;
-
         if (zoo_get(mZkHandler, path.c_str(), false, buf, &len, &stat) == ZOK) {
             if (stat.dataLength > len) {
                 delete[] buf;
@@ -834,10 +845,49 @@ std::string ZstoreController::getNodeData(const std::string &path)
     }
 }
 
+void ZstoreController::checkTxChange()
+{
+    char *buf = new char[256];
+    int len = 256;
+
+    String_vector children;
+    if (zoo_get_children(mZkHandler, election_root_.c_str(), true, &children) ==
+        ZOK) {
+        if (children.count > 0) {
+            for (int i = 0; i < children.count; i++) {
+                std::string path = election_root_ + "/" + children.data[i];
+                auto node = getNodeData(path);
+
+                std::string tx_path = tx_root_ + "/" + node;
+
+                int rc = zoo_get(mZkHandler, tx_path.c_str(), false, buf, &len,
+                                 NULL);
+                if (rc != ZOK) {
+                    log_error("Error getting data from {}", tx_path);
+                } else {
+                    if (buf == "empty") {
+                        log_info("node {} has not changed ", tx_path);
+                    } else if (buf == "commit") {
+                        log_info("commit data from {}", tx_path);
+                        // clear the data
+                        zoo_delete(mZkHandler, tx_path.c_str(), -1);
+                    } else if (buf == "abort") {
+                        log_info("abort data from {}", tx_path);
+                        // clear the data
+                        zoo_delete(mZkHandler, tx_path.c_str(), -1);
+                    }
+                }
+            }
+        }
+        deallocate_String_vector(&children);
+    }
+}
+
 void ZstoreController::checkChildrenChange()
 {
     String_vector children;
-    if (zoo_get_children(mZkHandler, root_.c_str(), true, &children) == ZOK) {
+    if (zoo_get_children(mZkHandler, election_root_.c_str(), true, &children) ==
+        ZOK) {
         if (children.count > 0) {
             int min_seq = 0;
             int j = 0;
@@ -853,8 +903,9 @@ void ZstoreController::checkChildrenChange()
             }
 
             // get the data
-            std::string path = root_ + "/" + children.data[j];
+            std::string path = election_root_ + "/" + children.data[j];
             log_info("leader: {}", getNodeData(path));
+            leaderNodeName_ = getNodeData(path);
         }
         deallocate_String_vector(&children);
     }
@@ -880,6 +931,8 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
             ctrl->mZkConnected = 0;
             zookeeper_close(zkH);
         }
+    } else if (type == ZOO_CHANGED_EVENT) {
+        ctrl->checkTxChange();
     }
     if (state == ZOO_CONNECTED_STATE) {
         if (type == ZOO_CHILD_EVENT) {
@@ -907,4 +960,51 @@ void ZstoreController::startZooKeeper()
  *    follower will (1) create new map and new bloom filter for N+1, and
  *    (2) return list of writes and wp for each device
  */
-// Result<void> PersistMap() {}
+Result<void> ZstoreController::Checkpoint()
+{
+    // increase epoch
+    {
+        auto current_epoch = GetEpoch();
+        mEpoch += 1;
+        auto new_epoch = GetEpoch();
+    }
+
+    // create /tx/nodeName_ under /tx for every znode
+    if (leaderNodeName_ == nodeName_) {
+        Stat stat;
+
+        // get all children
+        String_vector children;
+        if (zoo_get_children(mZkHandler, election_root_.c_str(), true,
+                             &children) == ZOK) {
+            if (children.count > 0) {
+                for (int i = 0; i < children.count; i++) {
+                    std::string path = election_root_ + "/" + children.data[i];
+                    auto node = getNodeData(path);
+
+                    std::string tx_path = tx_root_ + "/" + node;
+                    log_info("create children under /tx: {}, tx_path {}", node,
+                             tx_path);
+                    if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
+                        ZOK) {
+                        log_info("{} does not exist", tx_path);
+                        zoo_create(mZkHandler, tx_path.c_str(), "empty", 5,
+                                   &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
+                    }
+                }
+            }
+            deallocate_String_vector(&children);
+        }
+    }
+
+    // move map
+    {
+        auto map_to_persist = mMap;
+        auto recent_write_map_to_persist = mRecentWriteMap;
+
+        mMap.clear();
+        mRecentWriteMap.clear();
+    }
+
+    return outcome::success();
+}

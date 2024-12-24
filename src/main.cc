@@ -54,36 +54,21 @@ int main(int argc, char **argv)
 
     asio::io_context ioc{Configuration::GetNumHttpThreads()};
     gZstoreController = new ZstoreController(std::ref(ioc));
-    gZstoreController->Init(false, key_experiment, phase);
+    rc = gZstoreController->Init(false, key_experiment, phase);
+    log_info("Init ZstoreController: {}", rc);
 
+    // TODO why is here never reached?
     log_info("Starting HTTP server with port 2000!\n");
-
-    // FIXME only tput on Zstore2Dev1
-    // while (1) {
-    //     auto etime = std::chrono::high_resolution_clock::now();
-    //     auto delta =
-    //     std::chrono::duration_cast<std::chrono::microseconds>(
-    //                      etime - gZstoreController->stime)
-    //                      .count();
-    //     auto tput =
-    //         gZstoreController->mTotalCounts * g_micro_to_second /
-    //         delta;
-    //
-    //     log_info("Total IO {}, total time {}ms, throughput {} IOPS",
-    //              gZstoreController->mTotalCounts, delta, tput);
-    //     {
-    //         gZstoreController->stime =
-    //             std::chrono::high_resolution_clock::now();
-    //         gZstoreController->mTotalCounts = 0;
-    //     }
-    //     sleep(1);
-    // }
 
     if (gZstoreController->mKeyExperiment == 1) {
         log_info("1111");
         gZstoreController->mIoc_.run();
         // while (1)
         //     sleep(1);
+    } else if (gZstoreController->mKeyExperiment == 6) {
+        // sleep(10);
+        auto rc = gZstoreController->Checkpoint();
+        assert(rc.has_value());
     } else {
         sleep(30);
         if (gZstoreController->mKeyExperiment == 2 &&
