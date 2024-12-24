@@ -962,15 +962,15 @@ void ZstoreController::startZooKeeper()
  */
 Result<void> ZstoreController::Checkpoint()
 {
-    // increase epoch
-    {
-        auto current_epoch = GetEpoch();
-        mEpoch += 1;
-        auto new_epoch = GetEpoch();
-    }
-
     // create /tx/nodeName_ under /tx for every znode
     if (leaderNodeName_ == nodeName_) {
+        sleep(5);
+        // increase epoch
+        {
+            auto current_epoch = GetEpoch();
+            mEpoch += 1;
+            auto new_epoch = GetEpoch();
+        }
         Stat stat;
 
         // get all children
@@ -996,6 +996,10 @@ Result<void> ZstoreController::Checkpoint()
             deallocate_String_vector(&children);
         }
     }
+
+    sleep(5);
+    std::string path = tx_root_ + "/" + nodeName_;
+    zoo_set(mZkHandler, path.c_str(), "commit", 6, -1);
 
     // move map
     {
