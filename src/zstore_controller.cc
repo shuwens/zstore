@@ -781,8 +781,7 @@ int ZstoreController::PopulateMap()
 // announcement using Zookeeper. Zookeeper recipers:
 // https://zookeeper.apache.org/doc/current/recipes.html
 // other source:
-// https://www.geeksforgeeks.org/leader-election-in-a-distributed-system-using-zookeeper/
-// https://www.tutorialspoint.com/zookeeper/zookeeper_leader_election.htm
+// https://gist.github.com/ochinchina/38e70fc3d8fa457d5cd8
 
 void ZstoreController::createZnodes()
 {
@@ -799,7 +798,7 @@ void ZstoreController::createZnodes()
         if (zoo_create(mZkHandler, path.c_str(), nodeName_.data(),
                        nodeName_.length(), &ZOO_OPEN_ACL_UNSAFE,
                        ZOO_SEQUENCE | ZOO_EPHEMERAL, 0, 0) == ZOK) {
-            std::cout << "success to create " << path << std::endl;
+            log_info("success to create {}", path);
         }
     }
 
@@ -845,7 +844,7 @@ void ZstoreController::checkChildrenChange()
 
             // find the leader
             for (int i = 0; i < children.count; i++) {
-                std::cout << children.data[i] << std::endl;
+                // log_info("children: {}", children.data[i]);
                 int t = ::atoi(&children.data[i][2]);
                 if (i == 0 || min_seq > t) {
                     min_seq = t;
