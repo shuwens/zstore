@@ -1,4 +1,5 @@
-[04:08] zstore1:build-rel (dev) | meson compile && sudo ./zstore 6 1
+
+[16:20] zstore1:build-rel (dev) | meson compile && sudo ./zstore 6 1
 INFO: autodetecting backend as ninja
 INFO: calculating backend command to run: /usr/local/bin/ninja
 ninja: no work to do.
@@ -17,109 +18,97 @@ ninja: no work to do.
 [INFO ../src/zstore_controller.cc:248 Init] Initialization complete. Launching workers.
 [INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 0 on core 2
 [INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 2 on core 4
-[INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 1 on core 3
+[INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 3 on core 5
 [INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 4 on core 6
 [INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 5 on core 7
-[INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 3 on core 5
-[INFO ../src/zstore_controller.cc:1020 startZooKeeper] Connecting to ZooKeeper server...
+[INFO ../src/zstore_controller.cc:242 operator()] HTTP server: Thread 1 on core 3
+[INFO ../src/zstore_controller.cc:1019 startZooKeeper] Connecting to ZooKeeper server...
 [INFO ../src/zstore_controller.cc:858 createZnodes] success to create /election/n_
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_4
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_6
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_5
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_1
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_1
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_1
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_1
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_1
-[INFO ../src/zstore_controller.cc:965 checkChildrenChange] leader: gateway_1
-[INFO ../src/zstore_controller.cc:1053 Checkpoint] create children under /tx: gateway_2, tx_path /tx/gateway_2
-[INFO ../src/zstore_controller.cc:1056 Checkpoint] /tx/gateway_2 does not exist
-[INFO ../src/zstore_controller.cc:1063 Checkpoint] Success creating znode /tx/gateway_2
-[INFO ../src/zstore_controller.cc:1070 Checkpoint] Success setting watcher on /tx/gateway_2
-[INFO ../src/zstore_controller.cc:1053 Checkpoint] create children under /tx: gateway_3, tx_path /tx/gateway_3
-[INFO ../src/zstore_controller.cc:1056 Checkpoint] /tx/gateway_3 does not exist
-[INFO ../src/zstore_controller.cc:1063 Checkpoint] Success creating znode /tx/gateway_3
-[INFO ../src/zstore_controller.cc:1070 Checkpoint] Success setting watcher on /tx/gateway_3
-[INFO ../src/zstore_controller.cc:1053 Checkpoint] create children under /tx: gateway_6, tx_path /tx/gateway_6
-[INFO ../src/zstore_controller.cc:1056 Checkpoint] /tx/gateway_6 does not exist
-[INFO ../src/zstore_controller.cc:1063 Checkpoint] Success creating znode /tx/gateway_6
-[INFO ../src/zstore_controller.cc:1070 Checkpoint] Success setting watcher on /tx/gateway_6
-[INFO ../src/zstore_controller.cc:1053 Checkpoint] create children under /tx: gateway_4, tx_path /tx/gateway_4
-[INFO ../src/zstore_controller.cc:1056 Checkpoint] /tx/gateway_4 does not exist
-[INFO ../src/zstore_controller.cc:1063 Checkpoint] Success creating znode /tx/gateway_4
-[INFO ../src/zstore_controller.cc:1070 Checkpoint] Success setting watcher on /tx/gateway_4
-[INFO ../src/zstore_controller.cc:1053 Checkpoint] create children under /tx: gateway_5, tx_path /tx/gateway_5
-[INFO ../src/zstore_controller.cc:1056 Checkpoint] /tx/gateway_5 does not exist
-[INFO ../src/zstore_controller.cc:1063 Checkpoint] Success creating znode /tx/gateway_5
-[INFO ../src/zstore_controller.cc:1070 Checkpoint] Success setting watcher on /tx/gateway_5
-[INFO ../src/zstore_controller.cc:1053 Checkpoint] create children under /tx: gateway_1, tx_path /tx/gateway_1
-[INFO ../src/zstore_controller.cc:1056 Checkpoint] /tx/gateway_1 does not exist
-[INFO ../src/zstore_controller.cc:1063 Checkpoint] Success creating znode /tx/gateway_1
-[INFO ../src/zstore_controller.cc:1070 Checkpoint] Success setting watcher on /tx/gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:1056 Checkpoint] create children under /tx: gateway_1, tx_path /tx/gateway_1
+[INFO ../src/zstore_controller.cc:1059 Checkpoint] /tx/gateway_1 does not exist
+[INFO ../src/zstore_controller.cc:1066 Checkpoint] Success creating znode /tx/gateway_1
+[INFO ../src/zstore_controller.cc:1073 Checkpoint] Success setting watcher on /tx/gateway_1
+[INFO ../src/zstore_controller.cc:1056 Checkpoint] create children under /tx: gateway_4, tx_path /tx/gateway_4
+[INFO ../src/zstore_controller.cc:1059 Checkpoint] /tx/gateway_4 does not exist
+[INFO ../src/zstore_controller.cc:1066 Checkpoint] Success creating znode /tx/gateway_4
+[INFO ../src/zstore_controller.cc:1073 Checkpoint] Success setting watcher on /tx/gateway_4
+[INFO ../src/zstore_controller.cc:1056 Checkpoint] create children under /tx: gateway_2, tx_path /tx/gateway_2
+[INFO ../src/zstore_controller.cc:1059 Checkpoint] /tx/gateway_2 does not exist
+[INFO ../src/zstore_controller.cc:1066 Checkpoint] Success creating znode /tx/gateway_2
+[INFO ../src/zstore_controller.cc:1073 Checkpoint] Success setting watcher on /tx/gateway_2
+[INFO ../src/zstore_controller.cc:1056 Checkpoint] create children under /tx: gateway_5, tx_path /tx/gateway_5
+[INFO ../src/zstore_controller.cc:1059 Checkpoint] /tx/gateway_5 does not exist
+[INFO ../src/zstore_controller.cc:1066 Checkpoint] Success creating znode /tx/gateway_5
+[INFO ../src/zstore_controller.cc:1073 Checkpoint] Success setting watcher on /tx/gateway_5
+[INFO ../src/zstore_controller.cc:1056 Checkpoint] create children under /tx: gateway_3, tx_path /tx/gateway_3
+[INFO ../src/zstore_controller.cc:1059 Checkpoint] /tx/gateway_3 does not exist
+[INFO ../src/zstore_controller.cc:1066 Checkpoint] Success creating znode /tx/gateway_3
+[INFO ../src/zstore_controller.cc:1073 Checkpoint] Success setting watcher on /tx/gateway_3
+[INFO ../src/zstore_controller.cc:1056 Checkpoint] create children under /tx: gateway_6, tx_path /tx/gateway_6
+[INFO ../src/zstore_controller.cc:1059 Checkpoint] /tx/gateway_6 does not exist
+[INFO ../src/zstore_controller.cc:1066 Checkpoint] Success creating znode /tx/gateway_6
+[INFO ../src/zstore_controller.cc:1073 Checkpoint] Success setting watcher on /tx/gateway_6
 [INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_2: commit
-[INFO ../src/zstore_controller.cc:924 checkTxChange] Success deleting data from /tx/gateway_2
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_3: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_3 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_6: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_6 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_4: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_4 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_5: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_5 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_1: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_4: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_4 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_3: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_3 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_6: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_6 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_5: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_5 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_2: commit
+[INFO ../src/zstore_controller.cc:923 checkTxChange] Success deleting data from /tx/gateway_2
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_1: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
 [INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_2
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_3: commit
-[INFO ../src/zstore_controller.cc:924 checkTxChange] Success deleting data from /tx/gateway_3
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_6: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_6 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_4: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_4 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_5: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_5 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_1: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_4: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_4 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_3: commit
+[INFO ../src/zstore_controller.cc:923 checkTxChange] Success deleting data from /tx/gateway_3
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_6: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_6 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_5: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_5 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_1: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
 [INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_2
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_3
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_6: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_6 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_4: commit
-[INFO ../src/zstore_controller.cc:924 checkTxChange] Success deleting data from /tx/gateway_4
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_5: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_5 has not changed
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_1: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_4: commit
+[INFO ../src/zstore_controller.cc:923 checkTxChange] Success deleting data from /tx/gateway_4
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_6: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_6 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_5: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_5 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_1: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
 [INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_2
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_3
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_6: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_6 has not changed
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_4
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_5: commit
-[INFO ../src/zstore_controller.cc:924 checkTxChange] Success deleting data from /tx/gateway_5
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_1: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_6: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_6 has not changed
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_5: commit
+[INFO ../src/zstore_controller.cc:923 checkTxChange] Success deleting data from /tx/gateway_5
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_1: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
 [INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
-[INFO ../src/zstore_controller.cc:1085 Checkpoint] Success setting data to /tx/gateway_1
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_6: commit
+[INFO ../src/zstore_controller.cc:923 checkTxChange] Success deleting data from /tx/gateway_6
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_1: empty
+[INFO ../src/zstore_controller.cc:915 checkTxChange] node /tx/gateway_1 has not changed
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
+[INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
+[INFO ../src/zstore_controller.cc:1086 Checkpoint] Success setting data to /tx/gateway_1
 [INFO ../src/zstore_controller.cc:284 Init] ZstoreController Init finish
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_2
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_3
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_6: empty
-[INFO ../src/zstore_controller.cc:916 checkTxChange] node /tx/gateway_6 has not changed
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_4
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_5
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_1: commit
-[INFO ../src/zstore_controller.cc:924 checkTxChange] Success deleting data from /tx/gateway_1
-[INFO ../src/zstore_controller.cc:895 checkTxChange] checkTxChange
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_2
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_3
-[INFO ../src/zstore_controller.cc:914 checkTxChange] data from /tx/gateway_6: commit
-[INFO ../src/zstore_controller.cc:924 checkTxChange] Success deleting data from /tx/gateway_6
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_4
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_5
-[ERR ../src/zstore_controller.cc:911 checkTxChange] Error getting data from /tx/gateway_1
+[INFO ../src/zstore_controller.cc:913 checkTxChange] data from /tx/gateway_1: commit
+[INFO ../src/zstore_controller.cc:923 checkTxChange] Success deleting data from /tx/gateway_1
+[INFO ../src/zstore_controller.cc:964 checkChildrenChange] leader: gateway_1
 
 
