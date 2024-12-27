@@ -50,6 +50,11 @@ class Configuration
 
     static int GetContextPoolSize() { return GetInstance().gContextPoolSize; }
 
+    static void SetNumOfTargets(int new_targets)
+    {
+        GetInstance().gNumOfTargets = new_targets;
+    }
+
     static int GetNumOfTargets() { return GetInstance().gNumOfTargets; }
 
     static int GetNumOfDevices() { return GetInstance().gNumOfDevices; }

@@ -64,23 +64,27 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
             log_info("Init Checkpointing Gateway on Zstore2", mKeyExperiment,
                      mOption);
             SetGateway(2);
+            Configuration::SetNumOfTargets(0);
         } else if (mOption == 3) {
             log_info("Init Checkpointing Gateway on Zstore3", mKeyExperiment,
                      mOption);
             SetGateway(3);
+            Configuration::SetNumOfTargets(0);
         } else if (mOption == 4) {
             log_info("Init Checkpointing Gateway on Zstore4", mKeyExperiment,
                      mOption);
             SetGateway(4);
+            Configuration::SetNumOfTargets(0);
         } else if (mOption == 5) {
             log_info("Init Checkpointing Gateway on Zstore5", mKeyExperiment,
                      mOption);
             SetGateway(5);
-
+            Configuration::SetNumOfTargets(0);
         } else if (mOption == 6) {
             log_info("Init Checkpointing Gateway on Zstore6", mKeyExperiment,
                      mOption);
             SetGateway(6);
+            Configuration::SetNumOfTargets(0);
         } else {
             log_error("Invalid phase");
         }
