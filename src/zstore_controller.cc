@@ -28,8 +28,6 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     verbose = Configuration::Verbose();
 
     setContextPoolSize(Configuration::GetContextPoolSize());
-    setNumOfDevices(Configuration::GetNumOfDevices() *
-                    Configuration::GetNumOfTargets());
     setKeyExperiment(key_experiment);
     setOption(option);
 
@@ -93,6 +91,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else if (mKeyExperiment == 7) {
         // GC
     }
+    setNumOfDevices(Configuration::GetNumOfDevices() *
+                    Configuration::GetNumOfTargets());
 
     // TODO: set all parameters too
     log_debug(
