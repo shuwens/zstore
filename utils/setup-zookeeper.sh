@@ -8,7 +8,7 @@ source $zstore_dir/.env
 cd 
 
 sudo snap install ant --classic 
-sudo apt install openjdk-8-jdk-headless maven -7
+sudo apt install openjdk-8-jdk-headless maven -y
 sudo apt-get install libcppunit-dev autoconf automake libtool -y
 
 mkdir -p tools
