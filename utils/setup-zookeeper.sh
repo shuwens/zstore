@@ -5,13 +5,14 @@ set -xeuo pipefail
 
 zstore_dir=$(git rev-parse --show-toplevel)
 source $zstore_dir/.env
-cd ../../
+cd 
 
 sudo snap install ant --classic
 sudo apt install openjdk-8-jdk-headless maven
 sudo apt-get install libcppunit-dev autoconf automake libtool
 
 mkdir -p tools
+cd tools 
 wget https://dlcdn.apache.org/zookeeper/zookeeper-3.9.3/apache-zookeeper-3.9.3.tar.gz
 tar -xvf apache-zookeeper-3.9.3.tar.gz
 
