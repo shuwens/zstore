@@ -270,6 +270,7 @@ class ZstoreController
     int mContextPoolSize;
     int _map_size = 1'000'000;
     int _rdma_buffer_size = 1024;
+    bool mCkpt = false;
 
     // RequestContext *getContextForUserRequest();
     // void doWrite(RequestContext *context);

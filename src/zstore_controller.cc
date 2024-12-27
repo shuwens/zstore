@@ -897,11 +897,11 @@ void ZstoreController::checkTxChange()
     int len = 256;
 
     String_vector children;
-    if (zoo_get_children(mZkHandler, election_root_.c_str(), true, &children) ==
+    if (zoo_get_children(mZkHandler, tx_root_.c_str(), true, &children) ==
         ZOK) {
         if (children.count > 0) {
             for (int i = 0; i < children.count; i++) {
-                std::string path = election_root_ + "/" + children.data[i];
+                std::string path = tx_root_ + "/" + children.data[i];
                 auto node = getNodeData(path);
 
                 std::string tx_path = tx_root_ + "/" + node;
@@ -1039,40 +1039,42 @@ Result<void> ZstoreController::Checkpoint()
         }
         Stat stat;
 
+        // checkpoint has already started or not
+
         // get all children
         String_vector children;
-        if (zoo_get_children(mZkHandler, election_root_.c_str(), true,
-                             &children) == ZOK) {
-            if (children.count > 0) {
-                for (int i = 0; i < children.count; i++) {
-                    std::string path = election_root_ + "/" + children.data[i];
-                    auto node = getNodeData(path);
+        int rc = zoo_get_children(mZkHandler, election_root_.c_str(), true,
+                                  &children);
+        assert(rc == ZOK);
 
-                    std::string tx_path = tx_root_ + "/" + node;
-                    log_info("create children under /tx: {}, tx_path {}", node,
-                             tx_path);
-                    if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
-                        ZOK) {
-                        log_info("{} does not exist", tx_path);
-                        int rc = zoo_create(mZkHandler, tx_path.c_str(),
-                                            "empty", 10, &ZOO_OPEN_ACL_UNSAFE,
-                                            ZOO_EPHEMERAL, 0, 0);
-                        if (rc != ZOK) {
-                            log_error("Error creating znode {}", tx_path);
-                        } else {
-                            log_info("Success creating znode {}", tx_path);
-                        }
-                        rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
-                                         this, NULL);
-                        if (rc != ZOK) {
-                            log_error("Error setting watcher on {}", tx_path);
-                        } else {
-                            log_info("Success setting watcher on {}", tx_path);
-                        }
+        if (children.count > 0) {
+            for (int i = 0; i < children.count; i++) {
+                std::string path = election_root_ + "/" + children.data[i];
+                auto node = getNodeData(path);
+
+                std::string tx_path = tx_root_ + "/" + node;
+                log_info("create children under /tx: {}, tx_path {}", node,
+                         tx_path);
+                if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
+                    ZOK) {
+                    log_info("{} does not exist", tx_path);
+                    int rc =
+                        zoo_create(mZkHandler, tx_path.c_str(), "empty", 10,
+                                   &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
+                    if (rc != ZOK) {
+                        log_error("Error creating znode {}", tx_path);
+                    } else {
+                        log_info("Success creating znode {}", tx_path);
+                    }
+                    rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
+                                     this, NULL);
+                    if (rc != ZOK) {
+                        log_error("Error setting watcher on {}", tx_path);
+                    } else {
+                        log_info("Success setting watcher on {}", tx_path);
                     }
                 }
             }
-            deallocate_String_vector(&children);
         }
     }
 
