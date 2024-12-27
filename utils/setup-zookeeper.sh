@@ -7,7 +7,7 @@ zstore_dir=$(git rev-parse --show-toplevel)
 source $zstore_dir/.env
 cd 
 
-sudo snap install ant --classic -y
+sudo snap install ant --classic 
 sudo apt install openjdk-8-jdk-headless maven -7
 sudo apt-get install libcppunit-dev autoconf automake libtool -y
 
