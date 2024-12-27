@@ -72,9 +72,10 @@ int main(int argc, char **argv)
     } else {
         sleep(30);
         if (gZstoreController->mKeyExperiment == 2 &&
-            gZstoreController->mPhase == 1) {
+            gZstoreController->mOption == 1) {
             log_info("Prepare phase is done, dumping all map and bloom filter");
-            gZstoreController->DumpAllMap();
+            auto rc = gZstoreController->DumpAllMap();
+            assert(rc.has_value());
         }
     }
 

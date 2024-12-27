@@ -24,7 +24,6 @@ using ZstoreMap =
 // We record hash of recent writes as a concurrent hashmap, where the key is
 // the hash, and the value is the gateway of the writes.
 using ZstoreRecentWriteMap = boost::concurrent_flat_map<ObjectKeyHash, u8>;
-// TODO: query neighbour info on this hash with udp
 
 // TODO: announcement with zoop keeper hash we send is with epoch
 
@@ -60,9 +59,7 @@ class ZstoreController
     // 6: Target and gateway failure
     // 7: GC
 
-    int mPhase;
-    // 1: prepare
-    // 2: run
+    int mOption;
 
     // Zookeeper
     Result<void> ZookeeperJoin();
@@ -126,7 +123,7 @@ class ZstoreController
     asio::io_context &mIoc_;
 
     ~ZstoreController();
-    int Init(bool object, int key_experiment, int phase);
+    int Init(bool object, int key_experiment, int option);
 
     // threads
     void initIoThread();
@@ -138,7 +135,7 @@ class ZstoreController
     int GetQueueDepth() { return mQueueDepth; };
     void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     void setKeyExperiment(int key) { mKeyExperiment = key; };
-    void setPhase(int phase) { mPhase = phase; };
+    void setOption(int option) { mOption = option; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
 
@@ -228,7 +225,7 @@ class ZstoreController
         }
     };
 
-    Device *GetDevice(const int &index)
+    Device *GetDevice(const unsigned long &index)
     {
         if (index >= mDevices.size()) {
             log_error("Get Device: index out of bound {}", index);

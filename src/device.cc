@@ -70,7 +70,7 @@ void Device::InitZones(uint32_t numNeededZones, uint32_t numReservedZones)
     }
     mNumZones = std::min(mNumZones, numNeededZones + numReservedZones);
     mZones = new Zone[mNumZones];
-    for (int i = 0; i < mNumZones; ++i) {
+    for (u32 i = 0; i < mNumZones; ++i) {
         mZones[i].Init(this, i * mZoneSize, mZoneCapacity, mZoneSize);
         mAvailableZones.insert(&mZones[i]);
     }

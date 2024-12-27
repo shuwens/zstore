@@ -22,7 +22,7 @@ typedef u64 Lba;
 typedef u32 Length;
 
 // Custom hash function for std::array<uint8_t, 32>
-typedef struct ArrayHash {
+struct ArrayHash {
     std::size_t operator()(const std::array<uint8_t, 32> &key) const
     {
         std::size_t hash = 0;

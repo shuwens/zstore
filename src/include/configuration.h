@@ -157,7 +157,7 @@ class Configuration
     u64 gChunkSize = 4096 * 32; // 4KB
 
     // how many targets one gateway talks to
-    int gNumOfTargets = 2;
+    int gNumOfTargets = 4;
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 

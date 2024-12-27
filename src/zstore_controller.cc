@@ -1,7 +1,5 @@
-#include "include/zstore_controller.h"
 #include "include/configuration.h"
 #include "include/http_server.h"
-#include "src/include/utils.h"
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/outcome/utils.hpp>
@@ -19,11 +17,11 @@
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 const std::string election_root_ = "/election";
 const std::string tx_root_ = "/tx";
-const std::string election_node_path = "/election/node_";
+// const std::string election_node_path = "/election/node_";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
 
-int ZstoreController::Init(bool object, int key_experiment, int phase)
+int ZstoreController::Init(bool object, int key_experiment, int option)
 {
 
     int rc = 0;
@@ -33,20 +31,22 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
     setKeyExperiment(key_experiment);
-    setPhase(phase);
+    setOption(option);
 
     if (mKeyExperiment == 1) {
         log_info("Init Zstore for random read, starting from zone {}",
-                 mKeyExperiment, mPhase, Configuration::GetZoneId());
+                 mKeyExperiment, mOption, Configuration::GetZoneId());
     } else if (mKeyExperiment == 2) {
-        if (mPhase == 1) {
-            log_info("Init Zstore for write and read.", mKeyExperiment, mPhase);
-        } else if (mPhase == 2) {
-            log_info("Init Zstore for write and read.", mKeyExperiment, mPhase);
+        if (mOption == 1) {
+            log_info("Init Zstore for write and read.", mKeyExperiment,
+                     mOption);
+        } else if (mOption == 2) {
+            log_info("Init Zstore for write and read.", mKeyExperiment,
+                     mOption);
             log_info("Run phase, load the map and the bloom filter");
-        } else if (mPhase == 3) {
+        } else if (mOption == 3) {
             log_info("Init Zstore for write and read simplified.",
-                     mKeyExperiment, mPhase);
+                     mKeyExperiment, mOption);
         }
     } else if (mKeyExperiment == 3) {
         // Target failure
@@ -56,15 +56,35 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
         // Target and gateway failure
     } else if (mKeyExperiment == 6) {
         // Checkpoint
-        if (mPhase == 1) {
-            log_info("Init Zstore for Checkpointing Gateway 1", mKeyExperiment,
-                     mPhase);
+        if (mOption == 1) {
+            log_info("Init Checkpointing Gateway on Zstore1", mKeyExperiment,
+                     mOption);
             SetGateway(1);
-        } else if (mPhase == 2) {
-            log_info("Init Zstore for Checkpointing Gateway 2", mKeyExperiment,
-                     mPhase);
+        } else if (mOption == 2) {
+            log_info("Init Checkpointing Gateway on Zstore2", mKeyExperiment,
+                     mOption);
             SetGateway(2);
+        } else if (mOption == 3) {
+            log_info("Init Checkpointing Gateway on Zstore3", mKeyExperiment,
+                     mOption);
+            SetGateway(3);
+        } else if (mOption == 4) {
+            log_info("Init Checkpointing Gateway on Zstore4", mKeyExperiment,
+                     mOption);
+            SetGateway(4);
+        } else if (mOption == 5) {
+            log_info("Init Checkpointing Gateway on Zstore5", mKeyExperiment,
+                     mOption);
+            SetGateway(5);
+
+        } else if (mOption == 6) {
+            log_info("Init Checkpointing Gateway on Zstore6", mKeyExperiment,
+                     mOption);
+            SetGateway(6);
+        } else {
+            log_error("Invalid phase");
         }
+
         nodeName_ = "gateway_" + std::to_string(GetGateway());
     } else if (mKeyExperiment == 7) {
         // GC
@@ -81,7 +101,7 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
         ip_port_devs;
     boost::asio::ip::address address;
     if (mKeyExperiment == 6) {
-        if (mPhase == 1) {
+        if (mOption == 1) {
             address = asio::ip::make_address("12.12.12.1");
             ip_port_devs.push_back(std::make_tuple(
                 "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
@@ -89,17 +109,26 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
             ip_port_devs.push_back(std::make_tuple(
                 "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
-        } else if (mPhase == 2) {
-            address = asio::ip::make_address("12.12.12.6");
             ip_port_devs.push_back(std::make_tuple(
                 "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
             ip_port_devs.push_back(std::make_tuple(
                 "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
+        } else if (mOption == 2) {
+            address = asio::ip::make_address("12.12.12.2");
+        } else if (mOption == 3) {
+            address = asio::ip::make_address("12.12.12.3");
+        } else if (mOption == 4) {
+            address = asio::ip::make_address("12.12.12.4");
+        } else if (mOption == 5) {
+            address = asio::ip::make_address("12.12.12.5");
+        } else if (mOption == 6) {
+            address = asio::ip::make_address("12.12.12.6");
         } else {
-            log_error("Invalid phase");
+            log_error("Invalid gateway server");
         }
+
     } else {
         address = asio::ip::make_address("12.12.12.1");
         ip_port_devs.push_back(std::make_tuple(
@@ -242,7 +271,8 @@ int ZstoreController::Init(bool object, int key_experiment, int phase)
     if (mKeyExperiment == 6) {
         startZooKeeper();
         sleep(5);
-        Checkpoint();
+        auto rc = Checkpoint();
+        assert(rc && "Checkpoint failed");
     }
 
     // RDMA circular buffer initialization
@@ -285,12 +315,12 @@ int ZstoreController::PopulateDevHash()
     tgt_dev_vec.push_back(
         {std::make_pair("Zstore4Dev2", Configuration::GetZoneId())});
 
-    for (int i = 0; i < tgt_dev_vec.size(); i++) {
-        for (int j = 0; j < tgt_dev_vec.size(); j++) {
+    for (unsigned long i = 0; i < tgt_dev_vec.size(); i++) {
+        for (unsigned long j = 0; j < tgt_dev_vec.size(); j++) {
             if (i == j) {
                 continue;
             }
-            for (int k = 0; k < tgt_dev_vec.size(); k++) {
+            for (unsigned long k = 0; k < tgt_dev_vec.size(); k++) {
                 if (i == k || j == k) {
                     continue;
                 }
@@ -683,7 +713,7 @@ int ZstoreController::PopulateMap()
     // TODO: 4KiB, 4MiB, 1GiB ....
     if (mKeyExperiment == 1) {
         log_info("Populate Map({},{}): random read, starting from zone {}",
-                 mKeyExperiment, mPhase, Configuration::GetZoneId());
+                 mKeyExperiment, mOption, Configuration::GetZoneId());
         // Random Read
         u32 current_zone = Configuration::GetZoneId();
         u64 current_lba = 0;
@@ -747,19 +777,19 @@ int ZstoreController::PopulateMap()
             current_lba++;
         }
     } else if (mKeyExperiment == 2) {
-        if (mPhase == 1) {
+        if (mOption == 1) {
             log_info("Populate Map({},{}): write and read.", mKeyExperiment,
-                     mPhase);
+                     mOption);
             //     log_info("Prepare phase, do nothing");
             // DumpAllMap();
-        } else if (mPhase == 2) {
+        } else if (mOption == 2) {
             log_info("Populate Map({},{}): write and read.", mKeyExperiment,
-                     mPhase);
+                     mOption);
             log_info("Run phase, load the map and the bloom filter");
             // ReadAllMap();
-        } else if (mPhase == 3) {
+        } else if (mOption == 3) {
             log_info("Populate Map({},{}): write and read simplified.",
-                     mKeyExperiment, mPhase);
+                     mKeyExperiment, mOption);
         }
 
         // Sequential write (append) and read
@@ -996,7 +1026,7 @@ Result<void> ZstoreController::Checkpoint()
 {
     // create /tx/nodeName_ under /tx for every znode
     if (leaderNodeName_ == nodeName_) {
-        sleep(5);
+        sleep(10);
         // increase epoch
         {
             auto current_epoch = GetEpoch();
@@ -1042,7 +1072,7 @@ Result<void> ZstoreController::Checkpoint()
         }
     }
 
-    sleep(5);
+    sleep(10);
     std::string path = tx_root_ + "/" + nodeName_;
     int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
     if (rc != ZOK) {

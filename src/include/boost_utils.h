@@ -1,4 +1,5 @@
 #pragma once
+#include "types.h"
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
