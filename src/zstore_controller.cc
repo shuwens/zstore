@@ -901,10 +901,9 @@ void ZstoreController::checkTxChange()
         ZOK) {
         if (children.count > 0) {
             for (int i = 0; i < children.count; i++) {
-                std::string path = tx_root_ + "/" + children.data[i];
-                auto node = getNodeData(path);
-
-                std::string tx_path = tx_root_ + "/" + node;
+                std::string tx_path = tx_root_ + "/" + children.data[i];
+                // auto node = getNodeData(path);
+                // std::string tx_path = tx_root_ + "/" + node;
                 int rc = zoo_get(mZkHandler, tx_path.c_str(), false, buf, &len,
                                  NULL);
                 if (rc != ZOK) {
