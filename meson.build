@@ -158,6 +158,8 @@ zstore_src = [
 	'src/tinyxml2.cpp',
 	'src/zone.cc',
 	'src/rdma_common.cc',
+	'src/endpoint.cpp',
+	'src/magic_buffer.cpp',
 ]
 
 executable(
@@ -379,17 +381,38 @@ executable(
 )
 
 # rdma
+# executable(
+# 	'rdma_client',
+# 	files('examples/rdma/rdma_client.cc'),
+# 	dependencies: [zstore_deps] + [rdma],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
+# executable(
+# 	'rdma_server',
+# 	files('examples/rdma/rdma_server.cc'),
+# 	dependencies: [zstore_deps] + [rdma],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 executable(
-	'rdma_client',
-	files('examples/rdma/rdma_client.cc'),
+	'circular_buffer_client',
+	files('examples/rdma/circular_buffer_client.cc'),
 	dependencies: [zstore_deps] + [rdma],
 	link_args: spdk_link_args,
 	install: true,
 )
 executable(
-	'rdma_server',
-	files('examples/rdma/rdma_server.cc'),
+	'circular_buffer_server',
+	files('examples/rdma/circular_buffer_server.cc'),
 	dependencies: [zstore_deps] + [rdma],
 	link_args: spdk_link_args,
 	install: true,
 )
+# executable(
+# 	'test_rdma',
+# 	files('examples/rdma/test.cc'),
+# 	dependencies: [zstore_deps] + [rdma],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
