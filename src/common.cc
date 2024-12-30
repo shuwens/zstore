@@ -749,11 +749,12 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 }
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          std::vector<u8> data)
+                                          uint8_t *data)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
-    slot->dataBuffer = data.data();
+    // FUCKME
+    // slot->dataBuffer = (uint8_t *)data;
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();

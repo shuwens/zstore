@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
 
+# RUN
+sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c120 -d5s \
+	-H 'Connection: keep-alive' --latency --timeout 60 \
+	-s seq-writes.lua http://12.12.12.1:2000 -- 100000 false
+
+
 # 4 threads and 40 connections
 #   Thread Stats   Avg      Stdev     Max   +/- Stdev
 #     Latency   384.69us  560.18us  16.26ms   99.46%
@@ -17,10 +23,3 @@ set -xeuo pipefail
 # sudo taskset -c 10-15 ~/tools/wrk/wrk -t6 -c60 -d1s \
 # 	-s seq-writes.lua \
 # 	http://12.12.12.1:2000 -- 100000 false
-#
-
-sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c120 -d5s \
-	-H 'Connection: keep-alive' --latency --timeout 60 \
-	-s seq-writes.lua http://12.12.12.1:2000 -- 100000 false
-
-

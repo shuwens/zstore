@@ -327,7 +327,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
     // ns_ctx->stimes.push_back(ns_ctx->stime);
 
     const uint64_t zone_dist = 0x80000; // zone size
-    const int current_zone = 20;
+    const int current_zone = 23;
     // const int current_zone = 30;
 
     auto zslba = zone_dist * current_zone;

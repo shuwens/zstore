@@ -332,20 +332,17 @@ auto awaitable_on_request(HttpRequest req,
         }
 
         if (zctrl_.verbose)
-            log_debug("key {}, key hash {}, value {}", object_key, key_hash,
-                      req.body());
+            // log_debug("key {}, key hash {}, value {}", object_key, key_hash,
+            //           req.body());
+            log_debug("key {}, key hash {}", object_key, key_hash);
 
         // NOTE: Write path: see section 3.3
         auto object_value = req.body();
 
-        if (zctrl_.verbose)
-            log_debug("key {}, key hash {}, value {}", object_key, key_hash,
-                      req.body());
-
-        auto dev_tuple = zctrl_.GetDevTupleForRandomReads(key_hash).value();
-
         // TODO:  populate the map with consistent hashes
-        // auto dev_tuple = zctrl_.GetDevTuple(object_key).value();
+        auto dev_tuple = zctrl_.GetDevTuple(key_hash).value();
+        // auto dev_tuple = zctrl_.GetDevTupleForRandomReads(key_hash).value();
+
         auto entry = zctrl_.CreateFakeObject(key_hash, dev_tuple).value();
         auto [first, second, third] = entry;
         auto [tgt1, _, _] = first;
@@ -360,10 +357,14 @@ auto awaitable_on_request(HttpRequest req,
         auto dev2 = zctrl_.GetDevice(tgt2);
         auto dev3 = zctrl_.GetDevice(tgt3);
 
-        // auto slot = MakeWriteRequest(
-        //     &zctrl_, zctrl_.GetDevice(entry.first_tgt()), req,
-        //     entry);
+        if (zctrl_.verbose) {
+            log_debug("Writing to tgt1 {} tgt2 {} tgt3 {}", tgt1, tgt2, tgt3);
+            // log_debug("Writing to dev1 {} dev2 {} dev3 {}",
+            // dev1->GetZoneId(),
+            //           dev2->GetZoneId(), dev3->GetZoneId());
+        }
 
+        // TODO
         ZstoreObject original_obj;
         original_obj.entry.type = LogEntryType::kData;
         original_obj.entry.seqnum = 42;
@@ -379,9 +380,18 @@ auto awaitable_on_request(HttpRequest req,
         // 2. Serialize to buffer
         std::vector<u8> buffer = WriteZstoreObjectToBuffer(original_obj);
 
-        auto s1 = MakeWriteRequest(&zctrl_, dev1, buffer).value();
-        auto s2 = MakeWriteRequest(&zctrl_, dev2, buffer).value();
-        auto s3 = MakeWriteRequest(&zctrl_, dev3, buffer).value();
+        // debug_buffer
+
+        // log_debug("Writing buffer {}, body {}", buffer, req.body());
+
+        auto s1 = MakeWriteRequest(&zctrl_, dev1, (uint8_t *)req.body().data())
+                      .value();
+        auto s2 = MakeWriteRequest(&zctrl_, dev2, (uint8_t *)req.body().data())
+                      .value();
+        auto s3 = MakeWriteRequest(&zctrl_, dev3, (uint8_t *)req.body().data())
+                      .value();
+
+        // log_debug("dispatching write requests");
 
         co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
         assert(s1->success && s2->success && s3->success &&

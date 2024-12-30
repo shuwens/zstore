@@ -8,10 +8,7 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-if [ "$HOSTNAME" == "zstore1" ]; then
-  device1="nvme1n2"
-  device2="nvme2n2"
-elif [ "$HOSTNAME" == "zstore2" ]; then
+if [ "$HOSTNAME" == "zstore2" ]; then
   device1="nvme1n2"
   device2="nvme2n2"
 elif [ "$HOSTNAME" == "zstore3" ]; then
@@ -20,6 +17,9 @@ elif [ "$HOSTNAME" == "zstore3" ]; then
 elif [ "$HOSTNAME" == "zstore4" ]; then
   device1="nvme0n2"
   device2="nvme1n2"
+elif [ "$HOSTNAME" == "zstore4" ]; then
+  device1="nvme1n2"
+  device2="nvme2n2"
 fi
 
 sudo nvme zns report-zone /dev/$device1 > device1.txt

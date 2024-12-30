@@ -47,7 +47,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
                                          uint64_t offset);
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          std::vector<uint8_t> data);
+                                          uint8_t *data);
 
 Result<RequestContext *> MakeManagementRequest(ZstoreController *zctrl_,
                                                Device *dev);
