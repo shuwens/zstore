@@ -17,7 +17,7 @@ elif [ "$HOSTNAME" == "zstore3" ]; then
 elif [ "$HOSTNAME" == "zstore4" ]; then
   device1="nvme0n2"
   device2="nvme1n2"
-elif [ "$HOSTNAME" == "zstore4" ]; then
+elif [ "$HOSTNAME" == "zstore5" ]; then
   device1="nvme1n2"
   device2="nvme2n2"
 fi
