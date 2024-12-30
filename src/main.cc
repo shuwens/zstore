@@ -61,8 +61,8 @@ int main(int argc, char **argv)
     log_info("Starting HTTP server with port 2000!\n");
 
     if (gZstoreController->mKeyExperiment == 1) {
-        log_info("1111");
-        gZstoreController->mIoc_.run();
+        // log_info("1111");
+        // gZstoreController->mIoc_.run();
         // while (1)
         //     sleep(1);
     } else if (gZstoreController->mKeyExperiment == 6) {

@@ -170,3 +170,10 @@ struct Timer {
     chrono_tp t6;
     // bool check;
 };
+
+struct cinfo {
+    uint32_t generic_key;
+    uint64_t generic_addr;
+    uint32_t magic_key;
+    uint64_t magic_addr;
+};

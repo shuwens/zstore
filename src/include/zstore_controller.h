@@ -1,14 +1,20 @@
 #pragma once
+#include "conn.hpp"
+#include "endpoint.hpp"
+#include "error.hpp"
+#include "magic_buffer.hpp"
 #include "types.h"
 #include <boost/asio/awaitable.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/unordered/concurrent_flat_map.hpp>
 #include <boost/unordered/concurrent_flat_set.hpp>
+
 #include <cstring>
 #include <queue>
 #include <shared_mutex>
 #include <spdk/env.h>
 #include <spdk/thread.h>
+#include <thread>
 #include <unistd.h>
 
 #define THREADED 1
@@ -24,12 +30,6 @@ using ZstoreMap =
 // We record hash of recent writes as a concurrent hashmap, where the key is
 // the hash, and the value is the gateway of the writes.
 using ZstoreRecentWriteMap = boost::concurrent_flat_map<ObjectKeyHash, u8>;
-
-// TODO: announcement with zoop keeper hash we send is with epoch
-
-// TODO:zookeeper api
-
-// TODO: rdma buffer api
 
 // We record the target device and LBA of the blocks that we need to GC
 using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
@@ -261,6 +261,42 @@ class ZstoreController
     u8 GetEpoch() { return mEpoch; };
     void SetEpoch(u8 epoch) { mEpoch = epoch; };
 
+    // RDMA buffers: 64 entry
+    kym::endpoint::Options mRdmaOpts = {
+        .qp_attr =
+            {
+                .cap =
+                    {
+                        .max_send_wr = 1,
+                        .max_recv_wr = 1,
+                        .max_send_sge = 1,
+                        .max_recv_sge = 1,
+                        .max_inline_data = 8,
+                    },
+                .qp_type = IBV_QPT_RC,
+            },
+        .responder_resources = 5,
+        .initiator_depth = 5,
+        .retry_count = 8,
+        .rnr_retry_count = 0,
+        .native_qp = false,
+        .inline_recv = 0,
+    };
+
+    // uint32_t magic_key;
+    // uint64_t magic_addr;
+    // int mRdmaBufferSize = 1024;
+    // RDMA send
+    // std::jthread *rdma_client_thread;
+    kym::endpoint::Endpoint *clientEndpoint;
+    // struct ibv_mr *send_mr;
+    // struct cinfo *client_ci;
+    // RDMA recv
+    // std::jthread *rdma_server_thread;
+    kym::endpoint::Endpoint *serverEndpoint;
+    // struct ibv_mr *magic_mr;
+    // struct cinfo *server_ci;
+
   private:
     u8 mEpoch = 0;
     u8 mGateway = 0;
@@ -269,7 +305,6 @@ class ZstoreController
     // context pool size
     int mContextPoolSize;
     int _map_size = 1'000'000;
-    int _rdma_buffer_size = 1024;
     bool mCkpt = false;
 
     // RequestContext *getContextForUserRequest();
@@ -297,7 +332,4 @@ class ZstoreController
     // std::queue<RequestContext *> mReadQueue;
 
     std::vector<Zone *> mZones;
-
-    // RDMA buffers: 64 entry
-    RdmaBuffer mRdmaBuffer;
 };

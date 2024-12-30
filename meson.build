@@ -165,7 +165,7 @@ zstore_src = [
 executable(
 	'zstore',
 	zstore_src,
-	dependencies: [zstore_deps],
+	dependencies: [zstore_deps] + [rdma],
 	include_directories: zk_inc_dir,
 	link_args: spdk_link_args,
 	install: true,

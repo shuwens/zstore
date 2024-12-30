@@ -7,12 +7,11 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/utility.hpp>
 #include <fstream>
+#include <infiniband/verbs.h>
 #include <iostream>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
 #include <string>
-#include <thread>
-#include <zookeeper/zookeeper.h>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 const std::string election_root_ = "/election";
@@ -93,6 +92,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     }
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
+    auto const port = 2000;
+    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
 
     // TODO: set all parameters too
     log_debug(
@@ -103,10 +104,11 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 
     std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
         ip_port_devs;
-    boost::asio::ip::address address;
+    std::string ip;
     if (mKeyExperiment == 6) {
+        auto RdmaPortBase = 8980;
         if (mOption == 1) {
-            address = asio::ip::make_address("12.12.12.1");
+            ip = "12.12.12.1";
             ip_port_devs.push_back(std::make_tuple(
                 "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
@@ -120,21 +122,99 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
                 "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
         } else if (mOption == 2) {
-            address = asio::ip::make_address("12.12.12.2");
+            ip = "12.12.12.2";
         } else if (mOption == 3) {
-            address = asio::ip::make_address("12.12.12.3");
+            ip = "12.12.12.3";
         } else if (mOption == 4) {
-            address = asio::ip::make_address("12.12.12.4");
+            ip = "12.12.12.4";
         } else if (mOption == 5) {
-            address = asio::ip::make_address("12.12.12.5");
+            ip = "12.12.12.5";
         } else if (mOption == 6) {
-            address = asio::ip::make_address("12.12.12.6");
+            ip = "12.12.12.6";
         } else {
             log_error("Invalid gateway server");
         }
 
+        log_info("RDMA server: listen ip {} port {}", ip,
+                 RdmaPortBase + mOption + 1);
+
+        auto rdma_core_base =
+            Configuration::GetHttpThreadCoreId() + num_ioc_threads;
+
+        // RDMA server: recv
+        // TODO simplify this part
+        std::jthread rdma_server_thread = std::jthread([rdma_core_base,
+                                                        &rdma_server_thread,
+                                                        &ip, this] {
+            // #ifdef PERF
+            //             cpu_set_t cpuset;
+            //             CPU_ZERO(&cpuset);
+            //             CPU_SET(rdma_core_base, &cpuset);
+            //             std::string name = "rdma_recv";
+            //             int rc =
+            //             pthread_setname_np(rdma_server_thread.native_handle(),
+            //                                         name.c_str());
+            //             if (rc != 0) {
+            //                 log_error("RDMA server: Error calling
+            //                 pthread_setname: {}", rc);
+            //             }
+            //             rc =
+            //             pthread_setaffinity_np(rdma_server_thread.native_handle(),
+            //                                         sizeof(cpu_set_t),
+            //                                         &cpuset);
+            //             if (rc != 0) {
+            //                 log_error("RDMA server: Error calling "
+            //                           "pthread_setaffinity_np: {}",
+            //                           rc);
+            //             }
+            auto ln_s = kym::endpoint::Listen(ip, 8987);
+            if (!ln_s.ok()) {
+                std::cerr << "Error listening" << ln_s.status() << std::endl;
+                return 1;
+            }
+            auto ln = ln_s.value();
+
+            // Allocate a page of normal heap memory
+            int size = 4 * 1024 * 1024;
+            void *generic = malloc(size);
+            struct ibv_mr *generic_mr =
+                ibv_reg_mr(ln->GetPd(), generic, size,
+                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+            // Allocate "magic" buffer
+            auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
+            if (!magic_s.ok()) {
+                std::cerr << "error allocating magic buffer "
+                          << magic_s.status() << std::endl;
+                return 1;
+            }
+            void *magic = magic_s.value();
+            struct ibv_mr *magic_mr =
+                ibv_reg_mr(ln->GetPd(), magic, 2 * size,
+                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+            struct cinfo ci;
+            ci.generic_addr = (uint64_t)generic;
+            ci.generic_key = generic_mr->lkey;
+            ci.magic_addr = (uint64_t)magic;
+            ci.magic_key = magic_mr->lkey;
+
+            mRdmaOpts.private_data = &ci;
+            mRdmaOpts.private_data_len = sizeof(ci);
+
+            auto ep_s = ln->Accept(mRdmaOpts);
+            if (!ep_s.ok()) {
+                std::cerr << "error allocating magic buffer "
+                          << magic_s.status() << std::endl;
+                return 1;
+            }
+            serverEndpoint = ep_s.value();
+            // rdma_server_thread.detach();
+            // #endif
+        });
+
     } else {
-        address = asio::ip::make_address("12.12.12.1");
+        ip = "12.12.12.1";
         ip_port_devs.push_back(std::make_tuple(
             "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
@@ -148,6 +228,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
             "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
     }
+
+    boost::asio::ip::address address = asio::ip::make_address(ip);
 
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
@@ -196,11 +278,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 
     initIoThread();
 
-    auto const port = 2000;
-
     // The io_context is required for all I/O
-    auto const num_threads = Configuration::GetNumHttpThreads();
-    asio::io_context ioc{num_threads};
+    asio::io_context ioc{num_ioc_threads};
 
     // Spawn a listening port
     asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
@@ -214,8 +293,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
                            }
                    });
 
-    std::vector<std::jthread> threads(num_threads);
-    for (unsigned i = 0; i < num_threads; ++i) {
+    std::vector<std::jthread> threads(num_ioc_threads);
+    for (unsigned i = 0; i < num_ioc_threads; ++i) {
         threads[i] = std::jthread([&ioc, i, &threads] {
 #ifdef PERF
             // Create a cpu_set_t object representing a set of CPUs.
@@ -234,9 +313,9 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
             rc = pthread_setaffinity_np(threads[i].native_handle(),
                                         sizeof(cpu_set_t), &cpuset);
             if (rc != 0) {
-                log_error(
-                    "HTTP server: Error calling pthread_setaffinity_np: {}",
-                    rc);
+                log_error("HTTP server: Error calling "
+                          "pthread_setaffinity_np: {}",
+                          rc);
             }
             log_info("HTTP server: Thread {} on core {}", i,
                      i + Configuration::GetHttpThreadCoreId());
@@ -296,16 +375,16 @@ int ZstoreController::PopulateDevHash()
     std::vector<std::pair<TargetDev, u32>> tgt_dev_vec;
 
     // permutate Zstore2-Zstore4, Dev1-2
-    // std::vector<std::string> tgt_list({"Zstore2", "Zstore3", "Zstore4"});
-    // std::vector<std::string> dev_list({"Dev1", "Dev2"});
+    // std::vector<std::string> tgt_list({"Zstore2", "Zstore3",
+    // "Zstore4"}); std::vector<std::string> dev_list({"Dev1", "Dev2"});
     // for (int i = 0; i < tgt_list.size(); i++) {
     //     for (int j = 0; j < dev_list.size(); j++) {
     //         tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
     //     }
     // }
 
-    // this seems to be stupid, but we are just manually adding the target
-    // device and the zone we write to here
+    // this seems to be stupid, but we are just manually adding the
+    // target device and the zone we write to here
     tgt_dev_vec.push_back(
         {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
     tgt_dev_vec.push_back(
@@ -578,8 +657,8 @@ Result<void> ZstoreController::ReadAllMap()
     return outcome::success();
 }
 
-// TODO: assume we only have one device, we should check all device in the
-// end
+// TODO: assume we only have one device, we should check all device in
+// the end
 bool ZstoreController::CheckIoQpair(std::string msg)
 {
     assert(mDevices[0] != nullptr);
@@ -681,7 +760,8 @@ void ZstoreController::Drain()
 //     try {
 //         std::ofstream file_out(filename, std::ios::out |
 //         std::ios::trunc); if (!file_out.is_open()) {
-//             throw std::runtime_error("Could not open file for writing");
+//             throw std::runtime_error("Could not open file for
+//             writing");
 //         }
 //         boost::archive::text_oarchive archive(file_out);
 //         archive << mMap; // Serialize the map to the file
@@ -699,12 +779,14 @@ void ZstoreController::Drain()
 //     try {
 //         std::ifstream file_in(filename, std::ios::in);
 //         if (!file_in.is_open()) {
-//             throw std::runtime_error("Could not open file for reading");
+//             throw std::runtime_error("Could not open file for
+//             reading");
 //         }
 //         boost::archive::text_iarchive archive(file_in);
 //         archive >> mMap; // Deserialize the map from the file
 //         file_in.close();
-//         std::cout << "Map successfully loaded from file: " << filename
+//         std::cout << "Map successfully loaded from file: " <<
+//         filename
 //                   << std::endl;
 //     } catch (const std::exception &e) {
 //         std::cerr << "Error reading map from file: " << e.what() <<
@@ -749,12 +831,14 @@ int ZstoreController::PopulateMap()
             //     device = "Zstore4Dev2";
             // }
 
-            // the lba should be zone_num * 0x80000 + offset [0, 0x43500]
+            // the lba should be zone_num * 0x80000 + offset [0,
+            // 0x43500]
             zone_offset = current_lba % Configuration::GetZoneDist();
             if (zone_offset > Configuration::GetZoneCap()) {
                 current_zone++;
                 current_lba = current_zone * Configuration::GetZoneDist();
-                log_debug("Populate Map for index {}, current lba {}: zone {} "
+                log_debug("Populate Map for index {}, current lba {}: "
+                          "zone {} "
                           "is full, moving to next zone",
                           i, current_lba, current_zone);
             }
@@ -985,8 +1069,9 @@ static void ZkWatcher(zhandle_t *zkH, int type, int state, const char *path,
         // state refers to states of zookeeper connection.
         // To keep it simple, we would demonstrate these 3:
         // ZOO_EXPIRED_SESSION_STATE, ZOO_CONNECTED_STATE,
-        // ZOO_NOTCONNECTED_STATE If you are using ACL, you should be aware
-        // of an authentication failure state - ZOO_AUTH_FAILED_STATE
+        // ZOO_NOTCONNECTED_STATE If you are using ACL, you should be
+        // aware of an authentication failure state -
+        // ZOO_AUTH_FAILED_STATE
         if (state == ZOO_CONNECTED_STATE) {
             ctrl->mZkConnected = 1;
         } else if (state == ZOO_NOTCONNECTED_STATE) {

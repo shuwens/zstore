@@ -22,7 +22,7 @@
 #include "../../src/include/endpoint.hpp"
 #include "../../src/include/error.hpp"
 #include "../../src/include/magic_buffer.hpp"
-#include "../../src/include/rdma_common.h"
+// #include "../../src/include/rdma_common.h"
 #include "../../src/magic_buffer.cpp"
 
 kym::endpoint::Options opts = {
