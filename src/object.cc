@@ -106,7 +106,7 @@ std::string sha256(std::string_view input)
     return ss.str();
 }
 
-bool ReadBufferToZstoreObject(const uint8_t *buffer, size_t buffer_size,
+bool ReadBufferToZstoreObject(const char *buffer, size_t buffer_size,
                               ZstoreObject &obj)
 {
     if (buffer_size < sizeof(LogEntry)) {
@@ -155,14 +155,14 @@ bool ReadBufferToZstoreObject(const uint8_t *buffer, size_t buffer_size,
     return true;
 }
 
-std::vector<uint8_t> WriteZstoreObjectToBuffer(const ZstoreObject &obj)
+std::vector<char> WriteZstoreObjectToBuffer(const ZstoreObject &obj)
 {
     // Calculate the total size
     size_t total_size = sizeof(LogEntry) + sizeof(obj.key_hash) +
                         sizeof(uint16_t) + sizeof(uint64_t) + obj.datalen;
 
     // Create a buffer
-    std::vector<uint8_t> buffer(total_size);
+    std::vector<char> buffer(total_size);
     size_t offset = 0;
 
     // Write LogEntry

@@ -162,7 +162,7 @@ class Configuration
     u64 gChunkSize = 4096 * 32; // 4KB
 
     // how many targets one gateway talks to
-    int gNumOfTargets = 4;
+    int gNumOfTargets = 3;
     // how many devices/drives on a target
     int gNumOfDevices = 2;
 
@@ -170,11 +170,11 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    const int gCurrentZone = 27; // write
-    // const int gCurrentZone = 0;
+    const int gCurrentZone = 0;
+    // const int gCurrentZone = 32;        // write
     uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
-    // uint32_t gObjectSizeInBytes = 4096 * 32;
+    // uint32_t gObjectSizeInBytes = 4096 * 16;
 
     std::string gZookeeperUrl = "12.12.12.1:2181";
 

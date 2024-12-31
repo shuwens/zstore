@@ -542,9 +542,17 @@ auto zoneRead(void *arg1) -> asio::awaitable<void>
     // }
 
     // For read, we swap the read date into the request body
-    std::string body(static_cast<char *>(ioCtx.data),
-                     ioCtx.size * Configuration::GetBlockSize());
-    ctx->response_body = body;
+    // ioCtx.data and ctx->dataBuffer are the same and has no cost
+    // but constructing it std::string has cost
+    // 326k
+    // std::string body(ctx->dataBuffer);
+    // ctx->response_body = body;
+
+    ctx->response_body.assign(ctx->dataBuffer, ctx->bufferSize);
+
+    // 415k but not giving data back
+    // ctx->response_body = (char *)ioCtx.data;
+
     ctx->success = true;
 
     ctx->ctrl->mTotalCounts++;
@@ -652,9 +660,9 @@ RequestContextPool::RequestContextPool(uint32_t cap)
     for (uint32_t i = 0; i < capacity; ++i) {
         contexts[i].Clear();
         contexts[i].dataBuffer =
-            (uint8_t *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
-                                    Configuration::GetBlockSize(), NULL,
-                                    SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+            (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
+                                 Configuration::GetBlockSize(), NULL,
+                                 SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
         // contexts[i].metadataBuffer =
         //     (uint8_t *)spdk_zmalloc(Configuration::GetMaxStripeUnitSize() /
         //                                 Configuration::GetBlockSize() *
@@ -662,6 +670,8 @@ RequestContextPool::RequestContextPool(uint32_t cap)
         //                             Configuration::GetBlockSize(), NULL,
         //                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
         contexts[i].bufferSize = Configuration::GetObjectSizeInBytes();
+        contexts[i].response_body.reserve(
+            Configuration::GetObjectSizeInBytes());
         availableContexts.emplace_back(&contexts[i]);
     }
 }
@@ -681,10 +691,10 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             ctx->available = false;
         } else {
             ctx = new RequestContext();
-            ctx->dataBuffer = (uint8_t *)spdk_zmalloc(
-                Configuration::GetObjectSizeInBytes(),
-                Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
-                SPDK_MALLOC_DMA);
+            ctx->dataBuffer =
+                (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
+                                     Configuration::GetBlockSize(), NULL,
+                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
             // ctx->metadataBuffer = (uint8_t *)spdk_zmalloc(
             //     Configuration::GetMaxStripeUnitSize() /
             //         Configuration::GetBlockSize() *
@@ -749,12 +759,12 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 }
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          uint8_t *data)
+                                          char *data)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
     // FUCKME
-    // slot->dataBuffer = (uint8_t *)data;
+    slot->dataBuffer = data;
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();

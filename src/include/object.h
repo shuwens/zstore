@@ -98,6 +98,6 @@ unsigned int arrayToSeed(const ObjectKeyHash &hashKey);
 
 // -----------------------------------------------------
 
-bool ReadBufferToZstoreObject(const uint8_t *buffer, size_t buffer_size,
+bool ReadBufferToZstoreObject(const char *buffer, size_t buffer_size,
                               ZstoreObject &obj);
-std::vector<uint8_t> WriteZstoreObjectToBuffer(const ZstoreObject &obj);
+std::vector<char> WriteZstoreObjectToBuffer(const ZstoreObject &obj);

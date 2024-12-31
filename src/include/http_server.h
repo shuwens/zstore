@@ -378,18 +378,15 @@ auto awaitable_on_request(HttpRequest req,
         // static_cast<uint16_t>(std::strlen(original_obj.key_hash));
 
         // 2. Serialize to buffer
-        std::vector<u8> buffer = WriteZstoreObjectToBuffer(original_obj);
+        std::vector<char> buffer = WriteZstoreObjectToBuffer(original_obj);
 
         // debug_buffer
 
         // log_debug("Writing buffer {}, body {}", buffer, req.body());
 
-        auto s1 = MakeWriteRequest(&zctrl_, dev1, (uint8_t *)req.body().data())
-                      .value();
-        auto s2 = MakeWriteRequest(&zctrl_, dev2, (uint8_t *)req.body().data())
-                      .value();
-        auto s3 = MakeWriteRequest(&zctrl_, dev3, (uint8_t *)req.body().data())
-                      .value();
+        auto s1 = MakeWriteRequest(&zctrl_, dev1, req.body().data()).value();
+        auto s2 = MakeWriteRequest(&zctrl_, dev2, req.body().data()).value();
+        auto s3 = MakeWriteRequest(&zctrl_, dev3, req.body().data()).value();
 
         // log_debug("dispatching write requests");
 

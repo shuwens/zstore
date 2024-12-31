@@ -70,12 +70,12 @@ struct DrainArgs {
 
 struct RequestContext {
     // The buffers are pre-allocated
-    uint8_t *dataBuffer;
+    char *dataBuffer;
 
     uint64_t lba;
     uint32_t size;
     // uint8_t req_type;
-    uint8_t *data;
+    // char *data;
     // uint32_t successBytes;
     // uint32_t targetBytes;
     // uint32_t curOffset;
@@ -97,7 +97,7 @@ struct RequestContext {
     struct {
         struct spdk_nvme_ns *ns;
         struct spdk_nvme_qpair *qpair;
-        void *data;
+        char *data;
         uint64_t offset; // lba
         uint32_t size;   // lba_count
         uint32_t flags;
