@@ -133,6 +133,7 @@ class ZstoreController
     // SPDK components
     struct spdk_nvme_qpair *GetIoQpair();
     bool CheckIoQpair(std::string msg);
+    bool CheckIoThread(std::string msg);
     int GetQueueDepth() { return mQueueDepth; };
     void setQueuDepth(int queue_depth) { mQueueDepth = queue_depth; };
     void setKeyExperiment(int key) { mKeyExperiment = key; };

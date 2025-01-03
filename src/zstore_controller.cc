@@ -361,6 +361,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     // rdma_server_thread.join();
 
     log_info("ZstoreController Init finish");
+    CheckIoThread("Starting all the threads");
 
     return rc;
 }
@@ -670,6 +671,40 @@ bool ZstoreController::CheckIoQpair(std::string msg)
     if (!spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0)))
         exit(0);
     return spdk_nvme_qpair_is_connected(mDevices[0]->GetIoQueue(0));
+}
+
+bool ZstoreController::CheckIoThread(std::string msg)
+{
+    log_debug("Check GetIoThread: {}", msg);
+    for (int i = 0; i < mN; ++i) {
+        auto thread = GetIoThread(0);
+        assert(thread != nullptr);
+        log_debug("Check Io thread {}: running {}, idle {}, exited {}", i,
+                  spdk_thread_is_running(thread), spdk_thread_is_idle(thread),
+                  spdk_thread_is_exited(thread));
+        // assert(spdk_thread_is_running(thread) && "Thread should be running");
+        // assert(!spdk_thread_is_idle(thread) && "Thread should not be idle");
+        // assert(!spdk_thread_is_exited(thread) && "Thread should not be
+        // exited");
+    }
+
+    log_debug("Check Device GetIoThread: {}", msg);
+    // for (int i = 0; i < mN; ++i) {
+    //     auto thread = mDevices[i]->GetIoThread();
+    //     log_debug("Check Io thread {}: running {}, idle {}, exited {}", i,
+    //               spdk_thread_is_running(thread),
+    //               spdk_thread_is_idle(thread),
+    //               spdk_thread_is_exited(thread));
+    // assert(thread != nullptr);
+    // assert(spdk_thread_is_running(thread) && "Thread is running");
+    // assert(spdk_thread_is_idle(mIoThread[threadId].thread) &&
+    //        "Thread should be idle");
+    // assert(spdk_thread_is_running(mIoThread[threadId].thread) &&
+    //        "Thread should be running");
+    // assert(!spdk_thread_is_exited(mIoThread[threadId].thread) &&
+    //        "Thread should not be exited");
+    // }
+    return 0;
 }
 
 struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
