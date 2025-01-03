@@ -1,15 +1,8 @@
 #pragma once
+
 #include "configuration.h"
 #include "types.h"
-#include <cassert> // For assert
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <map>
 #include <openssl/sha.h>
-#include <sstream>
-#include <string>
-#include <vector> // For std::vector
 
 typedef uint32_t timestamp_t;
 typedef uint64_t bid_t; // block ID

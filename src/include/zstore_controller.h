@@ -1,4 +1,5 @@
 #pragma once
+
 #include "conn.hpp"
 #include "endpoint.hpp"
 #include "error.hpp"
@@ -327,7 +328,7 @@ class ZstoreController
     // IoThread mHttpThread[16];
     // struct spdk_thread *mCompletionThread;
 
-    std::queue<RequestContext *> mEventsToDispatch;
+    // std::queue<RequestContext *> mEventsToDispatch;
     // std::queue<RequestContext *> mWriteQueue;
     // std::queue<RequestContext *> mReadQueue;
 

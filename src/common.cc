@@ -3,7 +3,6 @@
 #include "include/zstore_controller.h"
 #include "spdk/nvme_zns.h"
 #include "spdk/string.h"
-#include <tuple>
 
 std::shared_mutex g_shared_mutex_;
 
@@ -759,12 +758,11 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 }
 
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
-                                          char *data)
+                                          HttpRequest &req)
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
-    // FUCKME
-    slot->dataBuffer = data;
+    // std::memcpy(slot->dataBuffer, req.body().data(), req.body().size());
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();

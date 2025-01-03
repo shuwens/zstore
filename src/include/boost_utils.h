@@ -1,4 +1,5 @@
 #pragma once
+
 #include "types.h"
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
@@ -6,9 +7,6 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
-#include <cstdlib>
-#include <iostream>
-#include <string>
 
 namespace beast = boost::beast;
 namespace http = beast::http;

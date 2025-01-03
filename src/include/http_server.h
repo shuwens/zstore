@@ -1,4 +1,5 @@
 #pragma once
+
 #include "boost_utils.h"
 #include "common.h"
 #include "configuration.h"
@@ -14,9 +15,7 @@
 #include <boost/asio/experimental/parallel_group.hpp>
 #include <chrono>
 #include <functional>
-#include <iostream>
 #include <regex>
-#include <string>
 #include <utility>
 
 using namespace boost::asio::experimental::awaitable_operators;
@@ -384,9 +383,9 @@ auto awaitable_on_request(HttpRequest req,
 
         // log_debug("Writing buffer {}, body {}", buffer, req.body());
 
-        auto s1 = MakeWriteRequest(&zctrl_, dev1, req.body().data()).value();
-        auto s2 = MakeWriteRequest(&zctrl_, dev2, req.body().data()).value();
-        auto s3 = MakeWriteRequest(&zctrl_, dev3, req.body().data()).value();
+        auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
+        auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
+        auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
 
         // log_debug("dispatching write requests");
 

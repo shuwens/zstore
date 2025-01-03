@@ -1,5 +1,3 @@
-
-#pragma once
 /*
  *
  *  conn.h
@@ -7,6 +5,7 @@
  *  Common interfaces for rdma connections
  *
  */
+#pragma once
 
 #include <cstdint>
 #include <memory> // For smart pointers

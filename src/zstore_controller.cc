@@ -1,17 +1,13 @@
 #include "include/configuration.h"
 #include "include/http_server.h"
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
 #include <boost/outcome/utils.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/utility.hpp>
 #include <fstream>
 #include <infiniband/verbs.h>
-#include <iostream>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
-#include <string>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 const std::string election_root_ = "/election";
