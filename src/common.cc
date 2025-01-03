@@ -750,13 +750,16 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
-    log_debug("Check qpair connected: {}",
-              spdk_nvme_qpair_is_connected(dev->GetIoQueue(0)));
+    if (Configuration::Debugging()) {
 
-    auto thread = zctrl_->GetIoThread(0);
-    log_debug("Check Io thread {}: running {}, idle {}, exited {}",
-              dev->GetDeviceId(), spdk_thread_is_running(thread),
-              spdk_thread_is_idle(thread), spdk_thread_is_exited(thread));
+        log_debug("Check qpair connected: {}",
+                  spdk_nvme_qpair_is_connected(dev->GetIoQueue(0)));
+
+        auto thread = zctrl_->GetIoThread(0);
+        log_debug("Check Io thread {}: running {}, idle {}, exited {}",
+                  dev->GetDeviceId(), spdk_thread_is_running(thread),
+                  spdk_thread_is_idle(thread), spdk_thread_is_exited(thread));
+    }
 
     slot->io_thread = zctrl_->GetIoThread(0);
     slot->device = dev;

@@ -361,7 +361,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     // rdma_server_thread.join();
 
     log_info("ZstoreController Init finish");
-    CheckIoThread("Starting all the threads");
+    if (Configuration::Debugging())
+        CheckIoThread("Starting all the threads");
 
     return rc;
 }
