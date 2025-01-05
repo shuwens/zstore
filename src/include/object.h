@@ -62,16 +62,6 @@ struct ZstoreObject {
     }
 };
 
-// Serialize and deserialize the ChunkList map
-void *serializeMap(const ChunkList &map, size_t &bufferSize);
-ChunkList deserializeMap(void *buffer);
-
-// Split an object into chunks
-std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj);
-// Merge chunks into an object
-void mergeChunksIntoObject(std::vector<RequestContext *> chunk_vec,
-                           std::string req_body);
-
 // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c/10632725
 
 // void sha256_hash_string(unsigned char hash[SHA256_DIGEST_LENGTH],
@@ -90,6 +80,17 @@ ObjectKeyHash stringToHashKey(const std::string &hexString);
 unsigned int arrayToSeed(const ObjectKeyHash &hashKey);
 
 // -----------------------------------------------------
+
+// Serialize and deserialize the ChunkList map
+void *serializeMap(const ChunkList &map, size_t &bufferSize);
+ChunkList deserializeMap(void *buffer);
+ChunkList deserializeDummyMap(std::string data);
+
+// Split an object into chunks
+std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj);
+// Merge chunks into an object
+void mergeChunksIntoObject(std::vector<RequestContext *> chunk_vec,
+                           std::string req_body);
 
 bool ReadBufferToZstoreObject(const char *buffer, size_t buffer_size,
                               ZstoreObject &obj);

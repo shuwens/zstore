@@ -255,20 +255,26 @@ auto awaitable_on_request(HttpRequest req,
         // size
         if (Configuration::GetObjectSizeInBytes() >
             Configuration::GetChunkSize()) {
+            log_debug("Object is larger than chunk size");
             // Object is larger than chunk size, we need to fetch chunk list
             // and read each chunk, and merge chunks into a single object
             // if (res.has_value()) {
             u64 num_chunks = Configuration::GetObjectSizeInBytes() /
                              Configuration::GetChunkSize();
-            ChunkList chunk_list_read = deserializeMap(&s1->response_body);
+            log_debug("Num chunks {}", num_chunks);
+            // ChunkList chunk_list_read = deserializeMap(&s1->response_body);
+            ChunkList chunk_list_read = deserializeDummyMap(s1->response_body);
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
 
             u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
+            log_debug("Remaining data len {}",
+                      remaining_data_len / Configuration::GetBlockSize());
 
             std::vector<RequestContext *> chunk_read_reqs;
             for (u64 i = 0; i < num_chunks; i++) {
                 auto [lba, _] = chunk_list_read[i];
+                log_debug("Reading chunk lba {}", lba);
                 auto slot = MakeReadRequest(&zctrl_, dev1, lba).value();
                 chunk_read_reqs.push_back(slot);
             }

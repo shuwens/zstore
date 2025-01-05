@@ -38,27 +38,27 @@ std::vector<ZstoreObject> splitDummyObjectIntoChunks(ZstoreObject obj)
 }
 
 // Helper function to merge chunks into a single object
-// ZstoreObject mergeDummyChunksIntoObject(std::vector<ZstoreObject> chunk_vec)
-// {
-//     ZstoreObject obj;
-//     obj.entry.type = chunk_vec[0].entry.type;
-//     obj.entry.seqnum = chunk_vec[0].entry.seqnum;
-//     obj.entry.chunk_seqnum = 0;
-//     obj.datalen = 0;
-//     for (auto &chunk : chunk_vec) {
-//         obj.datalen += chunk.datalen;
-//     }
-//     obj.body = std::malloc(obj.datalen);
-//     u64 offset = 0;
-//     for (auto &chunk : chunk_vec) {
-//         // std::memcpy(chunk.body, "A", chunk.datalen);
-//         std::memcpy(obj.body + offset, "A", chunk.datalen);
-//         offset += chunk.datalen;
-//     }
-//     std::strcpy(obj.key_hash, chunk_vec[0].key_hash);
-//     obj.key_size = chunk_vec[0].key_size;
-//     return obj;
-// }
+ZstoreObject mergeDummyChunksIntoObject(std::vector<ZstoreObject> chunk_vec)
+{
+    ZstoreObject obj;
+    obj.entry.type = chunk_vec[0].entry.type;
+    obj.entry.seqnum = chunk_vec[0].entry.seqnum;
+    obj.entry.chunk_seqnum = 0;
+    obj.datalen = 0;
+    for (auto &chunk : chunk_vec) {
+        obj.datalen += chunk.datalen;
+    }
+    obj.body = std::malloc(obj.datalen);
+    u64 offset = 0;
+    for (auto &chunk : chunk_vec) {
+        std::memcpy(chunk.body, "A", chunk.datalen);
+        // std::memcpy(obj.body + offset, "A", chunk.datalen);
+        offset += chunk.datalen;
+    }
+    std::strcpy(obj.key_hash, chunk_vec[0].key_hash);
+    obj.key_size = chunk_vec[0].key_size;
+    return obj;
+}
 
 // NOTE that we need to test the serialization and deserialization of
 // ZstoreObject with the maximum data length (32 of 4K blocks)
@@ -164,6 +164,40 @@ void testObjectsWithMdts(u64 datalen)
 
         log_info("Test passed for chunk {}", i);
     }
+
+    // make fake object
+    log_info("Original object, size {}, entry seq {}, entry chunk seq "
+             "{}, datalen {}, key size {}",
+             sizeof(obj), obj.entry.seqnum, obj.entry.chunk_seqnum, obj.datalen,
+             obj.key_size);
+
+    ZstoreObject merged_obj;
+    merged_obj = mergeDummyChunksIntoObject(chunk_vec);
+    log_info("Merged object size: {}, entry seq {}, entry chunk seq "
+             "{}, datalen {}, key size {}",
+             sizeof(merged_obj), merged_obj.entry.seqnum,
+             merged_obj.entry.chunk_seqnum, merged_obj.datalen,
+             merged_obj.key_size);
+
+    assert(obj.entry.type == merged_obj.entry.type); // entry type match
+
+    // assert(obj.key_hash == merged_obj.key_hash);     // ok
+
+    // log_info("Original object body: {}", obj.body);
+    // log_info("Merged object body: {}", merged_obj.body);
+
+    // obj.entry.type = LogEntryType::kData;
+    // obj.entry.seqnum = 42;
+    // obj.entry.chunk_seqnum = 0;
+    // obj.datalen = datalen;
+    // obj.body = std::malloc(obj.datalen);
+    // std::memset(obj.body, 'A', obj.datalen);
+    // obj.key_size = std::strlen("test_key_hash");
+
+    // get all chunks
+
+    // assert(std::memcmp(obj.body, merged_obj.body, obj.datalen) == 0);
+
     // If all assertions pass
     log_info("Test passed: Serialization and deserialization are correct!  "
              "Data length: {}\n",

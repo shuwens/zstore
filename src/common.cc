@@ -654,21 +654,21 @@ void RequestContext::Clear()
 
 RequestContextPool::RequestContextPool(uint32_t cap)
 {
+    // Set buffer size according to object size and MDTS
+    u64 buffer_size = 0;
+    if (Configuration::GetObjectSizeInBytes() > Configuration::GetChunkSize()) {
+        buffer_size = Configuration::GetChunkSize();
+    } else {
+        buffer_size = Configuration::GetObjectSizeInBytes();
+    }
     capacity = cap;
     contexts = new RequestContext[capacity];
     for (uint32_t i = 0; i < capacity; ++i) {
         contexts[i].Clear();
         contexts[i].dataBuffer =
-            (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
-                                 Configuration::GetBlockSize(), NULL,
-                                 SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        // contexts[i].metadataBuffer =
-        //     (uint8_t *)spdk_zmalloc(Configuration::GetMaxStripeUnitSize() /
-        //                                 Configuration::GetBlockSize() *
-        //                                 Configuration::GetMetadataSize(),
-        //                             Configuration::GetBlockSize(), NULL,
-        //                             SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        contexts[i].bufferSize = Configuration::GetObjectSizeInBytes();
+            (char *)spdk_zmalloc(buffer_size, Configuration::GetBlockSize(),
+                                 NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+        contexts[i].bufferSize = buffer_size;
         contexts[i].response_body.reserve(
             Configuration::GetObjectSizeInBytes());
         availableContexts.emplace_back(&contexts[i]);
@@ -689,21 +689,23 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             ctx->Clear();
             ctx->available = false;
         } else {
+
+            // Set buffer size according to object size and MDTS
+            u64 buffer_size = 0;
+            if (Configuration::GetObjectSizeInBytes() >
+                Configuration::GetChunkSize()) {
+                buffer_size = Configuration::GetChunkSize();
+            } else {
+                buffer_size = Configuration::GetObjectSizeInBytes();
+            }
+
             ctx = new RequestContext();
-            ctx->dataBuffer =
-                (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
-                                     Configuration::GetBlockSize(), NULL,
-                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-            // ctx->metadataBuffer = (uint8_t *)spdk_zmalloc(
-            //     Configuration::GetMaxStripeUnitSize() /
-            //         Configuration::GetBlockSize() *
-            //         Configuration::GetMetadataSize(),
-            //     Configuration::GetBlockSize(), NULL, SPDK_ENV_SOCKET_ID_ANY,
-            //     SPDK_MALLOC_DMA);
-            ctx->bufferSize = Configuration::GetObjectSizeInBytes();
+            ctx->dataBuffer = (char *)spdk_zmalloc(
+                buffer_size, Configuration::GetBlockSize(), NULL,
+                SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+            ctx->bufferSize = buffer_size;
             ctx->Clear();
             ctx->available = false;
-            exit(1);
         }
     }
     return ctx;
@@ -745,8 +747,7 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
     ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId() + offset;
-    ioCtx.size =
-        Configuration::GetObjectSizeInBytes() / Configuration::GetBlockSize();
+    ioCtx.size = slot->bufferSize / Configuration::GetBlockSize();
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 
@@ -773,15 +774,14 @@ Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
 {
     RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
     slot->ctrl = zctrl_;
-    // std::memcpy(slot->dataBuffer, req.body().data(), req.body().size());
+    std::memcpy(slot->dataBuffer, req.body().data(), req.body().size());
 
     auto ioCtx = slot->ioContext;
     ioCtx.ns = dev->GetNamespace();
     ioCtx.qpair = dev->GetIoQueue(0);
     ioCtx.data = slot->dataBuffer;
     ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId();
-    ioCtx.size =
-        Configuration::GetObjectSizeInBytes() / Configuration::GetBlockSize();
+    ioCtx.size = slot->bufferSize / Configuration::GetBlockSize();
     ioCtx.flags = 0;
     slot->ioContext = ioCtx;
 

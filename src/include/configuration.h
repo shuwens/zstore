@@ -74,9 +74,6 @@ class Configuration
     static bool Debugging() { return GetInstance().gDebug; }
     // static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload;
     // }
-    static bool UseObject() { return GetInstance().gUseObject; }
-    static bool UseHttp() { return GetInstance().gUseHttp; }
-    static bool UseWorkStealing() { return GetInstance().gUseWorkStealing; }
 
     static bool GetDeviceSupportMetadata()
     {
@@ -160,7 +157,7 @@ class Configuration
 
     // Configured parameters
     int gContextPoolSize = 4096;
-    u64 gChunkSize = 4096 * 32; // 4KB
+    u64 gChunkSize = 4096 * 16; // this should be the MDTS: 32 blocks
 
     // how many targets one gateway talks to
     int gNumOfTargets = 3;
@@ -171,27 +168,14 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    // const int gCurrentZone = 0;
-    const int gCurrentZone = 34;        // write
-    uint32_t gObjectSizeInBytes = 4096; // 4kB
+    const int gCurrentZone = 0; // read from zone 0
+    // const int gCurrentZone = 34;        // write
+    // uint32_t gObjectSizeInBytes = 4096; // 4kB
+    uint32_t gObjectSizeInBytes = 4096 * 128; // test large object
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
-    // uint32_t gObjectSizeInBytes = 4096 * 16;
 
     std::string gZookeeperUrl = "12.12.12.1:2181";
 
-    // FIXME:
-    //
-    // large object: single run can go to 128 blocks
-    // http server can only go to 16 blocks
-    //
-    // read is 64 blocks?
-
-    bool gVerbose = false; // this will turn on all logs
-    bool gDebug = false;   // this will turn on all checks and log
-
-    // bool gUseDummyWorkload = false;
-    bool gUseObject = false;
-    bool gUseHttp = true;
-    // TODO: use other spdk thread to work stealing
-    bool gUseWorkStealing = false;
+    bool gVerbose = true; // this will turn on all logs
+    bool gDebug = true;   // this will turn on all checks and log
 };

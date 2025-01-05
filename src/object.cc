@@ -1,5 +1,6 @@
 #include "include/object.h"
 #include "include/zstore_controller.h"
+#include "src/include/utils.h"
 #include <boost/outcome/success_failure.hpp>
 
 // Function to compute SHA256 hash
@@ -184,8 +185,7 @@ std::vector<char> WriteZstoreObjectToBuffer(const ZstoreObject &obj)
 void *serializeMap(const ChunkList &map, size_t &bufferSize)
 {
     // Calculate total size required for the buffer
-    bufferSize =
-        sizeof(size_t) + map.size() * (sizeof(uint64_t) + 2 * sizeof(uint64_t));
+    bufferSize = sizeof(size_t) + map.size() * (sizeof(u64) + 2 * sizeof(u64));
     void *buffer = malloc(bufferSize); // Allocate the buffer
     char *ptr = static_cast<char *>(buffer);
 
@@ -196,17 +196,17 @@ void *serializeMap(const ChunkList &map, size_t &bufferSize)
 
     // Write each key-value pair
     for (const auto &[key, value] : map) {
-        memcpy(ptr, &key, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
+        memcpy(ptr, &key, sizeof(u64));
+        ptr += sizeof(u64);
 
-        uint64_t first = std::get<0>(value);
-        uint64_t second = std::get<1>(value);
+        u64 first = std::get<0>(value);
+        u64 second = std::get<1>(value);
 
-        memcpy(ptr, &first, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
+        memcpy(ptr, &first, sizeof(u64));
+        ptr += sizeof(u64);
 
-        memcpy(ptr, &second, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
+        memcpy(ptr, &second, sizeof(u64));
+        ptr += sizeof(u64);
     }
 
     return buffer;
@@ -224,16 +224,51 @@ ChunkList deserializeMap(void *buffer)
     // Reconstruct the map
     ChunkList map;
     for (size_t i = 0; i < mapSize; ++i) {
-        uint64_t key;
-        memcpy(&key, ptr, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
+        u64 key;
+        memcpy(&key, ptr, sizeof(u64));
+        ptr += sizeof(u64);
 
-        uint64_t first, second;
-        memcpy(&first, ptr, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
+        u64 first, second;
+        memcpy(&first, ptr, sizeof(u64));
+        ptr += sizeof(u64);
 
-        memcpy(&second, ptr, sizeof(uint64_t));
-        ptr += sizeof(uint64_t);
+        memcpy(&second, ptr, sizeof(u64));
+        ptr += sizeof(u64);
+
+        map[key] = std::make_tuple(first, second);
+    }
+
+    return map;
+}
+
+ChunkList deserializeDummyMap(std::string data)
+{
+    log_debug("111");
+    auto _chunk_size = Configuration::GetChunkSize();
+    char *ptr = new char[_chunk_size]();
+    std::memcpy(&ptr, data.c_str(), _chunk_size);
+
+    // Read the size of the map
+    size_t mapSize;
+    memcpy(&mapSize, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+    log_debug("Map size: {}", mapSize);
+
+    // Reconstruct the map
+    ChunkList map;
+    for (size_t i = 0; i < mapSize; ++i) {
+        u64 key;
+        memcpy(&key, ptr, sizeof(u64));
+        ptr += sizeof(u64);
+
+        u64 first, second;
+        memcpy(&first, ptr, sizeof(u64));
+        ptr += sizeof(u64);
+
+        memcpy(&second, ptr, sizeof(u64));
+        ptr += sizeof(u64);
+
+        log_debug("Key: {}, Value: ({}, {})", key, first, second);
 
         map[key] = std::make_tuple(first, second);
     }
