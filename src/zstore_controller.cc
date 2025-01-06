@@ -20,7 +20,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 {
 
     int rc = 0;
-    verbose = Configuration::Verbose();
+    // verbose = Configuration::Verbose();
 
     setContextPoolSize(Configuration::GetContextPoolSize());
     setKeyExperiment(key_experiment);
@@ -598,7 +598,7 @@ void ZstoreController::register_ctrlr(std::vector<Device *> &g_devices,
         spdk_nvme_zns_ctrlr_get_max_zone_append_size(ctrlr);
     auto metadata_size = spdk_nvme_ns_get_md_size(ns);
 
-    if (verbose) {
+    if (Configuration::Debugging()) {
         log_info("Zone size: sectors {}, bytes {}", zone_size_sectors,
                  zone_size_bytes);
         log_info("Zones: num {}, max open {}, active {}", num_zones,

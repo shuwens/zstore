@@ -665,12 +665,14 @@ RequestContextPool::RequestContextPool(uint32_t cap)
     contexts = new RequestContext[capacity];
     for (uint32_t i = 0; i < capacity; ++i) {
         contexts[i].Clear();
+        contexts[i].bufferSize = buffer_size;
         contexts[i].dataBuffer =
             (char *)spdk_zmalloc(buffer_size, Configuration::GetBlockSize(),
                                  NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        contexts[i].bufferSize = buffer_size;
-        contexts[i].response_body.reserve(
-            Configuration::GetObjectSizeInBytes());
+        // TODO [design]  we need to pre-allocate the buffer for each request
+        // somewhere so it is done here, maybe this can be moved somewhere
+        // else
+        contexts[i].response_body.reserve(buffer_size);
         availableContexts.emplace_back(&contexts[i]);
     }
 }
@@ -689,7 +691,6 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             ctx->Clear();
             ctx->available = false;
         } else {
-
             // Set buffer size according to object size and MDTS
             u64 buffer_size = 0;
             if (Configuration::GetObjectSizeInBytes() >
@@ -700,10 +701,11 @@ RequestContext *RequestContextPool::GetRequestContext(bool force)
             }
 
             ctx = new RequestContext();
+            ctx->bufferSize = buffer_size;
             ctx->dataBuffer = (char *)spdk_zmalloc(
                 buffer_size, Configuration::GetBlockSize(), NULL,
                 SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-            ctx->bufferSize = buffer_size;
+            ctx->response_body.reserve(buffer_size);
             ctx->Clear();
             ctx->available = false;
         }

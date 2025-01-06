@@ -84,7 +84,7 @@ unsigned int arrayToSeed(const ObjectKeyHash &hashKey);
 // Serialize and deserialize the ChunkList map
 void *serializeMap(const ChunkList &map, size_t &bufferSize);
 ChunkList deserializeMap(void *buffer);
-ChunkList deserializeDummyMap(std::string data);
+ChunkList deserializeDummyMap(std::string data, u64 num_chunks);
 
 // Split an object into chunks
 std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj);

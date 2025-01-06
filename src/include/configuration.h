@@ -70,7 +70,7 @@ class Configuration
 
     static int GetSamplingRate() { return GetInstance().gSamplingRate; }
 
-    static bool Verbose() { return GetInstance().gVerbose; }
+    // static bool Verbose() { return GetInstance().gVerbose; }
     static bool Debugging() { return GetInstance().gDebug; }
     // static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload;
     // }
@@ -155,8 +155,8 @@ class Configuration
     bool gDeviceSupportMetadata = false;
     int gBlockSize = 4096;
 
-    // Configured parameters
-    int gContextPoolSize = 4096;
+    // Configured parameters: 64/256/4096
+    int gContextPoolSize = 64;
     u64 gChunkSize = 4096 * 16; // this should be the MDTS: 32 blocks
 
     // how many targets one gateway talks to
@@ -168,14 +168,16 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    const int gCurrentZone = 0; // read from zone 0
-    // const int gCurrentZone = 34;        // write
-    // uint32_t gObjectSizeInBytes = 4096; // 4kB
-    uint32_t gObjectSizeInBytes = 4096 * 128; // test large object
+    // const int gCurrentZone = 0; // read from zone 0
+    const int gCurrentZone = 41; // write
+    // uint32_t gObjectSizeInBytes = 4096 ; // 4kB
+    // uint32_t gObjectSizeInBytes = 4096 * 16;
+    uint32_t gObjectSizeInBytes = 4096 * 64; // test large object
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
+    // uint32_t gObjectSizeInBytes = 4096 * 4096 * 4;
 
     std::string gZookeeperUrl = "12.12.12.1:2181";
 
-    bool gVerbose = true; // this will turn on all logs
-    bool gDebug = true;   // this will turn on all checks and log
+    // bool gVerbose = true; // this will turn on all logs
+    bool gDebug = true; // this will turn on all checks and log
 };

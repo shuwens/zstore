@@ -190,7 +190,7 @@ class ZstoreController
     RequestContextPool *mRequestContextPool;
     // std::unordered_set<RequestContext *> mInflightRequestContext;
 
-    bool verbose;
+    // bool verbose;
     bool isDraining;
 
     // debug

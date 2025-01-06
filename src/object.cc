@@ -241,39 +241,14 @@ ChunkList deserializeMap(void *buffer)
     return map;
 }
 
-ChunkList deserializeDummyMap(std::string data)
+ChunkList deserializeDummyMap(std::string data, u64 num_chunks)
 {
-    log_debug("111");
-    auto _chunk_size = Configuration::GetChunkSize();
-    char *ptr = new char[_chunk_size]();
-    std::memcpy(&ptr, data.c_str(), _chunk_size);
-
-    // Read the size of the map
-    size_t mapSize;
-    memcpy(&mapSize, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-    log_debug("Map size: {}", mapSize);
-
-    // Reconstruct the map
-    ChunkList map;
-    for (size_t i = 0; i < mapSize; ++i) {
-        u64 key;
-        memcpy(&key, ptr, sizeof(u64));
-        ptr += sizeof(u64);
-
-        u64 first, second;
-        memcpy(&first, ptr, sizeof(u64));
-        ptr += sizeof(u64);
-
-        memcpy(&second, ptr, sizeof(u64));
-        ptr += sizeof(u64);
-
-        log_debug("Key: {}, Value: ({}, {})", key, first, second);
-
-        map[key] = std::make_tuple(first, second);
+    ChunkList chunk_list;
+    for (u64 i = 0; i < num_chunks; i++) {
+        chunk_list[i] = std::make_tuple(i, Configuration::GetChunkSize());
     }
 
-    return map;
+    return chunk_list;
 }
 
 // Helper function to take a larger object and split it into chunks

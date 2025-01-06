@@ -203,7 +203,7 @@ auto awaitable_on_request(HttpRequest req,
 
         // Get bucket will always return 404
         if (object_key == "") {
-            if (zctrl_.verbose)
+            if (Configuration::Debugging())
                 log_error(
                     "Object key is empty. Ignoring the request as we dont "
                     "care about bucket {}.",
@@ -217,7 +217,7 @@ auto awaitable_on_request(HttpRequest req,
         MapEntry entry;
 
         if (!e.has_value()) {
-            if (zctrl_.verbose)
+            if (Configuration::Debugging())
                 log_error("GET: Object {} not found", object_key);
             // co_return handle_not_found_request(std::move(req));
             entry = createMapEntry(
@@ -255,26 +255,31 @@ auto awaitable_on_request(HttpRequest req,
         // size
         if (Configuration::GetObjectSizeInBytes() >
             Configuration::GetChunkSize()) {
-            log_debug("Object is larger than chunk size");
+            if (Configuration::Debugging())
+                log_debug("Object is larger than chunk size");
             // Object is larger than chunk size, we need to fetch chunk list
             // and read each chunk, and merge chunks into a single object
             // if (res.has_value()) {
             u64 num_chunks = Configuration::GetObjectSizeInBytes() /
                              Configuration::GetChunkSize();
-            log_debug("Num chunks {}", num_chunks);
+            if (Configuration::Debugging())
+                log_debug("Num chunks {}", num_chunks);
             // ChunkList chunk_list_read = deserializeMap(&s1->response_body);
-            ChunkList chunk_list_read = deserializeDummyMap(s1->response_body);
+            ChunkList chunk_list_read =
+                deserializeDummyMap(s1->response_body, num_chunks);
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
 
             u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
-            log_debug("Remaining data len {}",
-                      remaining_data_len / Configuration::GetBlockSize());
+            if (Configuration::Debugging())
+                log_debug("Remaining data len {}",
+                          remaining_data_len / Configuration::GetBlockSize());
 
             std::vector<RequestContext *> chunk_read_reqs;
             for (u64 i = 0; i < num_chunks; i++) {
                 auto [lba, _] = chunk_list_read[i];
-                log_debug("Reading chunk lba {}", lba);
+                if (Configuration::Debugging())
+                    log_debug("Reading chunk lba {}", lba);
                 auto slot = MakeReadRequest(&zctrl_, dev1, lba).value();
                 chunk_read_reqs.push_back(slot);
             }
@@ -295,7 +300,7 @@ auto awaitable_on_request(HttpRequest req,
                 asio::experimental::wait_for_all(), asio::use_awaitable));
 
             // TODO: check for success
-            mergeChunksIntoObject(chunk_read_reqs, req.body());
+            // mergeChunksIntoObject(chunk_read_reqs, req.body());
 
             co_return handle_request(std::move(req));
             // } else {
@@ -327,7 +332,7 @@ auto awaitable_on_request(HttpRequest req,
                req.method() == http::verb::put) {
 
         if (object_key == "") {
-            if (zctrl_.verbose)
+            if (Configuration::Debugging())
                 log_error(
                     "Object key is empty. Ignoring the request as we dont "
                     "care about bucket {}.",
@@ -336,7 +341,7 @@ auto awaitable_on_request(HttpRequest req,
             co_return handle_request(std::move(req));
         }
 
-        if (zctrl_.verbose)
+        if (Configuration::Debugging())
             // log_debug("key {}, key hash {}, value {}", object_key, key_hash,
             //           req.body());
             log_debug("key {}, key hash {}", object_key, key_hash);
@@ -362,7 +367,7 @@ auto awaitable_on_request(HttpRequest req,
         auto dev2 = zctrl_.GetDevice(tgt2);
         auto dev3 = zctrl_.GetDevice(tgt3);
 
-        if (zctrl_.verbose) {
+        if (Configuration::Debugging()) {
             log_debug("Writing to tgt1 {} tgt2 {} tgt3 {}", tgt1, tgt2, tgt3);
             // log_debug("Writing to dev1 {} dev2 {} dev3 {}",
             // dev1->GetZoneId(),
@@ -422,7 +427,7 @@ auto awaitable_on_request(HttpRequest req,
         co_return handle_request(std::move(req));
 
     } else if (req.method() == http::verb::delete_) {
-        if (zctrl_.verbose)
+        if (Configuration::Debugging())
             log_debug("Delete request for key {}", key_hash);
         MapEntry entry = zctrl_.DeleteObject(key_hash).value();
         auto [first, second, third] = entry;
