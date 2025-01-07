@@ -1,25 +1,13 @@
-
-# read benchmark
-10 sec reads: 1.85GB/s
-
-use TCP transport
-RX diff: 18.3GB-2.2GB=16.1GB
-TX diff: 86.9GB-70.5GB=16.4GB
-
-iperf:
- 43.8 GBytes  37.7 Gbits/sec
+## parallel reads with nvme-of 
 
 
-nvme-of 
+69877.00 
+174503.00 
+246695.00 
+189196.00 
+102706.00 
+255420.00
 
-
-180302.00 +
-196202.00 +
-186457.00 +
-177708.00 +
-201065.00 +
-203130.00
-== 1144864
 
 
 ## s3bench

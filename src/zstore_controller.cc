@@ -106,13 +106,13 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         if (mOption == 1) {
             ip = "12.12.12.1";
             ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
+                "nqn.2024-04.io.zstore:cnode1", "12.12.12.2", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
             ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
+                "nqn.2024-04.io.zstore:cnode1", "12.12.12.3", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
             ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
+                "nqn.2024-04.io.zstore:cnode1", "12.12.12.4", "5520",
                 Configuration::GetZoneId(), Configuration::GetZoneId()));
             // ip_port_devs.push_back(std::make_tuple(
             //     "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
@@ -214,13 +214,13 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else {
         ip = "12.12.12.1";
         ip_port_devs.push_back(std::make_tuple(
-            "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
+            "nqn.2024-04.io.zstore:cnode1", "12.12.12.2", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
         ip_port_devs.push_back(std::make_tuple(
-            "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
+            "nqn.2024-04.io.zstore:cnode1", "12.12.12.3", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
         ip_port_devs.push_back(std::make_tuple(
-            "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
+            "nqn.2024-04.io.zstore:cnode1", "12.12.12.4", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
         // ip_port_devs.push_back(std::make_tuple(
         //     "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
@@ -318,7 +318,9 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
             log_info("HTTP server: Thread {} on core {}", i,
                      i + Configuration::GetHttpThreadCoreId());
 #endif
-            ioc.run();
+            // ioc.run();
+            for (;;)
+                ioc.poll();
         });
     }
 
@@ -620,7 +622,7 @@ void ZstoreController::zns_dev_init(
     snprintf(trid.trsvcid, sizeof(trid.trsvcid), "%s", port.c_str());
     snprintf(trid.subnqn, sizeof(trid.subnqn), "%s", nqn.c_str());
     trid.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid.trtype = SPDK_NVME_TRANSPORT_RDMA;
+    trid.trtype = SPDK_NVME_TRANSPORT_TCP;
 
     struct spdk_nvme_ctrlr_opts opts;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts, sizeof(opts));
