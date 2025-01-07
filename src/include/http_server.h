@@ -270,14 +270,15 @@ auto awaitable_on_request(HttpRequest req,
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
 
-            u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
-            if (Configuration::Debugging())
-                log_debug("Remaining data len {}",
-                          remaining_data_len / Configuration::GetBlockSize());
+            // u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
+            // if (Configuration::Debugging())
+            //     log_debug("Remaining data len {}",
+            //               remaining_data_len /
+            //               Configuration::GetBlockSize());
 
             std::vector<RequestContext *> chunk_read_reqs;
             for (u64 i = 0; i < num_chunks; i++) {
-                auto [lba, _] = chunk_list_read[i];
+                auto [_, lba] = chunk_list_read[i];
                 if (Configuration::Debugging())
                     log_debug("Reading chunk lba {}", lba);
                 auto slot = MakeReadRequest(&zctrl_, dev1, lba).value();
@@ -300,7 +301,11 @@ auto awaitable_on_request(HttpRequest req,
                 asio::experimental::wait_for_all(), asio::use_awaitable));
 
             // TODO: check for success
-            // mergeChunksIntoObject(chunk_read_reqs, req.body());
+            mergeChunksIntoObject(chunk_read_reqs, req.body());
+            for (auto &slot : chunk_read_reqs) {
+                slot->Clear();
+                zctrl_.mRequestContextPool->ReturnRequestContext(slot);
+            }
 
             co_return handle_request(std::move(req));
             // } else {
@@ -330,7 +335,6 @@ auto awaitable_on_request(HttpRequest req,
 
     } else if (req.method() == http::verb::post ||
                req.method() == http::verb::put) {
-
         if (object_key == "") {
             if (Configuration::Debugging())
                 log_error(
@@ -351,7 +355,8 @@ auto awaitable_on_request(HttpRequest req,
 
         // TODO:  populate the map with consistent hashes
         auto dev_tuple = zctrl_.GetDevTuple(key_hash).value();
-        // auto dev_tuple = zctrl_.GetDevTupleForRandomReads(key_hash).value();
+        // auto dev_tuple =
+        // zctrl_.GetDevTupleForRandomReads(key_hash).value();
 
         auto entry = zctrl_.CreateFakeObject(key_hash, dev_tuple).value();
         auto [first, second, third] = entry;
@@ -367,64 +372,211 @@ auto awaitable_on_request(HttpRequest req,
         auto dev2 = zctrl_.GetDevice(tgt2);
         auto dev3 = zctrl_.GetDevice(tgt3);
 
-        if (Configuration::Debugging()) {
-            log_debug("Writing to tgt1 {} tgt2 {} tgt3 {}", tgt1, tgt2, tgt3);
-            // log_debug("Writing to dev1 {} dev2 {} dev3 {}",
-            // dev1->GetZoneId(),
-            //           dev2->GetZoneId(), dev3->GetZoneId());
+        // Here is the part where we operate differently based on object
+        // size
+        if (Configuration::GetObjectSizeInBytes() >
+            Configuration::GetChunkSize()) {
+            u64 num_chunks = Configuration::GetObjectSizeInBytes() /
+                             Configuration::GetChunkSize();
+
+            ZstoreObject obj;
+            obj.entry.type = LogEntryType::kData;
+            obj.entry.seqnum = 42;
+            obj.entry.chunk_seqnum = 24;
+            obj.datalen = Configuration::GetObjectSizeInBytes();
+            obj.body = std::malloc(obj.datalen);
+            std::memset(obj.body, req.body().data()[0],
+                        obj.datalen); // Fill with example data (0xCD)
+            // std::strcpy(original_obj.key_hash, key_hash);
+            obj.key_size = kHashSize;
+            if (Configuration::Debugging())
+                log_debug("Object size: {}", obj.datalen);
+
+            std::vector<ZstoreObject> chunk_vec = splitObjectIntoChunks(obj);
+            if (Configuration::Debugging())
+                log_debug("Chunk vec size: {}", chunk_vec.size());
+            std::free(obj.body);
+
+            // u64 remaining_data_len = Configuration::GetObjectSizeInBytes();
+            // if (Configuration::Debugging())
+            //     log_debug("Remaining data len {}",
+            //               remaining_data_len /
+            //               Configuration::GetBlockSize());
+
+            std::vector<RequestContext *> chunk_write_reqs;
+            chunk_write_reqs.reserve(num_chunks * 3);
+            char *buffer =
+                (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
+                                     Configuration::GetBlockSize(), NULL,
+                                     SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+            if (Configuration::Debugging())
+                log_debug("Buffer size: {}, chunk write req: {}",
+                          Configuration::GetObjectSizeInBytes(),
+                          num_chunks * 3);
+
+            for (u64 i = 0; i < num_chunks; i++) {
+                if (Configuration::Debugging())
+                    log_debug("Chunk vec size: {}", chunk_vec.size());
+                buffer = (char *)chunk_vec[i].body;
+
+                auto s1 = MakeWriteChunk(&zctrl_, dev1, buffer).value();
+                auto s2 = MakeWriteChunk(&zctrl_, dev2, buffer).value();
+                auto s3 = MakeWriteChunk(&zctrl_, dev3, buffer).value();
+                chunk_write_reqs.push_back(s1);
+                chunk_write_reqs.push_back(s2);
+                chunk_write_reqs.push_back(s3);
+                if (Configuration::Debugging())
+                    log_debug("Chunk write reqs size: {}",
+                              chunk_write_reqs.size());
+            }
+
+            auto ex = co_await asio::this_coro::executor;
+            using Task = decltype(co_spawn(ex, zoneAppend(chunk_write_reqs[0]),
+                                           asio::deferred));
+            std::vector<Task> chunks_to_write;
+            for (auto &slot : chunk_write_reqs) {
+                chunks_to_write.push_back(
+                    co_spawn(ex, zoneAppend(slot), asio::deferred));
+            }
+            if (Configuration::Debugging())
+                log_debug("1111");
+            // Await them all and let them execute in parallel
+            auto grp = asio::experimental::make_parallel_group(
+                std::move(chunks_to_write));
+            if (Configuration::Debugging())
+                log_debug("2222");
+
+            auto rr = co_await (grp.async_wait(
+                asio::experimental::wait_for_all(), asio::use_awaitable));
+            if (Configuration::Debugging())
+                log_debug("2222");
+            for (auto &slot : chunk_write_reqs) {
+                slot->Clear();
+                zctrl_.mRequestContextPool->ReturnRequestContext(slot);
+            }
+            if (Configuration::Debugging())
+                log_debug("2222");
+
+            // TODO: why is std map default size 48?
+            // write the chunk list
+            ChunkList chunk_list;
+            if (Configuration::Debugging())
+                log_info("11111 Chunk list size: {}", sizeof(chunk_list));
+            for (u64 i = 0; i < num_chunks; i++) {
+                // log_info("Chunk list: {} {}", i, kChunkSize);
+                if (chunk_write_reqs[i]->success)
+                    chunk_list[i] =
+                        std::make_tuple(i, chunk_write_reqs[i]->append_lba);
+                else
+                    chunk_list[i] = std::make_tuple(i, 42);
+            }
+            std::memcpy(buffer,
+                        serializeMap(chunk_list, Configuration::GetChunkSize()),
+                        Configuration::GetChunkSize());
+
+            if (Configuration::Debugging())
+                log_info("22222 Chunk list size: {}", sizeof(chunk_list));
+
+            auto s1 = MakeWriteChunk(&zctrl_, dev1, buffer).value();
+            auto s2 = MakeWriteChunk(&zctrl_, dev2, buffer).value();
+            auto s3 = MakeWriteChunk(&zctrl_, dev3, buffer).value();
+            if (Configuration::Debugging())
+                log_info("33333 Chunk list size: {}", sizeof(chunk_list));
+            co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+            assert(s1->success && s2->success && s3->success &&
+                   "Write request failed");
+
+            co_await async_sleep(co_await asio::this_coro::executor,
+                                 std::chrono::microseconds(0),
+                                 asio::use_awaitable);
+            if (Configuration::Debugging())
+                log_info("44444 Chunk list size: {}", sizeof(chunk_list));
+            auto new_entry =
+                createMapEntry(
+                    std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
+                                    std::make_pair(tgt2, dev2->GetZoneId()),
+                                    std::make_pair(tgt3, dev3->GetZoneId())),
+                    s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+                    .value();
+
+            s1->Clear();
+            s2->Clear();
+            s3->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+            zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+            if (Configuration::Debugging())
+                log_info("55555 Chunk list size: {}", sizeof(chunk_list));
+            // update lba in map
+            // auto rc = zctrl_.PutObject(key_hash, new_entry).value();
+
+            // spdk_free(buffer);
+            // chunk_write_reqs.clear();
+            // chunk_vec.clear();
+            co_return handle_request(std::move(req));
+
+        } else {
+            if (Configuration::Debugging()) {
+                log_debug("Writing to tgt1 {} tgt2 {} tgt3 {}", tgt1, tgt2,
+                          tgt3);
+                // log_debug("Writing to dev1 {} dev2 {} dev3 {}",
+                // dev1->GetZoneId(),
+                //           dev2->GetZoneId(), dev3->GetZoneId());
+            }
+
+            // TODO
+            ZstoreObject original_obj;
+            original_obj.entry.type = LogEntryType::kData;
+            original_obj.entry.seqnum = 42;
+            original_obj.entry.chunk_seqnum = 24;
+            original_obj.datalen = Configuration::GetObjectSizeInBytes();
+            original_obj.body = std::malloc(original_obj.datalen);
+            std::memset(original_obj.body, req.body().data()[0],
+                        original_obj.datalen); // Fill with example data (0xCD)
+            // std::strcpy(original_obj.key_hash, key_hash);
+            original_obj.key_size = kHashSize;
+            // static_cast<uint16_t>(std::strlen(original_obj.key_hash));
+
+            // 2. Serialize to buffer
+            std::vector<char> buffer = WriteZstoreObjectToBuffer(original_obj);
+
+            // debug_buffer
+
+            // log_debug("Writing buffer {}, body {}", buffer, req.body());
+
+            auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
+            auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
+            auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
+
+            // log_debug("dispatching write requests");
+
+            co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+            assert(s1->success && s2->success && s3->success &&
+                   "Write request failed");
+
+            co_await async_sleep(co_await asio::this_coro::executor,
+                                 std::chrono::microseconds(0),
+                                 asio::use_awaitable);
+
+            auto new_entry =
+                createMapEntry(
+                    std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
+                                    std::make_pair(tgt2, dev2->GetZoneId()),
+                                    std::make_pair(tgt3, dev3->GetZoneId())),
+                    s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+                    .value();
+
+            s1->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+            s2->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+            s3->Clear();
+            zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+
+            // update lba in map
+            auto rc = zctrl_.PutObject(key_hash, new_entry).value();
+            co_return handle_request(std::move(req));
         }
-
-        // TODO
-        ZstoreObject original_obj;
-        original_obj.entry.type = LogEntryType::kData;
-        original_obj.entry.seqnum = 42;
-        original_obj.entry.chunk_seqnum = 24;
-        original_obj.datalen = Configuration::GetObjectSizeInBytes();
-        original_obj.body = std::malloc(original_obj.datalen);
-        std::memset(original_obj.body, req.body().data()[0],
-                    original_obj.datalen); // Fill with example data (0xCD)
-        // std::strcpy(original_obj.key_hash, key_hash);
-        original_obj.key_size = kHashSize;
-        // static_cast<uint16_t>(std::strlen(original_obj.key_hash));
-
-        // 2. Serialize to buffer
-        std::vector<char> buffer = WriteZstoreObjectToBuffer(original_obj);
-
-        // debug_buffer
-
-        // log_debug("Writing buffer {}, body {}", buffer, req.body());
-
-        auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
-        auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
-        auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
-
-        // log_debug("dispatching write requests");
-
-        co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
-        assert(s1->success && s2->success && s3->success &&
-               "Write request failed");
-
-        co_await async_sleep(co_await asio::this_coro::executor,
-                             std::chrono::microseconds(0), asio::use_awaitable);
-
-        auto new_entry =
-            createMapEntry(
-                std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
-                                std::make_pair(tgt2, dev2->GetZoneId()),
-                                std::make_pair(tgt3, dev3->GetZoneId())),
-                s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
-                .value();
-
-        s1->Clear();
-        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-        s2->Clear();
-        zctrl_.mRequestContextPool->ReturnRequestContext(s2);
-        s3->Clear();
-        zctrl_.mRequestContextPool->ReturnRequestContext(s3);
-
-        // update lba in map
-        auto rc = zctrl_.PutObject(key_hash, new_entry).value();
-        co_return handle_request(std::move(req));
 
     } else if (req.method() == http::verb::delete_) {
         if (Configuration::Debugging())

@@ -82,7 +82,7 @@ unsigned int arrayToSeed(const ObjectKeyHash &hashKey);
 // -----------------------------------------------------
 
 // Serialize and deserialize the ChunkList map
-void *serializeMap(const ChunkList &map, size_t &bufferSize);
+char *serializeMap(const ChunkList &map, u64 bufferSize);
 ChunkList deserializeMap(void *buffer);
 ChunkList deserializeDummyMap(std::string data, u64 num_chunks);
 

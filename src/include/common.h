@@ -44,5 +44,8 @@ Result<RequestContext *> MakeReadRequest(ZstoreController *zctrl_, Device *dev,
 Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
                                           HttpRequest &req);
 
+Result<RequestContext *> MakeWriteChunk(ZstoreController *zctrl_, Device *dev,
+                                        char *buffer);
+
 Result<RequestContext *> MakeManagementRequest(ZstoreController *zctrl_,
                                                Device *dev);

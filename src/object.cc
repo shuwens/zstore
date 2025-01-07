@@ -98,6 +98,8 @@ std::string sha256(std::string_view input)
     return ss.str();
 }
 
+// TODO the following functions need to be updated after  the design changes
+// so far they do not cause memory leaks but correctness is not guaranteed
 bool ReadBufferToZstoreObject(const char *buffer, size_t buffer_size,
                               ZstoreObject &obj)
 {
@@ -182,11 +184,13 @@ std::vector<char> WriteZstoreObjectToBuffer(const ZstoreObject &obj)
     return buffer;
 }
 
-void *serializeMap(const ChunkList &map, size_t &bufferSize)
+char *serializeMap(const ChunkList &map, u64 bufferSize)
 {
+    assert(bufferSize == Configuration::GetChunkSize());
     // Calculate total size required for the buffer
-    bufferSize = sizeof(size_t) + map.size() * (sizeof(u64) + 2 * sizeof(u64));
-    void *buffer = malloc(bufferSize); // Allocate the buffer
+    // bufferSize = sizeof(size_t) + map.size() * (sizeof(u64) + 2 *
+    // sizeof(u64));
+    char *buffer = (char *)malloc(bufferSize); // Allocate the buffer
     char *ptr = static_cast<char *>(buffer);
 
     // Write the size of the map
@@ -277,7 +281,7 @@ std::vector<ZstoreObject> splitObjectIntoChunks(ZstoreObject obj)
         chunk.body = std::malloc(chunk.datalen);
         std::memcpy(chunk.body, (char *)obj.body + (i * chunk.datalen),
                     chunk.datalen);
-        std::strcpy(chunk.key_hash, obj.key_hash);
+        // std::strcpy(chunk.key_hash, obj.key_hash);
         chunk.key_size = obj.key_size;
         chunk_vec.push_back(chunk);
     }

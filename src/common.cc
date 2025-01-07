@@ -794,6 +794,30 @@ Result<RequestContext *> MakeWriteRequest(ZstoreController *zctrl_, Device *dev,
     return slot;
 }
 
+Result<RequestContext *> MakeWriteChunk(ZstoreController *zctrl_, Device *dev,
+                                        char *buffer)
+{
+    RequestContext *slot = zctrl_->mRequestContextPool->GetRequestContext(true);
+    slot->ctrl = zctrl_;
+    // slot->dataBuffer = buffer;
+    std::memcpy(slot->dataBuffer, buffer, slot->bufferSize);
+
+    auto ioCtx = slot->ioContext;
+    ioCtx.ns = dev->GetNamespace();
+    ioCtx.qpair = dev->GetIoQueue(0);
+    ioCtx.data = slot->dataBuffer;
+    ioCtx.offset = Configuration::GetZoneDist() * dev->GetZoneId();
+    ioCtx.size = slot->bufferSize / Configuration::GetBlockSize();
+    ioCtx.flags = 0;
+    slot->ioContext = ioCtx;
+
+    slot->io_thread = zctrl_->GetIoThread(0);
+    slot->device = dev;
+    slot->is_write = true;
+
+    return slot;
+}
+
 Result<RequestContext *> MakeManagementRequest(ZstoreController *zctrl_,
                                                Device *dev)
 {
