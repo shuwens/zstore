@@ -145,7 +145,7 @@ class Configuration
 
     // NOTE this decides the number of SPDK threads
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 6; // magic number
+    int gNumHttpThreads = 12; // magic number
 
     uint32_t gIoThreadCoreIdBase = 1;
     uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads;
@@ -156,7 +156,7 @@ class Configuration
     int gBlockSize = 4096;
 
     // Configured parameters: 64/256/4096
-    int gContextPoolSize = 1024;
+    int gContextPoolSize = 4096;
     u64 gChunkSize = 4096 * 16; // this should be the MDTS: 32 blocks
 
     // how many targets one gateway talks to

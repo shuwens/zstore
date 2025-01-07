@@ -21,7 +21,9 @@ HUGEMEM=4096 ./scripts/setup.sh
 
 if [[ $(hostname) == "zstore1" ]]; then
 	sudo ifconfig enp1s0 12.12.12.1/24 up
+	sudo ifconfig enp1s0 mtu 4200
 elif [[ $(hostname) == "zstore6" ]]; then
 	sudo ifconfig enp5s0 12.12.12.6/24 up
+	sudo ifconfig enp5s0 mtu 4200
 fi
 
