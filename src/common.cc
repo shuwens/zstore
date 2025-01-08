@@ -158,25 +158,17 @@ auto zoneFinish(void *arg1) -> asio::awaitable<void>
     } else {
         cpl = co_await spdk_nvme_zone_finish_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.offset, ioCtx.flags);
-        // if (res_cpl.has_error()) {
-        //     // log_error("cpl error status");
-        //     co_return outcome::failure(std::errc::io_error);
-        // } else
-        //     cpl = res_cpl.value();
     }
-    // if (spdk_nvme_cpl_is_error(cpl)) {
-    //     // log_error("I/O error status: {}",
-    //     //           spdk_nvme_cpl_get_status_string(&cpl->status));
-    //     // log_debug("Unimplemented: put context back in pool");
-    //     co_return outcome::failure(std::errc::io_error);
-    // }
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        log_error("I/O error status: {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        // log_debug("Unimplemented: put context back in pool");
+    }
 
     ctx->success = true;
 
     ctx->ctrl->mManagementCounts++;
     assert(ctx->ctrl != nullptr);
-
-    // co_return outcome::success();
 }
 
 // Zone append operations.
@@ -310,35 +302,36 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
     }
 
     // TODO handle zone full and open new zone
-    // if (spdk_nvme_cpl_is_error(cpl)) {
-    //     log_error("I/O error status: {}",
-    //               spdk_nvme_cpl_get_status_string(&cpl->status));
-    //     if (cpl->status.sc == SPDK_NVME_SC_ZONE_IS_FULL) {
-    //         // if zone is full, we finish the current zone and open next zone
-    //         log_info(
-    //             "Zone is full, finish current zone {} and open next zone {}",
-    //             ctx->device->GetZoneId() - 1, ctx->device->GetZoneId());
-    //
-    //         // seal current zone
-    //         auto mgnt_slot =
-    //             MakeManagementRequest(ctx->ctrl, ctx->device).value();
-    //         co_await zoneFinish(mgnt_slot);
-    //         // assert(ret && "zone finish failed");
-    //
-    //         // bump zone ID to next zone
-    //         // ctx->device->OpenNextZone();
-    //
-    //         // send append request to new zone
-    //         auto res_cpl = co_await spdk_nvme_zone_append_async(
-    //             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data,
-    //             ioCtx.offset + Configuration::GetZoneDist(), ioCtx.size,
-    //             ioCtx.flags);
-    //         if (res_cpl.has_error()) {
-    //             log_error("cpl error status");
-    //         } else
-    //             cpl = res_cpl.value();
-    //     }
-    // }
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        log_error("I/O error status: {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        //     if (cpl->status.sc == SPDK_NVME_SC_ZONE_IS_FULL) {
+        //         // if zone is full, we finish the current zone and open next
+        //         zone log_info(
+        //             "Zone is full, finish current zone {} and open next zone
+        //             {}", ctx->device->GetZoneId() - 1,
+        //             ctx->device->GetZoneId());
+        //
+        //         // seal current zone
+        //         auto mgnt_slot =
+        //             MakeManagementRequest(ctx->ctrl, ctx->device).value();
+        //         co_await zoneFinish(mgnt_slot);
+        //         // assert(ret && "zone finish failed");
+        //
+        //         // bump zone ID to next zone
+        //         // ctx->device->OpenNextZone();
+        //
+        //         // send append request to new zone
+        //         auto res_cpl = co_await spdk_nvme_zone_append_async(
+        //             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data,
+        //             ioCtx.offset + Configuration::GetZoneDist(), ioCtx.size,
+        //             ioCtx.flags);
+        //         if (res_cpl.has_error()) {
+        //             log_error("cpl error status");
+        //         } else
+        //             cpl = res_cpl.value();
+        //     }
+    }
 
     // TODO: 1. update entry with LBA
     // TODO: 2. what do we return in response
@@ -351,8 +344,6 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
         log_debug("Total counts: {}", ctx->ctrl->mTotalCounts);
         assert(ctx->ctrl != nullptr);
     }
-
-    // co_return outcome::success();
 }
 
 // Zone read operations.
@@ -484,37 +475,21 @@ auto zoneRead(void *arg1) -> asio::awaitable<void>
         cpl = co_await spdk_nvme_zone_read_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
             ioCtx.size, ioCtx.flags);
-        // if (res_cpl.has_error()) {
-        //     // log_error("cpl error status");
-        //     co_return outcome::failure(std::errc::io_error);
-        // } else
-        //     cpl = res_cpl.value();
     }
-    // if (spdk_nvme_cpl_is_error(cpl)) {
-    //     // log_error("I/O error status: {}",
-    //     //           spdk_nvme_cpl_get_status_string(&cpl->status));
-    //     // log_debug("Unimplemented: put context back in pool");
-    //     co_return outcome::failure(std::errc::io_error);
-    // }
+    if (spdk_nvme_cpl_is_error(cpl)) {
+        log_error("I/O error status: {}",
+                  spdk_nvme_cpl_get_status_string(&cpl->status));
+        // log_debug("Unimplemented: put context back in pool");
+    }
 
     // For read, we swap the read date into the request body
     // ioCtx.data and ctx->dataBuffer are the same and has no cost
     // but constructing it std::string has cost
-    // 326k
-    // std::string body(ctx->dataBuffer);
-    // ctx->response_body = body;
-
     ctx->response_body.assign(ctx->dataBuffer, ctx->bufferSize);
 
-    // 415k but not giving data back
-    // ctx->response_body = (char *)ioCtx.data;
-
     ctx->success = true;
-
     ctx->ctrl->mTotalCounts++;
     assert(ctx->ctrl != nullptr);
-
-    // co_return outcome::success();
 }
 
 void thread_send_msg(spdk_thread *thread, spdk_msg_fn fn, void *args)
