@@ -145,7 +145,7 @@ class Configuration
 
     // NOTE this decides the number of SPDK threads
     int gNumIoThreads = 1;
-    int gNumHttpThreads = 12; // magic number
+    int gNumHttpThreads = 6; // magic number
 
     uint32_t gIoThreadCoreIdBase = 1;
     uint32_t gHttpThreadCoreIdBase = gIoThreadCoreIdBase + gNumIoThreads;
@@ -171,8 +171,8 @@ class Configuration
     const int gCurrentZone = 0; // read from zone 0
     // const int gCurrentZone = 66; // write
 
-    uint32_t gObjectSizeInBytes = 4096; // 4kB
-    // uint32_t gObjectSizeInBytes = 4096 * 16;
+    // uint32_t gObjectSizeInBytes = 4096; // 4kB
+    uint32_t gObjectSizeInBytes = 4096 * 16;
     // uint32_t gObjectSizeInBytes = 4096 * 64; // test large object
     // uint32_t gObjectSizeInBytes = 4096 * 512;
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB

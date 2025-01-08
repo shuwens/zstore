@@ -245,11 +245,11 @@ auto awaitable_on_request(HttpRequest req,
             log_debug("Reading from tgt {} lba {}", tgt, lba);
 
         auto dev1 = zctrl_.GetDevice(tgt);
-        // auto s1 = MakeReadRequest(&zctrl_, dev1, lba).value();
-        // co_await zoneRead(s1);
+        auto s1 = MakeReadRequest(&zctrl_, dev1, lba).value();
+        co_await zoneRead(s1);
         co_await async_sleep(co_await asio::this_coro::executor,
                              std::chrono::microseconds(0), asio::use_awaitable);
-        // assert(s1->success && "Read request failed");
+        assert(s1->success && "Read request failed");
         // s1->response_body.assign(s1->dataBuffer, s1->bufferSize);
 
         // Here is the part where we operate differently based on object
@@ -323,9 +323,9 @@ auto awaitable_on_request(HttpRequest req,
         // ZstoreObject deserialized_obj;
         // bool success = ReadBufferToZstoreObject(s1->dataBuffer, s1->size,
         // deserialized_obj);
-        // req.body() = s1->response_body; // not expensive
-        // s1->Clear();
-        // zctrl_.mRequestContextPool->ReturnRequestContext(s1);
+        req.body() = s1->response_body; // not expensive
+        s1->Clear();
+        zctrl_.mRequestContextPool->ReturnRequestContext(s1);
         co_return handle_request(std::move(req));
         // } else {
         //     // yields 378k IOPS

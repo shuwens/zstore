@@ -40,7 +40,7 @@ int ioWorker(void *args)
 void spdk_nvme_zone_finish_wrapper(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, uint64_t offset, uint32_t flags,
-    std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
+    std::move_only_function<void(const spdk_nvme_cpl *)> cb)
 {
     auto cb_heap = new decltype(cb)(std::move(cb));
     auto fn = new std::move_only_function<void(void)>([=]() {
@@ -52,12 +52,7 @@ void spdk_nvme_zone_finish_wrapper(
                 delete cb3;
             },
             (void *)(cb_heap));
-        if (rc != 0) {
-            log_debug("{}: cmd finish zone failed offset {}",
-                      spdk_strerror(-rc), offset);
-            (*cb_heap)(outcome::failure(std::errc::io_error));
-            delete cb_heap;
-        }
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -72,7 +67,7 @@ void spdk_nvme_zone_finish_wrapper(
 auto spdk_nvme_zone_finish_async(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, uint64_t offset,
-    uint32_t flags) -> asio::awaitable<Result<const spdk_nvme_cpl *>>
+    uint32_t flags) -> asio::awaitable<const spdk_nvme_cpl *>
 {
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, uint64_t offset,
@@ -82,7 +77,7 @@ auto spdk_nvme_zone_finish_async(
     };
 
     return asio::async_initiate<decltype(asio::use_awaitable),
-                                void(Result<const spdk_nvme_cpl *>)>(
+                                void(const spdk_nvme_cpl *)>(
         init, asio::use_awaitable, thread, ns, qpair, offset, flags);
 }
 
@@ -90,11 +85,11 @@ auto spdk_nvme_zone_finish_async(
 void spdk_nvme_zone_finish_wrapper_inst(
     Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, uint64_t offset, uint32_t flags,
-    std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
+    std::move_only_function<void(const spdk_nvme_cpl *)> cb)
 {
-    auto cb_heap = new std::pair<
-        std::move_only_function<void(Result<const spdk_nvme_cpl *>)>, Timer &>(
-        decltype(cb)(std::move(cb)), timer);
+    auto cb_heap =
+        new std::pair<std::move_only_function<void(const spdk_nvme_cpl *)>,
+                      Timer &>(decltype(cb)(std::move(cb)), timer);
     auto fn = new std::move_only_function<void(void)>([=, &timer]() {
         timer.t4 = std::chrono::high_resolution_clock::now();
         int rc = spdk_nvme_zns_finish_zone(
@@ -107,12 +102,7 @@ void spdk_nvme_zone_finish_wrapper_inst(
                 delete tuple_;
             },
             (void *)(cb_heap));
-        if (rc != 0) {
-            log_debug("{}: cmd read failed offset {}", spdk_strerror(-rc),
-                      offset);
-            (cb_heap->first)(outcome::failure(std::errc::io_error));
-            delete cb_heap;
-        }
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -127,7 +117,7 @@ void spdk_nvme_zone_finish_wrapper_inst(
 auto spdk_nvme_zone_finish_async_inst(
     Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, uint64_t offset,
-    uint32_t flags) -> asio::awaitable<Result<const spdk_nvme_cpl *>>
+    uint32_t flags) -> asio::awaitable<const spdk_nvme_cpl *>
 {
     timer.t2 = std::chrono::high_resolution_clock::now();
     auto init = [](auto completion_handler, Timer *timer, spdk_thread *thread,
@@ -139,7 +129,7 @@ auto spdk_nvme_zone_finish_async_inst(
                                            std::move(completion_handler));
     };
     return asio::async_initiate<decltype(asio::use_awaitable),
-                                void(Result<const spdk_nvme_cpl *>)>(
+                                void(const spdk_nvme_cpl *)>(
         init, asio::use_awaitable, &timer, thread, ns, qpair, offset, flags);
 }
 
@@ -153,10 +143,9 @@ auto zoneFinish(void *arg1) -> asio::awaitable<void>
     const spdk_nvme_cpl *cpl;
     if (Configuration::GetSamplingRate() > 0) {
         timer.t1 = std::chrono::high_resolution_clock::now();
-        auto res_cpl = co_await spdk_nvme_zone_finish_async_inst(
+        cpl = co_await spdk_nvme_zone_finish_async_inst(
             timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.offset,
             ioCtx.flags);
-        cpl = res_cpl.value();
         timer.t6 = std::chrono::high_resolution_clock::now();
 
         if (ctx->ctrl->mTotalCounts % Configuration::GetSamplingRate() == 0 ||
@@ -167,7 +156,7 @@ auto zoneFinish(void *arg1) -> asio::awaitable<void>
                 tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
                 tdiff_us(timer.t6, timer.t5));
     } else {
-        auto res_cpl = co_await spdk_nvme_zone_finish_async(
+        cpl = co_await spdk_nvme_zone_finish_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.offset, ioCtx.flags);
         // if (res_cpl.has_error()) {
         //     // log_error("cpl error status");
@@ -197,8 +186,7 @@ auto zoneFinish(void *arg1) -> asio::awaitable<void>
 void spdk_nvme_zone_append_wrapper(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags,
-    std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
+    uint32_t flags, std::move_only_function<void(const spdk_nvme_cpl *)> cb)
 {
     if (Configuration::Debugging())
         log_debug("APPEND: offset {}, size {}", offset, size);
@@ -212,12 +200,7 @@ void spdk_nvme_zone_append_wrapper(
                 delete cb3;
             },
             (void *)(cb_heap), flags);
-        if (rc != 0) {
-            log_debug("{} ({}): cmd append failed offset {}, size {}",
-                      spdk_strerror(-rc), rc, offset, size);
-            (*cb_heap)(outcome::failure(std::errc::io_error));
-            delete cb_heap;
-        }
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -232,7 +215,7 @@ void spdk_nvme_zone_append_wrapper(
 auto spdk_nvme_zone_append_async(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags) -> asio::awaitable<Result<const spdk_nvme_cpl *>>
+    uint32_t flags) -> asio::awaitable<const spdk_nvme_cpl *>
 {
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
@@ -241,7 +224,7 @@ auto spdk_nvme_zone_append_async(
                                       flags, std::move(completion_handler));
     };
     return asio::async_initiate<decltype(asio ::use_awaitable),
-                                void(Result<const spdk_nvme_cpl *>)>(
+                                void(const spdk_nvme_cpl *)>(
         init, asio::use_awaitable, thread, ns, qpair, data, offset, size,
         flags);
 }
@@ -250,12 +233,11 @@ auto spdk_nvme_zone_append_async(
 void spdk_nvme_zone_append_wrapper_inst(
     Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags,
-    std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
+    uint32_t flags, std::move_only_function<void(const spdk_nvme_cpl *)> cb)
 {
-    auto cb_heap = new std::pair<
-        std::move_only_function<void(Result<const spdk_nvme_cpl *>)>, Timer &>(
-        decltype(cb)(std::move(cb)), timer);
+    auto cb_heap =
+        new std::pair<std::move_only_function<void(const spdk_nvme_cpl *)>,
+                      Timer &>(decltype(cb)(std::move(cb)), timer);
     auto fn = new std::move_only_function<void(void)>([=, &timer]() {
         timer.t4 = std::chrono::high_resolution_clock::now();
         int rc = spdk_nvme_zns_zone_append(
@@ -268,12 +250,7 @@ void spdk_nvme_zone_append_wrapper_inst(
                 delete tuple_;
             },
             (void *)(cb_heap), flags);
-        if (rc != 0) {
-            log_debug("{}: cmd append failed offset {}, size {}",
-                      spdk_strerror(-rc), offset, size);
-            (cb_heap->first)(outcome::failure(std::errc::io_error));
-            delete cb_heap;
-        }
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -288,7 +265,7 @@ void spdk_nvme_zone_append_wrapper_inst(
 auto spdk_nvme_zone_append_async_inst(
     Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags) -> asio::awaitable<Result<const spdk_nvme_cpl *>>
+    uint32_t flags) -> asio::awaitable<const spdk_nvme_cpl *>
 {
     timer.t2 = std::chrono::high_resolution_clock::now();
     auto init = [](auto completion_handler, Timer *timer, spdk_thread *thread,
@@ -300,7 +277,7 @@ auto spdk_nvme_zone_append_async_inst(
                                            std::move(completion_handler));
     };
     return asio::async_initiate<decltype(asio::use_awaitable),
-                                void(Result<const spdk_nvme_cpl *>)>(
+                                void(const spdk_nvme_cpl *)>(
         init, asio::use_awaitable, &timer, thread, ns, qpair, data, offset,
         size, flags);
 }
@@ -315,10 +292,9 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
     const spdk_nvme_cpl *cpl;
     if (Configuration::GetSamplingRate() > 0) {
         timer.t1 = std::chrono::high_resolution_clock::now();
-        auto res_cpl = co_await spdk_nvme_zone_append_async_inst(
+        cpl = co_await spdk_nvme_zone_append_async_inst(
             timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data,
             ioCtx.offset, ioCtx.size, ioCtx.flags);
-        cpl = res_cpl.value();
         timer.t6 = std::chrono::high_resolution_clock::now();
 
         if (ctx->ctrl->mTotalCounts % Configuration::GetSamplingRate() == 0)
@@ -328,15 +304,9 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
                 tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
                 tdiff_us(timer.t6, timer.t5));
     } else {
-        auto res_cpl = co_await spdk_nvme_zone_append_async(
+        cpl = co_await spdk_nvme_zone_append_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
             ioCtx.size, ioCtx.flags);
-        if (res_cpl.has_error()) {
-            log_error("cpl error status");
-            cpl = res_cpl.value();
-            // return outcome::failure(std::errc::io_error);
-        } else
-            cpl = res_cpl.value();
     }
 
     // TODO handle zone full and open new zone
@@ -392,8 +362,7 @@ auto zoneAppend(void *arg1) -> asio::awaitable<void>
 void spdk_nvme_zone_read_wrapper(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags,
-    std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
+    uint32_t flags, std::move_only_function<void(const spdk_nvme_cpl *)> cb)
 {
     // log_debug("1111: offset {}, size {}", offset, size);
     auto cb_heap = new decltype(cb)(std::move(cb));
@@ -406,12 +375,7 @@ void spdk_nvme_zone_read_wrapper(
                 delete cb3;
             },
             (void *)(cb_heap), flags);
-        if (rc != 0) {
-            log_debug("{}: cmd read failed offset {}, size {}",
-                      spdk_strerror(-rc), offset, size);
-            (*cb_heap)(outcome::failure(std::errc::io_error));
-            delete cb_heap;
-        }
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -426,7 +390,7 @@ void spdk_nvme_zone_read_wrapper(
 auto spdk_nvme_zone_read_async(
     struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags) -> asio::awaitable<Result<const spdk_nvme_cpl *>>
+    uint32_t flags) -> asio::awaitable<const spdk_nvme_cpl *>
 {
     auto init = [](auto completion_handler, spdk_thread *thread,
                    spdk_nvme_ns *ns, spdk_nvme_qpair *qpair, void *data,
@@ -436,7 +400,7 @@ auto spdk_nvme_zone_read_async(
     };
 
     return asio ::async_initiate<decltype(asio::use_awaitable),
-                                 void(Result<const spdk_nvme_cpl *>)>(
+                                 void(const spdk_nvme_cpl *)>(
         init, asio::use_awaitable, thread, ns, qpair, data, offset, size,
         flags);
 }
@@ -445,12 +409,11 @@ auto spdk_nvme_zone_read_async(
 void spdk_nvme_zone_read_wrapper_inst(
     Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags,
-    std::move_only_function<void(Result<const spdk_nvme_cpl *>)> cb)
+    uint32_t flags, std::move_only_function<void(const spdk_nvme_cpl *)> cb)
 {
-    auto cb_heap = new std::pair<
-        std::move_only_function<void(Result<const spdk_nvme_cpl *>)>, Timer &>(
-        decltype(cb)(std::move(cb)), timer);
+    auto cb_heap =
+        new std::pair<std::move_only_function<void(const spdk_nvme_cpl *)>,
+                      Timer &>(decltype(cb)(std::move(cb)), timer);
     auto fn = new std::move_only_function<void(void)>([=, &timer]() {
         timer.t4 = std::chrono::high_resolution_clock::now();
         int rc = spdk_nvme_ns_cmd_read(
@@ -463,12 +426,7 @@ void spdk_nvme_zone_read_wrapper_inst(
                 delete tuple_;
             },
             (void *)(cb_heap), flags);
-        if (rc != 0) {
-            log_debug("{}: cmd read failed offset {}, size {}",
-                      spdk_strerror(-rc), offset, size);
-            (cb_heap->first)(outcome::failure(std::errc::io_error));
-            delete cb_heap;
-        }
+        assert(rc == 0);
     });
     thread_send_msg(
         thread,
@@ -483,7 +441,7 @@ void spdk_nvme_zone_read_wrapper_inst(
 auto spdk_nvme_zone_read_async_inst(
     Timer &timer, struct spdk_thread *thread, struct spdk_nvme_ns *ns,
     struct spdk_nvme_qpair *qpair, void *data, uint64_t offset, uint32_t size,
-    uint32_t flags) -> asio::awaitable<Result<const spdk_nvme_cpl *>>
+    uint32_t flags) -> asio::awaitable<const spdk_nvme_cpl *>
 {
     timer.t2 = std::chrono::high_resolution_clock::now();
     auto init = [](auto completion_handler, Timer *timer, spdk_thread *thread,
@@ -495,7 +453,7 @@ auto spdk_nvme_zone_read_async_inst(
                                          std::move(completion_handler));
     };
     return asio::async_initiate<decltype(asio::use_awaitable),
-                                void(Result<const spdk_nvme_cpl *>)>(
+                                void(const spdk_nvme_cpl *)>(
         init, asio::use_awaitable, &timer, thread, ns, qpair, data, offset,
         size, flags);
 }
@@ -510,10 +468,9 @@ auto zoneRead(void *arg1) -> asio::awaitable<void>
     const spdk_nvme_cpl *cpl;
     if (Configuration::GetSamplingRate() > 0) {
         timer.t1 = std::chrono::high_resolution_clock::now();
-        auto res_cpl = co_await spdk_nvme_zone_read_async_inst(
+        cpl = co_await spdk_nvme_zone_read_async_inst(
             timer, ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data,
             ioCtx.offset, ioCtx.size, ioCtx.flags);
-        cpl = res_cpl.value();
         timer.t6 = std::chrono::high_resolution_clock::now();
 
         if (ctx->ctrl->mTotalCounts % Configuration::GetSamplingRate() == 0 ||
@@ -524,7 +481,7 @@ auto zoneRead(void *arg1) -> asio::awaitable<void>
                 tdiff_us(timer.t4, timer.t3), tdiff_us(timer.t5, timer.t4),
                 tdiff_us(timer.t6, timer.t5));
     } else {
-        auto res_cpl = co_await spdk_nvme_zone_read_async(
+        cpl = co_await spdk_nvme_zone_read_async(
             ctx->io_thread, ioCtx.ns, ioCtx.qpair, ioCtx.data, ioCtx.offset,
             ioCtx.size, ioCtx.flags);
         // if (res_cpl.has_error()) {
