@@ -12,19 +12,19 @@
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 const std::string election_root_ = "/election";
 const std::string tx_root_ = "/tx";
-// const std::string election_node_path = "/election/node_";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
 
 int ZstoreController::Init(bool object, int key_experiment, int option)
 {
-
     int rc = 0;
-    // verbose = Configuration::Verbose();
 
     setContextPoolSize(Configuration::GetContextPoolSize());
     setKeyExperiment(key_experiment);
     setOption(option);
+    setNumOfDevices(Configuration::GetNumOfDevices() *
+                    Configuration::GetNumOfTargets());
+    log_info("Init ZstoreController with {} devices", mN);
 
     if (mKeyExperiment == 1) {
         log_info("Init Zstore for random read, starting from zone {}",
@@ -48,6 +48,9 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else if (mKeyExperiment == 5) {
         // Target and gateway failure
     } else if (mKeyExperiment == 6) {
+        setNumOfDevices(Configuration::GetNumOfDevices());
+        log_info("Init ZstoreController with {} devices", mN);
+
         // Checkpoint
         if (mOption == 1) {
             log_info("Init Checkpointing Gateway on Zstore1", mKeyExperiment,
@@ -86,8 +89,6 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else if (mKeyExperiment == 7) {
         // GC
     }
-    setNumOfDevices(Configuration::GetNumOfDevices() *
-                    Configuration::GetNumOfTargets());
     auto const port = 2000;
     auto const num_ioc_threads = Configuration::GetNumHttpThreads();
 
@@ -103,20 +104,12 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     std::string ip;
     if (mKeyExperiment == 6) {
         auto RdmaPortBase = 8980;
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
+
         if (mOption == 1) {
             ip = "12.12.12.1";
-            ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
-                Configuration::GetZoneId(), Configuration::GetZoneId()));
-            ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
-                Configuration::GetZoneId(), Configuration::GetZoneId()));
-            ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
-                Configuration::GetZoneId(), Configuration::GetZoneId()));
-            // ip_port_devs.push_back(std::make_tuple(
-            //     "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
-            //     Configuration::GetZoneId(), Configuration::GetZoneId()));
         } else if (mOption == 2) {
             ip = "12.12.12.2";
         } else if (mOption == 3) {
@@ -139,77 +132,77 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 
         // RDMA server: recv
         // TODO simplify this part
-        std::jthread rdma_server_thread = std::jthread([rdma_core_base,
-                                                        &rdma_server_thread,
-                                                        &ip, this] {
-            // #ifdef PERF
-            //             cpu_set_t cpuset;
-            //             CPU_ZERO(&cpuset);
-            //             CPU_SET(rdma_core_base, &cpuset);
-            //             std::string name = "rdma_recv";
-            //             int rc =
-            //             pthread_setname_np(rdma_server_thread.native_handle(),
-            //                                         name.c_str());
-            //             if (rc != 0) {
-            //                 log_error("RDMA server: Error calling
-            //                 pthread_setname: {}", rc);
-            //             }
-            //             rc =
-            //             pthread_setaffinity_np(rdma_server_thread.native_handle(),
-            //                                         sizeof(cpu_set_t),
-            //                                         &cpuset);
-            //             if (rc != 0) {
-            //                 log_error("RDMA server: Error calling "
-            //                           "pthread_setaffinity_np: {}",
-            //                           rc);
-            //             }
-            auto ln_s = kym::endpoint::Listen(ip, 8987);
-            if (!ln_s.ok()) {
-                std::cerr << "Error listening" << ln_s.status() << std::endl;
-                return;
-            }
-            auto ln = ln_s.value();
-
-            // Allocate a page of normal heap memory
-            int size = 4 * 1024 * 1024;
-            void *generic = malloc(size);
-            struct ibv_mr *generic_mr =
-                ibv_reg_mr(ln->GetPd(), generic, size,
-                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-
-            // Allocate "magic" buffer
-            auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
-            if (!magic_s.ok()) {
-                std::cerr << "error allocating magic buffer "
-                          << magic_s.status() << std::endl;
-                return;
-            }
-            void *magic = magic_s.value();
-            struct ibv_mr *magic_mr =
-                ibv_reg_mr(ln->GetPd(), magic, 2 * size,
-                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-
-            struct cinfo ci;
-            ci.generic_addr = (uint64_t)generic;
-            ci.generic_key = generic_mr->lkey;
-            ci.magic_addr = (uint64_t)magic;
-            ci.magic_key = magic_mr->lkey;
-
-            mRdmaOpts.private_data = &ci;
-            mRdmaOpts.private_data_len = sizeof(ci);
-
-            auto ep_s = ln->Accept(mRdmaOpts);
-            if (!ep_s.ok()) {
-                std::cerr << "error allocating magic buffer "
-                          << magic_s.status() << std::endl;
-                return;
-            }
-            serverEndpoint = ep_s.value();
-            log_info("RDMA server: connected");
-            return;
-            // rdma_server_thread.detach();
-            // #endif
-        });
+        // std::jthread rdma_server_thread = std::jthread([rdma_core_base,
+        //                                                 &rdma_server_thread,
+        //                                                 &ip, this] {
+        //     // #ifdef PERF
+        //     //             cpu_set_t cpuset;
+        //     //             CPU_ZERO(&cpuset);
+        //     //             CPU_SET(rdma_core_base, &cpuset);
+        //     //             std::string name = "rdma_recv";
+        //     //             int rc =
+        //     // pthread_setname_np(rdma_server_thread.native_handle(),
+        //     //                                         name.c_str());
+        //     //             if (rc != 0) {
+        //     //                 log_error("RDMA server: Error calling
+        //     //                 pthread_setname: {}", rc);
+        //     //             }
+        //     //             rc =
+        //     // pthread_setaffinity_np(rdma_server_thread.native_handle(),
+        //     //                                         sizeof(cpu_set_t),
+        //     //                                         &cpuset);
+        //     //             if (rc != 0) {
+        //     //                 log_error("RDMA server: Error calling "
+        //     //                           "pthread_setaffinity_np: {}",
+        //     //                           rc);
+        //     //             }
+        //     auto ln_s = kym::endpoint::Listen(ip, 8987);
+        //     if (!ln_s.ok()) {
+        //         std::cerr << "Error listening" << ln_s.status() << std::endl;
+        //         return;
+        //     }
+        //     auto ln = ln_s.value();
+        //
+        //     // Allocate a page of normal heap memory
+        //     int size = 4 * 1024 * 1024;
+        //     void *generic = malloc(size);
+        //     struct ibv_mr *generic_mr =
+        //         ibv_reg_mr(ln->GetPd(), generic, size,
+        //                    IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+        //
+        //     // Allocate "magic" buffer
+        //     auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
+        //     if (!magic_s.ok()) {
+        //         std::cerr << "error allocating magic buffer "
+        //                   << magic_s.status() << std::endl;
+        //         return;
+        //     }
+        //     void *magic = magic_s.value();
+        //     struct ibv_mr *magic_mr =
+        //         ibv_reg_mr(ln->GetPd(), magic, 2 * size,
+        //                    IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+        //
+        //     struct cinfo ci;
+        //     ci.generic_addr = (uint64_t)generic;
+        //     ci.generic_key = generic_mr->lkey;
+        //     ci.magic_addr = (uint64_t)magic;
+        //     ci.magic_key = magic_mr->lkey;
+        //
+        //     mRdmaOpts.private_data = &ci;
+        //     mRdmaOpts.private_data_len = sizeof(ci);
+        //
+        //     auto ep_s = ln->Accept(mRdmaOpts);
+        //     if (!ep_s.ok()) {
+        //         std::cerr << "error allocating magic buffer "
+        //                   << magic_s.status() << std::endl;
+        //         return;
+        //     }
+        //     serverEndpoint = ep_s.value();
+        //     log_info("RDMA server: connected");
+        //     return;
+        //     // rdma_server_thread.detach();
+        //     // #endif
+        // });
 
     } else {
         ip = "12.12.12.1";
@@ -222,9 +215,6 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         ip_port_devs.push_back(std::make_tuple(
             "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
-        // ip_port_devs.push_back(std::make_tuple(
-        //     "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
-        //     Configuration::GetZoneId(), Configuration::GetZoneId()));
     }
 
     boost::asio::ip::address address = asio::ip::make_address(ip);
@@ -237,6 +227,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         }
     }
     mDevices = g_devices;
+    log_info("ZstoreController: {} devices registered", mN);
 
     // Preallocate contexts for user requests
     // Sufficient to support multiple I/O queues of NVMe-oF target
@@ -386,26 +377,28 @@ int ZstoreController::PopulateDevHash()
     //         tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
     //     }
     // }
-
     // this seems to be stupid, but we are just manually adding the
     // target device and the zone we write to here
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore3Dev1", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore3Dev2", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore4Dev1", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore4Dev2", Configuration::GetZoneId())});
-    // tgt_dev_vec.push_back(
-    //     {std::make_pair("Zstore5Dev1", Configuration::GetZoneId())});
-    // tgt_dev_vec.push_back(
-    //     {std::make_pair("Zstore5Dev2", Configuration::GetZoneId())});
 
+    if (mKeyExperiment == 6) {
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
+    } else {
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore3Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore3Dev2", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore4Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore4Dev2", Configuration::GetZoneId())});
+    }
     for (unsigned long i = 0; i < tgt_dev_vec.size(); i++) {
         for (unsigned long j = 0; j < tgt_dev_vec.size(); j++) {
             if (i == j) {
