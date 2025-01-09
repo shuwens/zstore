@@ -892,7 +892,7 @@ int ZstoreController::PopulateMap()
         u64 zone_offset = 0;
         auto len = Configuration::GetObjectSizeInBytes() /
                    Configuration::GetBlockSize();
-        for (int i = 0; i < mCkptReadMapSize; i++) {
+        for (int i = 0; i < mCkptMapSize; i++) {
             std::string device;
             if (i % 2 == 0)
                 device = "Zstore2Dev1";
@@ -922,6 +922,10 @@ int ZstoreController::PopulateMap()
                     .value();
             mMap.emplace(computeSHA256(std::to_string(i)), entry);
             current_lba++;
+        }
+
+        for (int i = 0; i < mCkptRecentMapSize; i++) {
+            mRecentWriteMap.emplace(computeSHA256(std::to_string(i)), i);
         }
 
     } else if (mKeyExperiment == 7) {
@@ -1050,6 +1054,15 @@ void ZstoreController::checkTxChange()
                     }
                 }
             }
+        } else {
+            if (mCkpt) {
+                auto mCkptEnd = std::chrono::high_resolution_clock::now();
+                auto duration =
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                        mCkptEnd - mCkptStart);
+                log_info("Total checkpoint duration: {} seconds",
+                         duration.count());
+            }
         }
         deallocate_String_vector(&children);
     }
@@ -1155,6 +1168,8 @@ Result<void> ZstoreController::Checkpoint()
         Stat stat;
 
         // checkpoint has already started or not
+        mCkptStart = std::chrono::high_resolution_clock::now();
+        mCkpt = true;
 
         // get all children
         String_vector children;

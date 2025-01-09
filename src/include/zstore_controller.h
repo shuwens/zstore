@@ -315,7 +315,10 @@ class ZstoreController
     // context pool size
     int mContextPoolSize;
     int mRandReadMapSize = 1'000'000;
-    int mCkptReadMapSize = 1'000'000;
+
+    int mCkptMapSize = 1'000'000;
+    int mCkptRecentMapSize = 1'000'000;
+
     bool mCkpt = false;
 
     // RequestContext *getContextForUserRequest();
@@ -347,4 +350,6 @@ class ZstoreController
     std::vector<Zone *> mZones;
     std::string mSelfIp;
     std::vector<std::jthread> mHttpThreads;
+
+    chrono_tp mCkptStart;
 };
