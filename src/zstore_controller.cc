@@ -69,8 +69,9 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
                                         sizeof(cpu_set_t), &cpuset);
             assert(rc == 0);
 
-            log_info("HTTP server: Thread {} on core {}", i,
-                     i + Configuration::GetHttpThreadCoreId());
+            if (Configuration::Debugging())
+                log_info("HTTP server: Thread {} on core {}", i,
+                         i + Configuration::GetHttpThreadCoreId());
 #endif
             // ioc.run();
             for (;;)
@@ -111,7 +112,8 @@ int ZstoreController::SetParameters(int key_experiment, int option)
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
     setKeyExperiment(key_experiment);
-    log_info("Init ZstoreController with {} devices", mN);
+    if (Configuration::Debugging())
+        log_info("Init ZstoreController with {} devices", mN);
 
     if (mKeyExperiment == 1) {
         log_info("Init Zstore for random read, starting from zone {}",
@@ -136,7 +138,8 @@ int ZstoreController::SetParameters(int key_experiment, int option)
         // Target and gateway failure
     } else if (mKeyExperiment == 6) {
         setNumOfDevices(Configuration::GetNumOfDevices());
-        log_info("Init ZstoreController with {} devices", mN);
+        if (Configuration::Debugging())
+            log_info("Init ZstoreController with {} devices", mN);
 
         // Checkpoint
         if (mOption == 1) {
@@ -340,7 +343,8 @@ int ZstoreController::ConfigureSpdkQpairs()
 
     initIoThread();
 
-    log_info("Configure SPDK qpairs finish");
+    if (Configuration::Debugging())
+        log_info("Configure SPDK qpairs finish");
     return 0;
 }
 
@@ -360,8 +364,8 @@ int ZstoreController::ReadZoneHeaders()
         // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
         // mDevices[i]->GetZoneHeaders(zonesAndHeaders[i]);
     }
-
-    log_info("Read zone headers finish");
+    if (Configuration::Debugging())
+        log_info("Read zone headers finish");
     return 0;
 }
 
@@ -1305,14 +1309,16 @@ Result<void> ZstoreController::Checkpoint()
                     if (rc != ZOK) {
                         log_error("Error creating znode {}", tx_path);
                     } else {
-                        log_info("Success creating znode {}", tx_path);
+                        if (Configuration::Debugging())
+                            log_info("Success creating znode {}", tx_path);
                     }
                     rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
                                      this, NULL);
                     if (rc != ZOK) {
                         log_error("Error setting watcher on {}", tx_path);
                     } else {
-                        log_info("Success setting watcher on {}", tx_path);
+                        if (Configuration::Debugging())
+                            log_info("Success setting watcher on {}", tx_path);
                     }
                 }
             }
