@@ -1148,90 +1148,6 @@ void ZstoreController::startZooKeeper()
     log_info("Connecting to ZooKeeper server...");
 }
 
-/* NOTE workflow for persisting map
- * 1. zookeeper will select a server (leader) perform checkpoint
- * 2. leader will announce epoch change to all servers (N -> N+1). Each
- *    follower will (1) create new map and new bloom filter for N+1, and
- *    (2) return list of writes and wp for each device
- */
-Result<void> ZstoreController::Checkpoint()
-{
-    // create /tx/nodeName_ under /tx for every znode
-    if (leaderNodeName_ == nodeName_) {
-        sleep(10);
-        // increase epoch
-        {
-            auto current_epoch = GetEpoch();
-            mEpoch += 1;
-            auto new_epoch = GetEpoch();
-        }
-        Stat stat;
-
-        // checkpoint has already started or not
-        mCkptStart = std::chrono::high_resolution_clock::now();
-        mCkpt = true;
-
-        // get all children
-        String_vector children;
-        int rc = zoo_get_children(mZkHandler, election_root_.c_str(), true,
-                                  &children);
-        assert(rc == ZOK);
-
-        if (children.count > 0) {
-            for (int i = 0; i < children.count; i++) {
-                std::string path = election_root_ + "/" + children.data[i];
-                auto node = getNodeData(path);
-
-                std::string tx_path = tx_root_ + "/" + node;
-                log_info("create children under /tx: {}, tx_path {}", node,
-                         tx_path);
-                if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
-                    ZOK) {
-                    log_info("{} does not exist", tx_path);
-                    int rc =
-                        zoo_create(mZkHandler, tx_path.c_str(), "empty", 10,
-                                   &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
-                    if (rc != ZOK) {
-                        log_error("Error creating znode {}", tx_path);
-                    } else {
-                        log_info("Success creating znode {}", tx_path);
-                    }
-                    rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
-                                     this, NULL);
-                    if (rc != ZOK) {
-                        log_error("Error setting watcher on {}", tx_path);
-                    } else {
-                        log_info("Success setting watcher on {}", tx_path);
-                    }
-                }
-            }
-        }
-    }
-
-    // Send all records in current gateway to the leader gateway
-    auto ret = SendRecordsToGateway();
-    assert(ret && "SendRecordsToGateway failed");
-
-    std::string path = tx_root_ + "/" + nodeName_;
-    int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
-    if (rc != ZOK) {
-        log_error("Error setting data to {}", path);
-    } else {
-        log_info("Success setting data to {}", path);
-    }
-
-    // move map
-    {
-        auto map_to_persist = mMap;
-        auto recent_write_map_to_persist = mRecentWriteMap;
-
-        mMap.clear();
-        mRecentWriteMap.clear();
-    }
-
-    return outcome::success();
-}
-
 kym::endpoint::Options opts = {
     .qp_attr =
         {
@@ -1339,6 +1255,90 @@ Result<void> ZstoreController::SendRecordsToGateway()
     end = clock_type::now();
     dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
     log_info("Total write latency for recent write map: {}", dur);
+
+    return outcome::success();
+}
+
+/* NOTE workflow for persisting map
+ * 1. zookeeper will select a server (leader) perform checkpoint
+ * 2. leader will announce epoch change to all servers (N -> N+1). Each
+ *    follower will (1) create new map and new bloom filter for N+1, and
+ *    (2) return list of writes and wp for each device
+ */
+Result<void> ZstoreController::Checkpoint()
+{
+    // create /tx/nodeName_ under /tx for every znode
+    if (leaderNodeName_ == nodeName_) {
+        sleep(10);
+        // increase epoch
+        {
+            auto current_epoch = GetEpoch();
+            mEpoch += 1;
+            auto new_epoch = GetEpoch();
+        }
+        Stat stat;
+
+        // checkpoint has already started or not
+        mCkptStart = std::chrono::high_resolution_clock::now();
+        mCkpt = true;
+
+        // get all children
+        String_vector children;
+        int rc = zoo_get_children(mZkHandler, election_root_.c_str(), true,
+                                  &children);
+        assert(rc == ZOK);
+
+        if (children.count > 0) {
+            for (int i = 0; i < children.count; i++) {
+                std::string path = election_root_ + "/" + children.data[i];
+                auto node = getNodeData(path);
+
+                std::string tx_path = tx_root_ + "/" + node;
+                log_info("create children under /tx: {}, tx_path {}", node,
+                         tx_path);
+                if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
+                    ZOK) {
+                    log_info("{} does not exist", tx_path);
+                    int rc =
+                        zoo_create(mZkHandler, tx_path.c_str(), "empty", 10,
+                                   &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
+                    if (rc != ZOK) {
+                        log_error("Error creating znode {}", tx_path);
+                    } else {
+                        log_info("Success creating znode {}", tx_path);
+                    }
+                    rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
+                                     this, NULL);
+                    if (rc != ZOK) {
+                        log_error("Error setting watcher on {}", tx_path);
+                    } else {
+                        log_info("Success setting watcher on {}", tx_path);
+                    }
+                }
+            }
+        }
+    }
+
+    // Send all records in current gateway to the leader gateway
+    auto ret = SendRecordsToGateway();
+    assert(ret && "SendRecordsToGateway failed");
+
+    std::string path = tx_root_ + "/" + nodeName_;
+    int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
+    if (rc != ZOK) {
+        log_error("Error setting data to {}", path);
+    } else {
+        log_info("Success setting data to {}", path);
+    }
+
+    // move map
+    {
+        auto map_to_persist = mMap;
+        auto recent_write_map_to_persist = mRecentWriteMap;
+
+        mMap.clear();
+        mRecentWriteMap.clear();
+    }
 
     return outcome::success();
 }
