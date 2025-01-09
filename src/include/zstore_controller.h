@@ -314,7 +314,8 @@ class ZstoreController
     int mN;
     // context pool size
     int mContextPoolSize;
-    int _map_size = 1'000'000;
+    int mRandReadMapSize = 1'000'000;
+    int mCkptReadMapSize = 1'000'000;
     bool mCkpt = false;
 
     // RequestContext *getContextForUserRequest();

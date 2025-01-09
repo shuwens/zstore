@@ -818,7 +818,7 @@ int ZstoreController::PopulateMap()
         u64 zone_offset = 0;
         auto len = Configuration::GetObjectSizeInBytes() /
                    Configuration::GetBlockSize();
-        for (int i = 0; i < _map_size; i++) {
+        for (int i = 0; i < mRandReadMapSize; i++) {
             std::string device;
             if (i % 6 == 0)
                 device = "Zstore2Dev1";
@@ -892,7 +892,7 @@ int ZstoreController::PopulateMap()
         u64 zone_offset = 0;
         auto len = Configuration::GetObjectSizeInBytes() /
                    Configuration::GetBlockSize();
-        for (int i = 0; i < _map_size; i++) {
+        for (int i = 0; i < mCkptReadMapSize; i++) {
             std::string device;
             if (i % 2 == 0)
                 device = "Zstore2Dev1";
@@ -1238,9 +1238,22 @@ kym::endpoint::Options opts = {
     .inline_recv = 0,
 };
 
+std::vector<void *> dumpMap(const ZstoreMap &hashmap)
+{
+    std::vector<void *> buffer;
+
+    hashmap.visit_all([&buffer](auto &x) {
+        buffer.push_back(
+            reinterpret_cast<void *>(const_cast<MapEntry *>(&x.second)));
+    });
+
+    return buffer;
+}
+
 Result<void> ZstoreController::SendRecordsToGateway()
 {
-    // auto flags = parse(argc, argv);
+    namespace chrono = std::chrono;
+    using clock_type = chrono::high_resolution_clock;
     std::string ip = "12.12.12.1";
 
     auto ep_s = kym::endpoint::Dial(ip, 8987, opts);
@@ -1253,18 +1266,19 @@ Result<void> ZstoreController::SendRecordsToGateway()
     struct cinfo *ci;
     ep->GetConnectionInfo((void **)&ci);
 
-    int size = 64;
-    int n = 1000000;
-    void *send = malloc(size);
+    std::vector<void *> buffer = dumpMap(mMap);
+
+    int n = buffer.size();
+    int map_entry_size = sizeof(MapEntry);
+    void *send = malloc(map_entry_size);
     struct ibv_mr *send_mr =
-        ibv_reg_mr(ep->GetPd(), send, size, IBV_ACCESS_LOCAL_WRITE);
+        ibv_reg_mr(ep->GetPd(), send, map_entry_size, IBV_ACCESS_LOCAL_WRITE);
 
     // Test latency for magic mr
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < n; i++) {
-        auto stat =
-            ep->PostWrite(i, send_mr->lkey, send, size,
-                          ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
+    auto start = clock_type::now();
+    for (auto &x : buffer) {
+        auto stat = ep->PostWrite(1, 4, x, sizeof(MapEntry), ci->magic_addr,
+                                  ci->magic_key);
         if (!stat.ok()) {
             std::cerr << "Error writing " << stat << std::endl;
             return outcome::failure(std::error_code());
@@ -1275,19 +1289,33 @@ Result<void> ZstoreController::SendRecordsToGateway()
                       << std::endl;
         }
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    auto dur = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-                   .count() /
-               1000.0;
-    std::cout << "Mean write latency magic mr msg size " << size << " bytes"
-              << std::endl;
+
+    // for (int i = 0; i < n; i++) {
+    //     auto stat =
+    //         ep->PostWrite(i, send_mr->lkey, send, map_entry_size,
+    //                       ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
+    //     if (!stat.ok()) {
+    //         std::cerr << "Error writing " << stat << std::endl;
+    //         return outcome::failure(std::error_code());
+    //     }
+    //     auto wc_s = ep->PollSendCq();
+    //     if (!wc_s.ok()) {
+    //         std::cerr << "error polling send cq for write " << wc_s.status()
+    //                   << std::endl;
+    //     }
+    // }
+
+    auto end = clock_type::now();
+    auto dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    std::cout << "Mean write latency magic mr msg size " << map_entry_size
+              << " bytes" << std::endl;
     std::cout << dur / (double)n << std::endl;
 
     // Test latency for magic mr over end of buffer
-    start = std::chrono::high_resolution_clock::now();
+    start = clock_type::now();
     for (int i = 0; i < n; i++) {
         auto stat =
-            ep->PostWrite(i, send_mr->lkey, send, size,
+            ep->PostWrite(i, send_mr->lkey, send, map_entry_size,
                           ci->magic_addr + 4 * 1024 * 1024 - 32, ci->magic_key);
         if (!stat.ok()) {
             std::cerr << "Error writing " << stat << std::endl;
@@ -1299,16 +1327,15 @@ Result<void> ZstoreController::SendRecordsToGateway()
                       << std::endl;
         }
     }
-    end = std::chrono::high_resolution_clock::now();
-    dur = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-              .count() /
+    end = clock_type::now();
+    dur = chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() /
           1000.0;
-    std::cout << "Mean write latency magic mr msg size " << size << " bytes"
-              << std::endl;
+    std::cout << "Mean write latency magic mr msg size " << map_entry_size
+              << " bytes" << std::endl;
     std::cout << "Writing over the end of the buffer" << std::endl;
     std::cout << dur / (double)n << std::endl;
 
-    std::chrono::milliseconds timespan(1000);
+    chrono::milliseconds timespan(1000);
     std::this_thread::sleep_for(timespan);
 
     auto stat = ep->PostImmidate(1, 4);
