@@ -1241,12 +1241,19 @@ kym::endpoint::Options opts = {
 std::vector<void *> dumpMap(const ZstoreMap &hashmap)
 {
     std::vector<void *> buffer;
-
     hashmap.visit_all([&buffer](auto &x) {
         buffer.push_back(
             reinterpret_cast<void *>(const_cast<MapEntry *>(&x.second)));
     });
+    return buffer;
+}
 
+std::vector<void *> dumpRecentWriteMap(const ZstoreRecentWriteMap &hashmap)
+{
+    std::vector<void *> buffer;
+    hashmap.visit_all([&buffer](auto &x) {
+        buffer.push_back(reinterpret_cast<void *>(const_cast<u8 *>(&x.second)));
+    });
     return buffer;
 }
 
@@ -1266,17 +1273,15 @@ Result<void> ZstoreController::SendRecordsToGateway()
     struct cinfo *ci;
     ep->GetConnectionInfo((void **)&ci);
 
-    std::vector<void *> buffer = dumpMap(mMap);
-
-    int n = buffer.size();
+    std::vector<void *> map_buffer = dumpMap(mMap);
+    int n = map_buffer.size();
     int map_entry_size = sizeof(MapEntry);
     void *send = malloc(map_entry_size);
     struct ibv_mr *send_mr =
         ibv_reg_mr(ep->GetPd(), send, map_entry_size, IBV_ACCESS_LOCAL_WRITE);
 
-    // Test latency for magic mr
     auto start = clock_type::now();
-    for (auto &x : buffer) {
+    for (auto &x : map_buffer) {
         auto stat = ep->PostWrite(
             reinterpret_cast<uint64_t>(&x), send_mr->lkey, send, map_entry_size,
             ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
@@ -1290,72 +1295,36 @@ Result<void> ZstoreController::SendRecordsToGateway()
                       << std::endl;
         }
     }
-
-    // for (int i = 0; i < n; i++) {
-    //     auto stat =
-    //         ep->PostWrite(i, send_mr->lkey, send, map_entry_size,
-    //                       ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
-    //     if (!stat.ok()) {
-    //         std::cerr << "Error writing " << stat << std::endl;
-    //         return outcome::failure(std::error_code());
-    //     }
-    //     auto wc_s = ep->PollSendCq();
-    //     if (!wc_s.ok()) {
-    //         std::cerr << "error polling send cq for write " << wc_s.status()
-    //                   << std::endl;
-    //     }
-    // }
-
     auto end = clock_type::now();
     auto dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
-    std::cout << "Mean write latency magic mr msg size " << map_entry_size
-              << " bytes" << std::endl;
-    std::cout << dur / (double)n << std::endl;
+    log_info("Total write latency for map: {}", dur);
 
-    // Test latency for magic mr over end of buffer
-    // start = clock_type::now();
-    // for (int i = 0; i < n; i++) {
-    //     auto stat =
-    //         ep->PostWrite(i, send_mr->lkey, send, map_entry_size,
-    //                       ci->magic_addr + 4 * 1024 * 1024 - 32,
-    //                       ci->magic_key);
-    //     if (!stat.ok()) {
-    //         std::cerr << "Error writing " << stat << std::endl;
-    //         return outcome::failure(std::error_code());
-    //     }
-    //     auto wc_s = ep->PollSendCq();
-    //     if (!wc_s.ok()) {
-    //         std::cerr << "error polling send cq for write " << wc_s.status()
-    //                   << std::endl;
-    //     }
-    // }
-    // end = clock_type::now();
-    // dur = chrono::duration_cast<std::chrono::nanoseconds>(end -
-    // start).count() /
-    //       1000.0;
-    // std::cout << "Mean write latency magic mr msg size " << map_entry_size
-    //           << " bytes" << std::endl;
-    // std::cout << "Writing over the end of the buffer" << std::endl;
-    // std::cout << dur / (double)n << std::endl;
+    std::vector<void *> recent_write_map_buffer =
+        dumpRecentWriteMap(mRecentWriteMap);
+    n = recent_write_map_buffer.size();
+    int size = sizeof(u8);
+    send = malloc(size);
+    send_mr = ibv_reg_mr(ep->GetPd(), send, size, IBV_ACCESS_LOCAL_WRITE);
 
-    // chrono::milliseconds timespan(1000);
-    // std::this_thread::sleep_for(timespan);
-    //
-    // auto stat = ep->PostImmidate(1, 4);
-    // if (!stat.ok()) {
-    //     std::cerr << "Error sending end " << stat << std::endl;
-    //     return outcome::failure(std::error_code());
-    // }
-    // auto wc_s = ep->PollSendCq();
-    // if (!wc_s.ok()) {
-    //     std::cerr << "error polling send cq for end" << wc_s.status()
-    //               << std::endl;
-    // }
-    // stat = ep->Close();
-    // if (!stat.ok()) {
-    //     std::cerr << "Error closing endpoint " << stat << std::endl;
-    //     return outcome::failure(std::error_code());
-    // }
+    // Test latency for magic mr
+    start = clock_type::now();
+    for (auto &x : recent_write_map_buffer) {
+        auto stat = ep->PostWrite(reinterpret_cast<uint64_t>(&x), send_mr->lkey,
+                                  send, size, ci->magic_addr + 2 * 1024 * 1024,
+                                  ci->magic_key);
+        if (!stat.ok()) {
+            std::cerr << "Error writing " << stat << std::endl;
+            return outcome::failure(std::error_code());
+        }
+        auto wc_s = ep->PollSendCq();
+        if (!wc_s.ok()) {
+            std::cerr << "error polling send cq for write " << wc_s.status()
+                      << std::endl;
+        }
+    }
+    end = clock_type::now();
+    dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    log_info("Total write latency for recent write map: {}", dur);
 
     return outcome::success();
 }
