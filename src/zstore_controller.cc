@@ -1276,24 +1276,9 @@ Result<void> ZstoreController::SendRecordsToGateway()
 
     // Test latency for magic mr
     auto start = clock_type::now();
-    for (auto &x : buffer) {
-        auto stat = ep->PostWrite(1, 4, x, sizeof(MapEntry), ci->magic_addr,
-                                  ci->magic_key);
-        if (!stat.ok()) {
-            std::cerr << "Error writing " << stat << std::endl;
-            return outcome::failure(std::error_code());
-        }
-        auto wc_s = ep->PollSendCq();
-        if (!wc_s.ok()) {
-            std::cerr << "error polling send cq for write " << wc_s.status()
-                      << std::endl;
-        }
-    }
-
-    // for (int i = 0; i < n; i++) {
-    //     auto stat =
-    //         ep->PostWrite(i, send_mr->lkey, send, map_entry_size,
-    //                       ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
+    // for (auto &x : buffer) {
+    //     auto stat = ep->PostWrite(1, 4, x, sizeof(MapEntry), ci->magic_addr,
+    //                               ci->magic_key);
     //     if (!stat.ok()) {
     //         std::cerr << "Error writing " << stat << std::endl;
     //         return outcome::failure(std::error_code());
@@ -1304,6 +1289,21 @@ Result<void> ZstoreController::SendRecordsToGateway()
     //                   << std::endl;
     //     }
     // }
+
+    for (int i = 0; i < n; i++) {
+        auto stat =
+            ep->PostWrite(i, send_mr->lkey, send, map_entry_size,
+                          ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
+        if (!stat.ok()) {
+            std::cerr << "Error writing " << stat << std::endl;
+            return outcome::failure(std::error_code());
+        }
+        auto wc_s = ep->PollSendCq();
+        if (!wc_s.ok()) {
+            std::cerr << "error polling send cq for write " << wc_s.status()
+                      << std::endl;
+        }
+    }
 
     auto end = clock_type::now();
     auto dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
