@@ -1314,16 +1314,15 @@ Result<void> ZstoreController::SendRecordsToGateway()
     auto dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
     log_info("Total write latency for map: {}", dur);
 
-    std::vector<void *> recent_write_map_buffer =
-        dumpRecentWriteMap(mRecentWriteMap);
-    n = recent_write_map_buffer.size();
+    std::vector<void *> recent_buffer = dumpRecentWriteMap(mRecentWriteMap);
+    n = recent_buffer.size();
     int size = sizeof(u8);
     send = malloc(size);
     send_mr = ibv_reg_mr(ep->GetPd(), send, size, IBV_ACCESS_LOCAL_WRITE);
 
     // Test latency for magic mr
     start = clock_type::now();
-    for (auto &x : recent_write_map_buffer) {
+    for (auto &x : recent_buffer) {
         auto stat = ep->PostWrite(reinterpret_cast<uint64_t>(&x), send_mr->lkey,
                                   send, size, ci->magic_addr + 2 * 1024 * 1024,
                                   ci->magic_key);

@@ -316,18 +316,12 @@ class ZstoreController
     int mContextPoolSize;
     int mRandReadMapSize = 1'000'000;
 
-    int mCkptMapSize = 1'000'000;
-    int mCkptRecentMapSize = 1'000'000;
+    int mCkptMapSize = 400'000;
+    int mCkptRecentMapSize = mCkptMapSize * 0.01;
 
     bool mCkpt = false;
 
-    // RequestContext *getContextForUserRequest();
-    // void doWrite(RequestContext *context);
-    // void doRead(RequestContext *context);
-
     std::vector<Device *> mDevices;
-    // std::queue<RequestContext *> mRequestQueue;
-    // std::shared_mutex mRequestQueueMutex;
 
     spdk_poller *mEventsPoller = nullptr;
     // spdk_poller *mDispatchPoller = nullptr;
@@ -337,13 +331,6 @@ class ZstoreController
     int mQueueDepth = 1;
 
     IoThread mIoThread[16];
-    // struct spdk_thread *mDispatchThread;
-    // IoThread mHttpThread[16];
-    // struct spdk_thread *mCompletionThread;
-
-    // std::queue<RequestContext *> mEventsToDispatch;
-    // std::queue<RequestContext *> mWriteQueue;
-    // std::queue<RequestContext *> mReadQueue;
 
     std::jthread mRdmaThread;
 
