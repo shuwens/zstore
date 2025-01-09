@@ -1273,7 +1273,7 @@ Result<void> ZstoreController::Checkpoint()
 {
     // create /tx/nodeName_ under /tx for every znode
     if (leaderNodeName_ == nodeName_) {
-        sleep(10);
+        // sleep(10);
         // increase epoch
         {
             auto current_epoch = GetEpoch();
