@@ -81,6 +81,10 @@ class ZstoreController
     void writeMapToFile(const std::string &filename);
     void readMapFromFile(const std::string &filename);
 
+    int ReadZoneHeaders();
+    int SetupZookeeper();
+    int SetupHttpThreads();
+
     int PopulateDevHash();
     Result<DevTuple> GetDevTuple(ObjectKeyHash object_key_hash);
     Result<DevTuple> GetDevTupleForRandomReads(ObjectKeyHash key_hash);
@@ -140,6 +144,7 @@ class ZstoreController
     void setOption(int option) { mOption = option; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
+    int ConfigureSpdkQpairs();
 
     int GetContextPoolSize() { return mContextPoolSize; };
     void setContextPoolSize(int context_pool_size)
@@ -148,6 +153,8 @@ class ZstoreController
     };
 
     void setNumOfDevices(int num_of_device) { mN = num_of_device; };
+
+    int SetParameters(int key_experiment, int option);
 
     // Setting up SPDK
     void register_ctrlr(std::vector<Device *> &g_devices,
@@ -333,5 +340,9 @@ class ZstoreController
     // std::queue<RequestContext *> mWriteQueue;
     // std::queue<RequestContext *> mReadQueue;
 
+    std::jthread mRdmaThread;
+
     std::vector<Zone *> mZones;
+    std::string mSelfIp;
+    std::vector<std::jthread> mHttpThreads;
 };

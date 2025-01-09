@@ -15,15 +15,15 @@ const std::string tx_root_ = "/tx";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
 
-int ZstoreController::Init(bool object, int key_experiment, int option)
+int ZstoreController::SetParameters(int key_experiment, int option)
 {
-    int rc = 0;
+    pivot = 0;
 
     setContextPoolSize(Configuration::GetContextPoolSize());
-    setKeyExperiment(key_experiment);
     setOption(option);
     setNumOfDevices(Configuration::GetNumOfDevices() *
                     Configuration::GetNumOfTargets());
+    setKeyExperiment(key_experiment);
     log_info("Init ZstoreController with {} devices", mN);
 
     if (mKeyExperiment == 1) {
@@ -89,8 +89,6 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else if (mKeyExperiment == 7) {
         // GC
     }
-    auto const port = 2000;
-    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
 
     // TODO: set all parameters too
     log_debug(
@@ -101,7 +99,6 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 
     std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
         ip_port_devs;
-    std::string ip;
     if (mKeyExperiment == 6) {
         auto RdmaPortBase = 8980;
         ip_port_devs.push_back(std::make_tuple(
@@ -109,103 +106,102 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
             Configuration::GetZoneId(), Configuration::GetZoneId()));
 
         if (mOption == 1) {
-            ip = "12.12.12.1";
+            mSelfIp = "12.12.12.1";
         } else if (mOption == 2) {
-            ip = "12.12.12.2";
+            mSelfIp = "12.12.12.2";
         } else if (mOption == 3) {
-            ip = "12.12.12.3";
+            mSelfIp = "12.12.12.3";
         } else if (mOption == 4) {
-            ip = "12.12.12.4";
+            mSelfIp = "12.12.12.4";
         } else if (mOption == 5) {
-            ip = "12.12.12.5";
+            mSelfIp = "12.12.12.5";
         } else if (mOption == 6) {
-            ip = "12.12.12.6";
+            mSelfIp = "12.12.12.6";
         } else {
             log_error("Invalid gateway server");
         }
 
-        log_info("RDMA server: listen ip {} port {}", ip,
+        log_info("RDMA server: listen ip {} port {}", mSelfIp,
                  RdmaPortBase + mOption + 1);
 
-        auto rdma_core_base =
-            Configuration::GetHttpThreadCoreId() + num_ioc_threads;
+        auto rdma_core_base = Configuration::GetHttpThreadCoreId() +
+                              Configuration::GetNumHttpThreads();
 
         // RDMA server: recv
         // TODO simplify this part
-        // std::jthread rdma_server_thread = std::jthread([rdma_core_base,
-        //                                                 &rdma_server_thread,
-        //                                                 &ip, this] {
-        //     // #ifdef PERF
-        //     //             cpu_set_t cpuset;
-        //     //             CPU_ZERO(&cpuset);
-        //     //             CPU_SET(rdma_core_base, &cpuset);
-        //     //             std::string name = "rdma_recv";
-        //     //             int rc =
-        //     // pthread_setname_np(rdma_server_thread.native_handle(),
-        //     //                                         name.c_str());
-        //     //             if (rc != 0) {
-        //     //                 log_error("RDMA server: Error calling
-        //     //                 pthread_setname: {}", rc);
-        //     //             }
-        //     //             rc =
-        //     // pthread_setaffinity_np(rdma_server_thread.native_handle(),
-        //     //                                         sizeof(cpu_set_t),
-        //     //                                         &cpuset);
-        //     //             if (rc != 0) {
-        //     //                 log_error("RDMA server: Error calling "
-        //     //                           "pthread_setaffinity_np: {}",
-        //     //                           rc);
-        //     //             }
-        //     auto ln_s = kym::endpoint::Listen(ip, 8987);
-        //     if (!ln_s.ok()) {
-        //         std::cerr << "Error listening" << ln_s.status() << std::endl;
-        //         return;
-        //     }
-        //     auto ln = ln_s.value();
-        //
-        //     // Allocate a page of normal heap memory
-        //     int size = 4 * 1024 * 1024;
-        //     void *generic = malloc(size);
-        //     struct ibv_mr *generic_mr =
-        //         ibv_reg_mr(ln->GetPd(), generic, size,
-        //                    IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-        //
-        //     // Allocate "magic" buffer
-        //     auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
-        //     if (!magic_s.ok()) {
-        //         std::cerr << "error allocating magic buffer "
-        //                   << magic_s.status() << std::endl;
-        //         return;
-        //     }
-        //     void *magic = magic_s.value();
-        //     struct ibv_mr *magic_mr =
-        //         ibv_reg_mr(ln->GetPd(), magic, 2 * size,
-        //                    IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-        //
-        //     struct cinfo ci;
-        //     ci.generic_addr = (uint64_t)generic;
-        //     ci.generic_key = generic_mr->lkey;
-        //     ci.magic_addr = (uint64_t)magic;
-        //     ci.magic_key = magic_mr->lkey;
-        //
-        //     mRdmaOpts.private_data = &ci;
-        //     mRdmaOpts.private_data_len = sizeof(ci);
-        //
-        //     auto ep_s = ln->Accept(mRdmaOpts);
-        //     if (!ep_s.ok()) {
-        //         std::cerr << "error allocating magic buffer "
-        //                   << magic_s.status() << std::endl;
-        //         return;
-        //     }
-        //     serverEndpoint = ep_s.value();
-        //     log_info("RDMA server: connected");
-        //     return;
-        //     // rdma_server_thread.detach();
-        //     // #endif
-        // });
+        mRdmaThread = std::jthread([rdma_core_base, this] {
+            // #ifdef PERF
+            //             cpu_set_t cpuset;
+            //             CPU_ZERO(&cpuset);
+            //             CPU_SET(rdma_core_base, &cpuset);
+            //             std::string name = "rdma_recv";
+            //             int rc =
+            // pthread_setname_np(rdma_server_thread.native_handle(),
+            //                                         name.c_str());
+            //             if (rc != 0) {
+            //                 log_error("RDMA server: Error calling
+            //                 pthread_setname: {}", rc);
+            //             }
+            //             rc =
+            // pthread_setaffinity_np(rdma_server_thread.native_handle(),
+            //                                         sizeof(cpu_set_t),
+            //                                         &cpuset);
+            //             if (rc != 0) {
+            //                 log_error("RDMA server: Error calling "
+            //                           "pthread_setaffinity_np: {}",
+            //                           rc);
+            //             }
+            auto ln_s = kym::endpoint::Listen(mSelfIp, 8987);
+            if (!ln_s.ok()) {
+                std::cerr << "Error listening" << ln_s.status() << std::endl;
+                return;
+            }
+            auto ln = ln_s.value();
+
+            // Allocate a page of normal heap memory
+            int size = 4 * 1024 * 1024;
+            void *generic = malloc(size);
+            struct ibv_mr *generic_mr =
+                ibv_reg_mr(ln->GetPd(), generic, size,
+                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+            // Allocate "magic" buffer
+            auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
+            if (!magic_s.ok()) {
+                std::cerr << "error allocating magic buffer "
+                          << magic_s.status() << std::endl;
+                return;
+            }
+            void *magic = magic_s.value();
+            struct ibv_mr *magic_mr =
+                ibv_reg_mr(ln->GetPd(), magic, 2 * size,
+                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+            struct cinfo ci;
+            ci.generic_addr = (uint64_t)generic;
+            ci.generic_key = generic_mr->lkey;
+            ci.magic_addr = (uint64_t)magic;
+            ci.magic_key = magic_mr->lkey;
+
+            mRdmaOpts.private_data = &ci;
+            mRdmaOpts.private_data_len = sizeof(ci);
+
+            auto ep_s = ln->Accept(mRdmaOpts);
+            if (!ep_s.ok()) {
+                std::cerr << "error allocating magic buffer "
+                          << magic_s.status() << std::endl;
+                return;
+            }
+            serverEndpoint = ep_s.value();
+            log_info("RDMA server: connected");
+            return;
+            // rdma_server_thread.detach();
+            // #endif
+        });
+        mRdmaThread.detach();
 
     } else {
-        ip = "12.12.12.1";
+        mSelfIp = "12.12.12.1";
         ip_port_devs.push_back(std::make_tuple(
             "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
@@ -217,8 +213,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
             Configuration::GetZoneId(), Configuration::GetZoneId()));
     }
 
-    boost::asio::ip::address address = asio::ip::make_address(ip);
-
+    int rc = 0;
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
@@ -229,19 +224,12 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     mDevices = g_devices;
     log_info("ZstoreController: {} devices registered", mN);
 
-    // Preallocate contexts for user requests
-    // Sufficient to support multiple I/O queues of NVMe-oF target
-    mRequestContextPool = new RequestContextPool(mContextPoolSize);
+    return 0;
+}
 
-    if (mRequestContextPool == NULL) {
-        log_error("could not initialize task pool");
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
-    isDraining = false;
-    // bogus setup for Map and BF
-
+int ZstoreController::ConfigureSpdkQpairs()
+{
+    log_debug("Configure SPDK qpairs");
     // Create poll groups for the io threads and perform initialization
     for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
@@ -263,12 +251,76 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     if (Configuration::Debugging())
         CheckIoQpair("Starting all the threads");
 
-    log_debug("ZstoreController launching threads");
-
     initIoThread();
 
+    log_info("Configure SPDK qpairs finish");
+    return 0;
+}
+
+int ZstoreController::ReadZoneHeaders()
+{
+    // Valid (full and open) zones and their headers
+    std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
+    for (int i = 0; i < mN; ++i) {
+        // if (i == failedDriveId) {
+        //     continue;
+        // }
+
+        // log_debug("read zone and headers {}.", i);
+        // TODO: right now we sort of just pick read and write zone,
+        // this should be done smartly
+        // FIXME bug
+        // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
+        // mDevices[i]->GetZoneHeaders(zonesAndHeaders[i]);
+    }
+
+    log_info("Read zone headers finish");
+    return 0;
+}
+
+int ZstoreController::SetupZookeeper()
+{
+    startZooKeeper();
+    sleep(5);
+    auto rc = Checkpoint();
+    assert(rc && "Checkpoint failed");
+
+    log_info("Zookeeper setup finish");
+    return 0;
+}
+
+int ZstoreController::SetupHttpThreads()
+{
+    log_debug("Setup HTTP threads");
+
+    log_info("HTTP server setup finish");
+    return 0;
+}
+
+int ZstoreController::Init(bool object, int key_experiment, int option)
+{
+    int rc = 0;
+
+    rc = SetParameters(key_experiment, option);
+    assert(rc == 0);
+
+    // Preallocate contexts for user requests
+    // Sufficient to support multiple I/O queues of NVMe-oF target
+    mRequestContextPool = new RequestContextPool(mContextPoolSize);
+    if (mRequestContextPool == NULL) {
+        log_error("could not initialize task pool");
+        rc = 1;
+        zstore_cleanup();
+        return rc;
+    }
+
+    rc = ConfigureSpdkQpairs();
+    assert(rc == 0);
+    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
     // The io_context is required for all I/O
     asio::io_context ioc{num_ioc_threads};
+    boost::asio::ip::address address = asio::ip::make_address(mSelfIp);
+    auto const port = 2000;
 
     // Spawn a listening port
     asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
@@ -315,7 +367,8 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         });
     }
 
-    log_info("Initialization complete. Launching workers.");
+    // rc = SetupHttpThreads();
+    // assert(rc == 0);
 
     rc = PopulateDevHash();
     assert(rc == 0);
@@ -323,40 +376,17 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     rc = PopulateMap();
     assert(rc == 0);
 
-    pivot = 0;
-
     // Read zone headers
 
-    // Valid (full and open) zones and their headers
-    std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
-    for (int i = 0; i < mN; ++i) {
-        // if (i == failedDriveId) {
-        //     continue;
-        // }
-
-        // log_debug("read zone and headers {}.", i);
-        // TODO: right now we sort of just pick read and write zone,
-        // this should be done smartly
-        // FIXME bug
-        // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
-        // mDevices[i]->GetZoneHeaders(zonesAndHeaders[i]);
-    }
-
     if (mKeyExperiment == 6) {
-        startZooKeeper();
-        sleep(5);
-        auto rc = Checkpoint();
-        assert(rc && "Checkpoint failed");
+        rc = SetupZookeeper();
+        assert(rc == 0);
     }
 
-    // RDMA circular buffer initialization
-    //
-    // rdma_server_thread.join();
-
-    log_info("ZstoreController Init finish");
     if (Configuration::Debugging())
         CheckIoThread("Starting all the threads");
 
+    log_info("ZstoreController Init finish");
     return rc;
 }
 
@@ -678,16 +708,17 @@ bool ZstoreController::CheckIoThread(std::string msg)
         log_debug("Check Io thread {}: running {}, idle {}, exited {}", i,
                   spdk_thread_is_running(thread), spdk_thread_is_idle(thread),
                   spdk_thread_is_exited(thread));
-        // assert(spdk_thread_is_running(thread) && "Thread should be running");
-        // assert(!spdk_thread_is_idle(thread) && "Thread should not be idle");
-        // assert(!spdk_thread_is_exited(thread) && "Thread should not be
-        // exited");
+        // assert(spdk_thread_is_running(thread) && "Thread should be
+        // running"); assert(!spdk_thread_is_idle(thread) && "Thread should
+        // not be idle"); assert(!spdk_thread_is_exited(thread) && "Thread
+        // should not be exited");
     }
 
     log_debug("Check Device GetIoThread: {}", msg);
     // for (int i = 0; i < mN; ++i) {
     //     auto thread = mDevices[i]->GetIoThread();
-    //     log_debug("Check Io thread {}: running {}, idle {}, exited {}", i,
+    //     log_debug("Check Io thread {}: running {}, idle {}, exited {}",
+    //     i,
     //               spdk_thread_is_running(thread),
     //               spdk_thread_is_idle(thread),
     //               spdk_thread_is_exited(thread));

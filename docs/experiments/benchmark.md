@@ -23,8 +23,6 @@ nvme-of
 == 1144864
 
 
-## s3bench
-=======
 # parallel reads with nvme-of 
 
 ## 1 page
@@ -37,7 +35,6 @@ nvme-of
 255420.00
 
 = 1038397
->>>>>>> Stashed changes
 
 
 ## 2 pages
