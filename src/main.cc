@@ -69,7 +69,6 @@ int main(int argc, char **argv)
         }
     }
 
-    gZstoreController->Drain();
     spdk_env_thread_wait_all();
     gZstoreController->zstore_cleanup();
 

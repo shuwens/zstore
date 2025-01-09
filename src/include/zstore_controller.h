@@ -84,6 +84,7 @@ class ZstoreController
     int ReadZoneHeaders();
     int SetupZookeeper();
     int SetupHttpThreads();
+    Result<void> SendRecordsToGateway();
 
     int PopulateDevHash();
     Result<DevTuple> GetDevTuple(ObjectKeyHash object_key_hash);

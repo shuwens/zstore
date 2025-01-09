@@ -1,5 +1,6 @@
 #include "include/configuration.h"
 #include "include/http_server.h"
+#include <boost/outcome/success_failure.hpp>
 #include <boost/outcome/utils.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/string.hpp>
@@ -8,12 +9,98 @@
 #include <infiniband/verbs.h>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
+#include <system_error>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 const std::string election_root_ = "/election";
 const std::string tx_root_ = "/tx";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
+
+int ZstoreController::Init(bool object, int key_experiment, int option)
+{
+    int rc = 0;
+
+    rc = SetParameters(key_experiment, option);
+    assert(rc == 0);
+
+    // Preallocate contexts for user requests
+    // Sufficient to support multiple I/O queues of NVMe-oF target
+    mRequestContextPool = new RequestContextPool(mContextPoolSize);
+    if (mRequestContextPool == NULL) {
+        log_error("could not initialize task pool");
+        rc = 1;
+        zstore_cleanup();
+        return rc;
+    }
+
+    rc = ConfigureSpdkQpairs();
+    assert(rc == 0);
+
+    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
+    // The io_context is required for all I/O
+    asio::io_context ioc{num_ioc_threads};
+    boost::asio::ip::address address = asio::ip::make_address(mSelfIp);
+    auto const port = 2000;
+
+    // Spawn a listening port
+    asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
+                   [](std::exception_ptr e) {
+                       if (e)
+                           try {
+                               std::rethrow_exception(e);
+                           } catch (std::exception &e) {
+                               log_error("Error in listener: {}", e.what());
+                           }
+                   });
+
+    std::vector<std::jthread> threads(num_ioc_threads);
+    for (unsigned i = 0; i < num_ioc_threads; ++i) {
+        threads[i] = std::jthread([&ioc, i, &threads] {
+#ifdef PERF
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i + Configuration::GetHttpThreadCoreId(), &cpuset);
+            std::string name = "zstore_ioc" + std::to_string(i);
+            int rc =
+                pthread_setname_np(threads[i].native_handle(), name.c_str());
+            assert(rc == 0);
+            rc = pthread_setaffinity_np(threads[i].native_handle(),
+                                        sizeof(cpu_set_t), &cpuset);
+            assert(rc == 0);
+
+            log_info("HTTP server: Thread {} on core {}", i,
+                     i + Configuration::GetHttpThreadCoreId());
+#endif
+            // ioc.run();
+            for (;;)
+                ioc.poll();
+        });
+    }
+
+    // rc = SetupHttpThreads();
+    // assert(rc == 0);
+
+    rc = PopulateDevHash();
+    assert(rc == 0);
+
+    rc = PopulateMap();
+    assert(rc == 0);
+
+    rc = ReadZoneHeaders();
+    assert(rc == 0);
+
+    if (mKeyExperiment == 6) {
+        rc = SetupZookeeper();
+        assert(rc == 0);
+    }
+
+    if (Configuration::Debugging())
+        CheckIoThread("Starting all the threads");
+
+    log_info("ZstoreController Init finish");
+    return rc;
+}
 
 int ZstoreController::SetParameters(int key_experiment, int option)
 {
@@ -222,7 +309,7 @@ int ZstoreController::SetParameters(int key_experiment, int option)
         }
     }
     mDevices = g_devices;
-    log_info("ZstoreController: {} devices registered", mN);
+    log_info("SPDK {} devices registered", mN);
 
     return 0;
 }
@@ -297,99 +384,6 @@ int ZstoreController::SetupHttpThreads()
     return 0;
 }
 
-int ZstoreController::Init(bool object, int key_experiment, int option)
-{
-    int rc = 0;
-
-    rc = SetParameters(key_experiment, option);
-    assert(rc == 0);
-
-    // Preallocate contexts for user requests
-    // Sufficient to support multiple I/O queues of NVMe-oF target
-    mRequestContextPool = new RequestContextPool(mContextPoolSize);
-    if (mRequestContextPool == NULL) {
-        log_error("could not initialize task pool");
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
-
-    rc = ConfigureSpdkQpairs();
-    assert(rc == 0);
-    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
-    // The io_context is required for all I/O
-    asio::io_context ioc{num_ioc_threads};
-    boost::asio::ip::address address = asio::ip::make_address(mSelfIp);
-    auto const port = 2000;
-
-    // Spawn a listening port
-    asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
-                   [](std::exception_ptr e) {
-                       if (e)
-                           try {
-                               std::rethrow_exception(e);
-                           } catch (std::exception &e) {
-                               std::cerr << "Error in acceptor: " << e.what()
-                                         << "\n";
-                           }
-                   });
-
-    std::vector<std::jthread> threads(num_ioc_threads);
-    for (unsigned i = 0; i < num_ioc_threads; ++i) {
-        threads[i] = std::jthread([&ioc, i, &threads] {
-#ifdef PERF
-            // Create a cpu_set_t object representing a set of CPUs.
-            // Clear it and mark only CPU i as set.
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(i + Configuration::GetHttpThreadCoreId(), &cpuset);
-            std::string name = "zstore_ioc" + std::to_string(i);
-            // log_info("HTTP server: Thread {} on core {}", i,
-            //          i + Configuration::GetHttpThreadCoreId());
-            int rc =
-                pthread_setname_np(threads[i].native_handle(), name.c_str());
-            if (rc != 0) {
-                log_error("HTTP server: Error calling pthread_setname: {}", rc);
-            }
-            rc = pthread_setaffinity_np(threads[i].native_handle(),
-                                        sizeof(cpu_set_t), &cpuset);
-            if (rc != 0) {
-                log_error("HTTP server: Error calling "
-                          "pthread_setaffinity_np: {}",
-                          rc);
-            }
-            log_info("HTTP server: Thread {} on core {}", i,
-                     i + Configuration::GetHttpThreadCoreId());
-#endif
-            // ioc.run();
-            for (;;)
-                ioc.poll();
-        });
-    }
-
-    // rc = SetupHttpThreads();
-    // assert(rc == 0);
-
-    rc = PopulateDevHash();
-    assert(rc == 0);
-
-    rc = PopulateMap();
-    assert(rc == 0);
-
-    // Read zone headers
-
-    if (mKeyExperiment == 6) {
-        rc = SetupZookeeper();
-        assert(rc == 0);
-    }
-
-    if (Configuration::Debugging())
-        CheckIoThread("Starting all the threads");
-
-    log_info("ZstoreController Init finish");
-    return rc;
-}
-
 // this yields a list of devices for a given object key
 //
 // right now we create 120 (6*5*4) tuples, to consider ordering of every
@@ -443,10 +437,12 @@ int ZstoreController::PopulateDevHash()
             }
         }
     }
-    // for (int i = 0; i < mDevHash.size(); i++) {
-    //     log_debug("DevHash: {}", i);
-    //     log_debug("DevHash: {}", mDevHash[i]);
-    // }
+    if (Configuration::Debugging()) {
+        for (unsigned long i = 0; i < mDevHash.size(); i++) {
+            log_debug("DevHash: {}", i);
+            log_debug("DevHash: {}", mDevHash[i]);
+        }
+    }
     return 0;
 }
 
@@ -483,20 +479,6 @@ std::string readString(std::ifstream &inFile)
     std::string str(size, '\0');
     inFile.read(&str[0], size);
     return str;
-}
-
-// Deprecated
-void tryDrainController(void *args)
-{
-    DrainArgs *drainArgs = (DrainArgs *)args;
-    // drainArgs->ctrl->CheckSegments();
-    // drainArgs->ctrl->ReclaimContexts();
-    // drainArgs->ctrl->ProceedGc();
-    drainArgs->success =
-        drainArgs->ctrl->mRequestContextPool->availableContexts.size() ==
-        drainArgs->ctrl->GetContextPoolSize();
-
-    drainArgs->ready = true;
 }
 
 static void busyWait(bool *ready)
@@ -738,7 +720,6 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 {
     assert(mDevices[0] != nullptr);
     assert(mDevices[0]->GetIoQueue(0) != nullptr);
-
     return mDevices[0]->GetIoQueue(0);
 }
 
@@ -756,7 +737,6 @@ ZstoreController::~ZstoreController()
     // log_debug("drain io: {}", spdk_get_ticks());
     // log_debug("clean up ns worker");
     cleanup_ns_worker_ctx();
-    // log_debug("end work fn");
 }
 
 void ZstoreController::zstore_cleanup()
@@ -786,39 +766,6 @@ void ZstoreController::cleanup(uint32_t task_count)
     //               spdk_mempool_count(mTaskPool), task_count);
     // }
     // spdk_mempool_free(mTaskPool);
-}
-
-void ZstoreController::Drain()
-{
-    // FIXME GetDevice default
-    log_info("Perform draining on the system.");
-    isDraining = true;
-    DrainArgs args;
-    args.ctrl = this;
-    args.success = false;
-    while (!args.success) {
-        args.ready = false;
-        // thread_send_msg(mDispatchThread, tryDrainController, &args);
-        busyWait(&args.ready);
-    }
-
-    auto etime = std::chrono::high_resolution_clock::now();
-    auto delta =
-        std::chrono::duration_cast<std::chrono::microseconds>(etime - stime)
-            .count();
-    auto tput = mTotalCounts * g_micro_to_second / delta;
-
-    // if (g->verbose)
-    log_info("Total IO {}, total time {}ms, throughput {} IOPS", mTotalCounts,
-             delta, tput);
-
-    // log_debug("drain io: {}", spdk_get_ticks());
-    log_debug("clean up ns worker");
-    // ctrl->cleanup_ns_worker_ctx();
-    // print_stats(ctrl);
-    // exit(0);
-
-    log_info("done .");
 }
 
 // void ZstoreController::writeMapToFile(const std::string &filename)
@@ -862,50 +809,37 @@ void ZstoreController::Drain()
 
 int ZstoreController::PopulateMap()
 {
-    // TODO: 4KiB, 4MiB, 1GiB ....
     if (mKeyExperiment == 1) {
+        // Random Read
         log_info("Populate Map({},{}): random read, starting from zone {}",
                  mKeyExperiment, mOption, Configuration::GetZoneId());
-        // Random Read
         u32 current_zone = Configuration::GetZoneId();
         u64 current_lba = 0;
         u64 zone_offset = 0;
+        auto len = Configuration::GetObjectSizeInBytes() /
+                   Configuration::GetBlockSize();
         for (int i = 0; i < _map_size; i++) {
             std::string device;
-            // if (i % 6 == 0) {
-            //     device = "Zstore2Dev1";
-            // } else if (i % 6 == 1) {
-            //     device = "Zstore2Dev2";
-            // } else if (i % 6 == 2) {
-            //     device = "Zstore3Dev1";
-            // } else if (i % 6 == 3) {
-            //     device = "Zstore3Dev2";
-            // } else if (i % 6 == 4) {
-            //     device = "Zstore4Dev1";
-            // } else if (i % 6 == 5) {
-            //     device = "Zstore4Dev2";
-            // }
-
-            if (i % 2 == 0) {
+            if (i % 6 == 0)
                 device = "Zstore2Dev1";
-            } else if (i % 2 == 1) {
+            else if (i % 6 == 1)
                 device = "Zstore2Dev2";
-            }
-            // else if (i % 4 == 2) {
-            //     device = "Zstore4Dev1";
-            // } else if (i % 4 == 3) {
-            //     device = "Zstore4Dev2";
-            // }
+            else if (i % 6 == 2)
+                device = "Zstore3Dev1";
+            else if (i % 6 == 3)
+                device = "Zstore3Dev2";
+            else if (i % 6 == 4)
+                device = "Zstore4Dev1";
+            else if (i % 6 == 5)
+                device = "Zstore4Dev2";
 
-            // the lba should be zone_num * 0x80000 + offset [0,
-            // 0x43500]
+            // the lba should be zone_num * 0x80000 + offset [0, 0x43500]
             zone_offset = current_lba % Configuration::GetZoneDist();
             if (zone_offset > Configuration::GetZoneCap()) {
                 current_zone++;
                 current_lba = current_zone * Configuration::GetZoneDist();
                 log_debug("Populate Map for index {}, current lba {}: "
-                          "zone {} "
-                          "is full, moving to next zone",
+                          "zone {} is full, moving to next zone",
                           i, current_lba, current_zone);
             }
 
@@ -917,15 +851,7 @@ int ZstoreController::PopulateMap()
                                        Configuration::GetZoneId()),
                         std::make_pair("Zstore3Dev1",
                                        Configuration::GetZoneId())),
-                    current_lba,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize(),
-                    current_lba,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize(),
-                    current_lba,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize())
+                    current_lba, len, current_lba, len, current_lba, len)
                     .value();
             mMap.emplace(computeSHA256(std::to_string(i)), entry);
             current_lba++;
@@ -959,6 +885,45 @@ int ZstoreController::PopulateMap()
         // Target and gateway failure
     } else if (mKeyExperiment == 6) {
         // GC
+        log_info("Populate Map({},{}): random read, starting from zone {}",
+                 mKeyExperiment, mOption, Configuration::GetZoneId());
+        u32 current_zone = Configuration::GetZoneId();
+        u64 current_lba = 0;
+        u64 zone_offset = 0;
+        auto len = Configuration::GetObjectSizeInBytes() /
+                   Configuration::GetBlockSize();
+        for (int i = 0; i < _map_size; i++) {
+            std::string device;
+            if (i % 2 == 0)
+                device = "Zstore2Dev1";
+            else if (i % 2 == 1)
+                device = "Zstore2Dev2";
+
+            // the lba should be zone_num * 0x80000 + offset [0, 0x43500]
+            zone_offset = current_lba % Configuration::GetZoneDist();
+            if (zone_offset > Configuration::GetZoneCap()) {
+                current_zone++;
+                current_lba = current_zone * Configuration::GetZoneDist();
+                log_debug("Populate Map for index {}, current lba {}: "
+                          "zone {} "
+                          "is full, moving to next zone",
+                          i, current_lba, current_zone);
+            }
+
+            auto entry =
+                createMapEntry(
+                    std::make_tuple(
+                        std::make_pair(device, Configuration::GetZoneId()),
+                        std::make_pair("Zstore2Dev2",
+                                       Configuration::GetZoneId()),
+                        std::make_pair("Zstore3Dev1",
+                                       Configuration::GetZoneId())),
+                    current_lba, len, current_lba, len, current_lba, len)
+                    .value();
+            mMap.emplace(computeSHA256(std::to_string(i)), entry);
+            current_lba++;
+        }
+
     } else if (mKeyExperiment == 7) {
         // Checkpoint
     }
@@ -1228,7 +1193,10 @@ Result<void> ZstoreController::Checkpoint()
         }
     }
 
-    sleep(10);
+    // Send all records in current gateway to the leader gateway
+    auto ret = SendRecordsToGateway();
+    assert(ret && "SendRecordsToGateway failed");
+
     std::string path = tx_root_ + "/" + nodeName_;
     int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
     if (rc != ZOK) {
@@ -1244,6 +1212,119 @@ Result<void> ZstoreController::Checkpoint()
 
         mMap.clear();
         mRecentWriteMap.clear();
+    }
+
+    return outcome::success();
+}
+
+kym::endpoint::Options opts = {
+    .qp_attr =
+        {
+            .cap =
+                {
+                    .max_send_wr = 1,
+                    .max_recv_wr = 1,
+                    .max_send_sge = 1,
+                    .max_recv_sge = 1,
+                    .max_inline_data = 8,
+                },
+            .qp_type = IBV_QPT_RC,
+        },
+    .responder_resources = 5,
+    .initiator_depth = 5,
+    .retry_count = 8,
+    .rnr_retry_count = 0,
+    .native_qp = false,
+    .inline_recv = 0,
+};
+
+Result<void> ZstoreController::SendRecordsToGateway()
+{
+    // auto flags = parse(argc, argv);
+    std::string ip = "12.12.12.1";
+
+    auto ep_s = kym::endpoint::Dial(ip, 8987, opts);
+    if (!ep_s.ok()) {
+        std::cerr << "error dialing " << ep_s.status() << std::endl;
+        return outcome::failure(std::error_code());
+    }
+    kym::endpoint::Endpoint *ep = ep_s.value();
+
+    struct cinfo *ci;
+    ep->GetConnectionInfo((void **)&ci);
+
+    int size = 64;
+    int n = 1000000;
+    void *send = malloc(size);
+    struct ibv_mr *send_mr =
+        ibv_reg_mr(ep->GetPd(), send, size, IBV_ACCESS_LOCAL_WRITE);
+
+    // Test latency for magic mr
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < n; i++) {
+        auto stat =
+            ep->PostWrite(i, send_mr->lkey, send, size,
+                          ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
+        if (!stat.ok()) {
+            std::cerr << "Error writing " << stat << std::endl;
+            return outcome::failure(std::error_code());
+        }
+        auto wc_s = ep->PollSendCq();
+        if (!wc_s.ok()) {
+            std::cerr << "error polling send cq for write " << wc_s.status()
+                      << std::endl;
+        }
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto dur = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
+                   .count() /
+               1000.0;
+    std::cout << "Mean write latency magic mr msg size " << size << " bytes"
+              << std::endl;
+    std::cout << dur / (double)n << std::endl;
+
+    // Test latency for magic mr over end of buffer
+    start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < n; i++) {
+        auto stat =
+            ep->PostWrite(i, send_mr->lkey, send, size,
+                          ci->magic_addr + 4 * 1024 * 1024 - 32, ci->magic_key);
+        if (!stat.ok()) {
+            std::cerr << "Error writing " << stat << std::endl;
+            return outcome::failure(std::error_code());
+        }
+        auto wc_s = ep->PollSendCq();
+        if (!wc_s.ok()) {
+            std::cerr << "error polling send cq for write " << wc_s.status()
+                      << std::endl;
+        }
+    }
+    end = std::chrono::high_resolution_clock::now();
+    dur = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
+              .count() /
+          1000.0;
+    std::cout << "Mean write latency magic mr msg size " << size << " bytes"
+              << std::endl;
+    std::cout << "Writing over the end of the buffer" << std::endl;
+    std::cout << dur / (double)n << std::endl;
+
+    std::chrono::milliseconds timespan(1000);
+    std::this_thread::sleep_for(timespan);
+
+    auto stat = ep->PostImmidate(1, 4);
+    if (!stat.ok()) {
+        std::cerr << "Error sending end " << stat << std::endl;
+        return outcome::failure(std::error_code());
+    }
+    auto wc_s = ep->PollSendCq();
+    if (!wc_s.ok()) {
+        std::cerr << "error polling send cq for end" << wc_s.status()
+                  << std::endl;
+    }
+    stat = ep->Close();
+    if (!stat.ok()) {
+        std::cerr << "Error closing endpoint " << stat << std::endl;
+        return outcome::failure(std::error_code());
     }
 
     return outcome::success();
