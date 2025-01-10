@@ -285,14 +285,16 @@ int ZstoreController::SetParameters(int key_experiment, int option)
         }
     }
     mDevices = g_devices;
-    log_info("SPDK {} devices registered", mN);
+    if (Configuration::Debugging())
+        log_info("SPDK {} devices registered", mN);
 
     return 0;
 }
 
 int ZstoreController::ConfigureSpdkQpairs()
 {
-    log_debug("Configure SPDK qpairs");
+    if (Configuration::Debugging())
+        log_debug("Configure SPDK qpairs");
     // Create poll groups for the io threads and perform initialization
     for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
@@ -1073,6 +1075,21 @@ void ZstoreController::checkChildrenChange()
     }
 }
 
+static void LeaderWatcher(zhandle_t *zkH, int type, int state, const char *path,
+                          void *watcherCtx)
+{
+    ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
+    if (type == ZOO_CHANGED_EVENT) {
+        std::string path = tx_root_ + "/" + ctrl->nodeName_;
+        int rc = zoo_set(ctrl->mZkHandler, path.c_str(), "commit", 10, -1);
+        if (rc != ZOK) {
+            log_error("Error setting data to {}", path);
+        } else {
+            log_info("Success setting data to {}", path);
+        }
+    }
+}
+
 static void TxWatcher(zhandle_t *zkH, int type, int state, const char *path,
                       void *watcherCtx)
 {
@@ -1239,14 +1256,15 @@ Result<void> ZstoreController::SendRecordsToGateway()
 /* NOTE workflow for persisting map
  * 1. zookeeper will select a server (leader) perform checkpoint
  * 2. leader will announce epoch change to all servers (N -> N+1). Each
- *    follower will (1) create new map and new bloom filter for N+1, and
- *    (2) return list of writes and wp for each device
+ *    follower will (1) create new map and new bloom filter for N+1,
+ *    (2) the leader will take existing map and write to disk, (3) if the
+ *    follower detects that the leader has persisted the map, it will set
+ *    /tx/follower to commit
  */
 Result<void> ZstoreController::Checkpoint()
 {
     // create /tx/nodeName_ under /tx for every znode
-    if (leaderNodeName_ == nodeName_) {
-        // sleep(10);
+    if (nodeName_ == leaderNodeName_) {
         // increase epoch
         {
             auto current_epoch = GetEpoch();
@@ -1285,39 +1303,52 @@ Result<void> ZstoreController::Checkpoint()
                         if (Configuration::Debugging())
                             log_info("Success creating znode {}", tx_path);
                     }
-                    rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
-                                     this, NULL);
-                    if (rc != ZOK) {
-                        log_error("Error setting watcher on {}", tx_path);
-                    } else {
-                        if (Configuration::Debugging())
-                            log_info("Success setting watcher on {}", tx_path);
+
+                    if (node != leaderNodeName_) {
+                        // leader needs to watch if follower has committed
+                        rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
+                                         this, NULL);
+                        if (rc != ZOK) {
+                            log_error("Error setting watcher on {}", tx_path);
+                        } else {
+                            if (Configuration::Debugging())
+                                log_info("Success setting watcher on {}",
+                                         tx_path);
+                        }
                     }
                 }
             }
         }
-    }
-
-    // Send all records in current gateway to the leader gateway
-    auto ret = SendRecordsToGateway();
-    assert(ret && "SendRecordsToGateway failed");
-
-    std::string path = tx_root_ + "/" + nodeName_;
-    int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
-    if (rc != ZOK) {
-        log_error("Error setting data to {}", path);
+        // bogus: write map to disk
+        sleep(10);
     } else {
-        log_info("Success setting data to {}", path);
+        // follower
+
+        // Deprecated:
+        // Send all records in current gateway to the leader gateway
+        // auto ret = SendRecordsToGateway();
+        // assert(ret && "SendRecordsToGateway failed");
+
+        // follower sets a watcher on /tx/leader to check if the leader has
+        // persisted map
+        std::string path = tx_root_ + "/" + leaderNodeName_;
+        int rc =
+            zoo_wexists(mZkHandler, path.c_str(), LeaderWatcher, this, NULL);
+        if (rc != ZOK) {
+            log_error("Error setting watcher on leader {}", path);
+        } else {
+            if (Configuration::Debugging())
+                log_info("Success setting watcher on leader {}", path);
+        }
+
+        // move map
+        {
+            auto map_to_persist = mMap;
+            auto recent_write_map_to_persist = mRecentWriteMap;
+
+            mMap.clear();
+            mRecentWriteMap.clear();
+        }
     }
-
-    // move map
-    {
-        auto map_to_persist = mMap;
-        auto recent_write_map_to_persist = mRecentWriteMap;
-
-        mMap.clear();
-        mRecentWriteMap.clear();
-    }
-
     return outcome::success();
 }
