@@ -1085,6 +1085,16 @@ static void LeaderWatcher(zhandle_t *zkH, int type, int state, const char *path,
         std::string path = tx_root_ + "/" + ctrl->nodeName_;
         ctrl->ZkSet(path, "commit");
     }
+    if (state == ZOO_CONNECTED_STATE) {
+        log_debug("1111");
+        if (type == ZOO_CHILD_EVENT) {
+            log_debug("2222");
+            ctrl->checkChildrenChange();
+        } else {
+            log_debug("3333");
+            ctrl->createZnodes();
+        }
+    }
 }
 
 static void TxWatcher(zhandle_t *zkH, int type, int state, const char *path,
@@ -1092,6 +1102,7 @@ static void TxWatcher(zhandle_t *zkH, int type, int state, const char *path,
 {
     ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
     if (type == ZOO_CHANGED_EVENT) {
+        log_debug("TxWatcher detects the change");
         ctrl->checkTxChange();
     }
 }
