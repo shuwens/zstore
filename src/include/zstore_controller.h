@@ -318,7 +318,7 @@ class ZstoreController
     int mContextPoolSize;
     int mRandReadMapSize = 1'000'000;
 
-    int mCkptMapSize = 4'000;
+    int mCkptMapSize = 130'000;
     int mCkptRecentMapSize = mCkptMapSize * 0.01;
 
     bool mCkpt = false;
