@@ -169,7 +169,7 @@ class Configuration
 
     // manually set the zone id
     // const int gCurrentZone = 0; // read from zone 0
-    const int gCurrentZone = 67; // write
+    const int gCurrentZone = 68; // write
 
     uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 16;
