@@ -54,3 +54,100 @@ Thread Stats   Avg      Stdev     Max   +/- Stdev
 Requests/sec: 147418.50
 Transfer/sec:    588.23MB
 
+  12 threads and 12 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    84.57us   10.07us 255.00us   69.71%
+    Req/Sec    11.66k   293.41    12.19k    60.71%
+  Latency Distribution
+     50%   84.00us
+     75%   91.00us
+     90%   98.00us
+     99%  113.00us
+  292305 requests in 2.10s, 1.14GB read
+Requests/sec: 139215.79
+
+ Latency    81.22us   11.27us 253.00us   72.67%
+    Req/Sec    12.11k   457.88    12.82k    64.68%
+  Latency Distribution
+     50%   80.00us
+     75%   88.00us
+     90%   96.00us
+     99%  114.00us
+  303723 requests in 2.10s, 1.18GB read
+Requests/sec: 144637.03
+Transfer/sec:    577.13MB
+
+# 10'000'000 with full capacity
+
+## ckpt
+
+  Latency    33.23ms   59.18ms 250.70ms   82.39%
+    Req/Sec    14.77k     5.80k   30.04k    66.94%
+  Latency Distribution
+     50%  171.00us
+     75%   44.04ms
+     90%  142.52ms
+     99%  201.79ms
+  365442 requests in 2.10s, 1.42GB read
+Requests/sec: 174048.43
+Transfer/sec:    694.53MB
+
+
+Latency    33.20ms   59.91ms 418.39ms   82.62%
+    Req/Sec    14.60k     5.63k   29.25k    68.00%
+  Latency Distribution
+     50%  172.00us
+     75%   42.30ms
+     90%  142.74ms
+     99%  203.36ms
+  364258 requests in 2.10s, 1.42GB read
+Requests/sec: 173497.17
+Transfer/sec:    692.33MB
+
+
+## without ckpt
+
+Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    36.50ms   76.91ms 819.87ms   85.42%
+    Req/Sec    14.41k     4.73k   28.91k    76.19%
+  Latency Distribution
+     50%  177.00us
+     75%   39.90ms
+     90%  145.88ms
+     99%  300.26ms
+  361330 requests in 2.10s, 1.41GB read
+Requests/sec: 172088.62
+Transfer/sec:    686.71MB
+
+
+# 400'000 with full capacity
+
+## ckpt
+
+Latency   153.34us   47.99us   1.87ms   82.29%
+    Req/Sec    32.02k     1.64k   36.26k    84.52%
+  Latency Distribution
+     50%  148.00us
+     75%  171.00us
+     90%  200.00us
+     99%  284.00us
+  802490 requests in 2.10s, 3.13GB read
+Requests/sec: 382136.09
+Transfer/sec:      1.49GB
+
+
+## without ckpt
+
+ Latency   152.10us   40.07us 413.00us   74.23%
+    Req/Sec    32.16k     1.41k   36.79k    84.52%
+  Latency Distribution
+     50%  148.00us
+     75%  172.00us
+     90%  202.00us
+     99%  275.00us
+  806421 requests in 2.10s, 3.14GB read
+Requests/sec: 384004.51
+Transfer/sec:      1.50GB
+
+
+# 4'000'000
