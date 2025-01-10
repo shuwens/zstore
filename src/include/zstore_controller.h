@@ -319,8 +319,8 @@ class ZstoreController
     int mRandReadMapSize = 1'000'000;
 
     // int mCkptMapSize = 4'000;   // 130'000;
-    // int mCkptMapSize = 10'000; // 118952.07
-    int mCkptMapSize = 50'000; //
+    int mCkptMapSize = 10'000; // 118952.07
+    // int mCkptMapSize = 50'000; // 70659.21
     // int mCkptMapSize = 130'000; // 79'120;
     int mCkptRecentMapSize = mCkptMapSize * 0.01;
 
