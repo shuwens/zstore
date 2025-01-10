@@ -25,3 +25,32 @@ without ckpt: 151275.19
 Requests/sec: 151275.19
 Transfer/sec:    603.62MB
 
+# 1'000'000
+
+## ckpt
+Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    79.94us   27.05us   1.86ms   98.55%
+    Req/Sec    12.40k   428.20    13.38k    72.62%
+  Latency Distribution
+     50%   78.00us
+     75%   85.00us
+     90%   92.00us
+     99%  109.00us
+  310892 requests in 2.10s, 1.21GB read
+Requests/sec: 148070.18
+Transfer/sec:    590.83MB
+
+## without ckpt
+
+Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    79.69us   10.55us 216.00us   71.06%
+    Req/Sec    12.35k   583.54    13.40k    67.06%
+  Latency Distribution
+     50%   79.00us
+     75%   86.00us
+     90%   93.00us
+     99%  109.00us
+  309547 requests in 2.10s, 1.21GB read
+Requests/sec: 147418.50
+Transfer/sec:    588.23MB
+
