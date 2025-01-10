@@ -48,7 +48,7 @@ set -xeuo pipefail
 # 	-H 'Connection: keep-alive' --latency --timeout 60 \
 # 	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
-sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c12 -d1s \
+sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c12 -d2s \
 	-H 'Connection: keep-alive' --latency --timeout 60 \
 	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
