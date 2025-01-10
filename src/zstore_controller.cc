@@ -1081,12 +1081,7 @@ static void LeaderWatcher(zhandle_t *zkH, int type, int state, const char *path,
     ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
     if (type == ZOO_CHANGED_EVENT) {
         std::string path = tx_root_ + "/" + ctrl->nodeName_;
-        int rc = zoo_set(ctrl->mZkHandler, path.c_str(), "commit", 10, -1);
-        if (rc != ZOK) {
-            log_error("Error setting data to {}", path);
-        } else {
-            log_info("Success setting data to {}", path);
-        }
+        ctrl->ZkSet(path, "commit");
     }
 }
 
@@ -1253,6 +1248,55 @@ Result<void> ZstoreController::SendRecordsToGateway()
     return outcome::success();
 }
 
+void ZstoreController::ZkSet(const std::string &path, const char *data)
+{
+    int rc = zoo_set(mZkHandler, path.c_str(), data, 10, -1);
+    if (rc != ZOK) {
+        log_error("Error setting data to {}", path);
+    } else {
+        log_info("Success setting data to {}", path);
+    }
+}
+
+void ZstoreController::Map2Tx(const ZstoreMap &hashmap,
+                              std::vector<char *> &tx_map)
+{
+    std::vector<char *> tmpBuffer;
+    tmpBuffer.reserve(mMap.size());
+    char *buffer = new char[sizeof(ObjectKeyHash) + sizeof(MapEntry)];
+    log_debug("size of tmpBuffer: {}",
+              sizeof(ObjectKeyHash) + sizeof(MapEntry));
+    hashmap.visit_all([&tmpBuffer, buffer](auto &x) {
+        std::memcpy(buffer, &x.first, sizeof(ObjectKeyHash));
+        std::memcpy(buffer + sizeof(ObjectKeyHash), &x.second,
+                    sizeof(MapEntry));
+        tmpBuffer.push_back(buffer);
+    });
+
+    // Split tempBuffer into 4096-byte chunks
+    size_t bufferSize;
+    if (Configuration::GetObjectSizeInBytes() > Configuration::GetChunkSize()) {
+        bufferSize = Configuration::GetChunkSize();
+    } else
+        bufferSize = Configuration::GetObjectSizeInBytes();
+
+    size_t totalSize = tmpBuffer.size();
+    size_t numBuffers =
+        (totalSize + bufferSize - 1) / bufferSize; // Round up division
+    tx_map.resize(numBuffers);
+
+    for (size_t i = 0; i < numBuffers; ++i) {
+        tx_map[i] = new char[bufferSize];
+        size_t copySize = std::min(bufferSize, totalSize - i * bufferSize);
+        std::memcpy(tx_map[i], tmpBuffer.data() + i * bufferSize, copySize);
+
+        // Zero out remaining space if not a full buffer
+        if (copySize < bufferSize) {
+            std::memset(tx_map[i] + copySize, 0, bufferSize - copySize);
+        }
+    }
+}
+
 /* NOTE workflow for persisting map
  * 1. zookeeper will select a server (leader) perform checkpoint
  * 2. leader will announce epoch change to all servers (N -> N+1). Each
@@ -1319,8 +1363,57 @@ Result<void> ZstoreController::Checkpoint()
                 }
             }
         }
-        // bogus: write map to disk
-        sleep(10);
+
+        sleep(1);
+        // std::vector<char *> tx_map;
+        // Map2Tx(mMap, tx_map);
+        //
+        // // we might want to set a threshold
+        // assert(tx_map.size() <= mContextPoolSize);
+        // std::vector<RequestContext *> reqs;
+        // reqs.reserve(tx_map.size());
+        // char *buffer =
+        //     (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
+        //                          Configuration::GetBlockSize(), NULL,
+        //                          SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+        // auto dev = GetDevice("Zstore2Dev1");
+        // for (u64 i = 0; i < tx_map.size(); i++) {
+        //     buffer = tx_map[i];
+        //     auto slot = MakeWriteChunk(this, dev, buffer).value();
+        //     reqs.push_back(slot);
+        // }
+        // asio::io_context ctx;
+        // asio::co_spawn(
+        //     ctx,
+        //     [reqs]() -> asio::awaitable<void> {
+        //         auto ex = co_await asio::this_coro::executor;
+        //         using Task =
+        //             decltype(co_spawn(ex, zoneAppend(reqs[0]),
+        //             asio::deferred));
+        //         std::vector<Task> reqs_to_write;
+        //         for (auto &slot : reqs) {
+        //             reqs_to_write.push_back(
+        //                 co_spawn(ex, zoneAppend(slot), asio::deferred));
+        //         }
+        //         auto grp = asio::experimental::make_parallel_group(
+        //             std::move(reqs_to_write));
+        //
+        //         auto rr = co_await (grp.async_wait(
+        //             asio::experimental::wait_for_all(),
+        //             asio::use_awaitable));
+        //     },
+        //     asio::detached);
+        // ctx.run();
+        //
+        // for (auto &slot : reqs) {
+        //     slot->Clear();
+        //     mRequestContextPool->ReturnRequestContext(slot);
+        // }
+
+        // leader commit since all data is written
+        std::string path = tx_root_ + "/" + leaderNodeName_;
+        ZkSet(path, "commit");
+
     } else {
         // follower
 

@@ -246,6 +246,8 @@ class ZstoreController
 
     void SetGateway(u8 gateway) { mGateway = gateway; };
     u8 GetGateway() { return mGateway; };
+    void ZkSet(const std::string &path, const char *data);
+    void Map2Tx(const ZstoreMap &hashmap, std::vector<char *> &tx_map);
 
     // zookeeper handler: these have to be public
     void checkChildrenChange();
@@ -316,7 +318,7 @@ class ZstoreController
     int mContextPoolSize;
     int mRandReadMapSize = 1'000'000;
 
-    int mCkptMapSize = 400'000;
+    int mCkptMapSize = 4'000;
     int mCkptRecentMapSize = mCkptMapSize * 0.01;
 
     bool mCkpt = false;
