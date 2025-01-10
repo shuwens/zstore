@@ -322,7 +322,7 @@ class ZstoreController
     // int mCkptMapSize = 10'000; // 118952.07 / 137536.52
     // int mCkptMapSize = 50'000; // 70659.21
     int mCkptMapSize = 130'000; // 79'120;
-    // int mCkptRecentMapSize = mCkptMapSize * 0.01;
+    int mCkptRecentMapSize = mCkptMapSize * 0.01;
 
     bool mCkpt = false;
 
