@@ -1380,7 +1380,7 @@ Result<void> ZstoreController::Checkpoint()
             }
         }
 
-        sleep(1);
+        sleep(2);
         log_debug("TX map start");
 
         // std::vector<char *> tx_map;
