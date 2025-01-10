@@ -230,7 +230,7 @@ auto awaitable_on_request(HttpRequest req,
         }
 
         if (zctrl_.SearchRecentWriteMap(key_hash).value()) {
-            if (zctrl_.mOption == 3) {
+            if (zctrl_.mOption == 3 || zctrl_.mKeyExperiment == 6) {
                 // log_info("Object {} is recently modified", object_key);
                 // log_error("Unimplemented!!!");
             } else {
