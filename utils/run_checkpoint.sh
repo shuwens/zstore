@@ -17,7 +17,7 @@ do
 	echo -e $node "start...."
 	ssh ${node} "~/dev/zstore/utils/run_gateway.sh $node & " &
 done
-sleep 10
+sleep 4
 
 ssh zstore6 'cd ~/dev/zstore/utils && ./bench_read.sh &'
 

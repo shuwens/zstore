@@ -348,7 +348,7 @@ int ZstoreController::ReadZoneHeaders()
 int ZstoreController::SetupZookeeper()
 {
     startZooKeeper();
-    sleep(5);
+    sleep(2);
     auto rc = Checkpoint();
     assert(rc && "Checkpoint failed");
 
@@ -1379,7 +1379,8 @@ Result<void> ZstoreController::Checkpoint()
                 }
             }
         }
-        sleep(5);
+
+        sleep(0.5);
         log_debug("TX map start");
         std::vector<char *> tx_map;
         Map2Tx(mMap, tx_map);
@@ -1424,7 +1425,7 @@ Result<void> ZstoreController::Checkpoint()
             mRequestContextPool->ReturnRequestContext(slot);
         }
 
-        sleep(1);
+        // sleep(1);
         // leader commit since all data is written
         std::string path = tx_root_ + "/" + leaderNodeName_;
         ZkSet(path, "commit");
