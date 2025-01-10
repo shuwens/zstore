@@ -1,5 +1,6 @@
 #include "include/configuration.h"
 #include "include/http_server.h"
+#include "src/include/utils.h"
 #include <boost/outcome/success_failure.hpp>
 #include <boost/outcome/utils.hpp>
 #include <boost/serialization/map.hpp>
@@ -1080,6 +1081,7 @@ static void LeaderWatcher(zhandle_t *zkH, int type, int state, const char *path,
 {
     ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
     if (type == ZOO_CHANGED_EVENT) {
+        log_debug("Follower detects the leader change, and ACK the epoch");
         std::string path = tx_root_ + "/" + ctrl->nodeName_;
         ctrl->ZkSet(path, "commit");
     }
@@ -1309,6 +1311,7 @@ Result<void> ZstoreController::Checkpoint()
 {
     // create /tx/nodeName_ under /tx for every znode
     if (nodeName_ == leaderNodeName_) {
+        log_debug("Checkpoint start");
         // increase epoch
         {
             auto current_epoch = GetEpoch();
