@@ -124,7 +124,7 @@ class ZstoreController
     ZstoreGcSet mGcSet;
     Result<bool> AddGcObject(const TargetLbaTuple &tuple);
 
-    ZstoreController(asio::io_context &ioc) : mIoc_(ioc){};
+    ZstoreController(asio::io_context &ioc) : mIoc_(ioc) {};
     // The io_context is required for all I/O
     asio::io_context &mIoc_;
 
