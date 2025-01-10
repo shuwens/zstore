@@ -1379,7 +1379,7 @@ Result<void> ZstoreController::Checkpoint()
                 }
             }
         }
-        sleep(1);
+        sleep(5);
         log_debug("TX map start");
         // std::vector<char *> tx_map;
         // Map2Tx(mMap, tx_map);
@@ -1432,8 +1432,6 @@ Result<void> ZstoreController::Checkpoint()
 
     } else {
         // follower
-
-        sleep(1);
 
         // Deprecated:
         // Send all records in current gateway to the leader gateway
