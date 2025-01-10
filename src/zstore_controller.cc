@@ -37,7 +37,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     rc = ConfigureSpdkQpairs();
     assert(rc == 0);
 
-    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
+    auto num_ioc_threads = Configuration::GetNumHttpThreads();
     // The io_context is required for all I/O
     asio::io_context ioc{num_ioc_threads};
     boost::asio::ip::address address = asio::ip::make_address(mSelfIp);
@@ -55,7 +55,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
                    });
 
     std::vector<std::jthread> threads(num_ioc_threads);
-    for (unsigned i = 0; i < num_ioc_threads; ++i) {
+    for (int i = 0; i < num_ioc_threads; ++i) {
         threads[i] = std::jthread([&ioc, i, &threads] {
 #ifdef PERF
             cpu_set_t cpuset;
@@ -190,11 +190,9 @@ int ZstoreController::SetParameters(int key_experiment, int option)
     std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
         ip_port_devs;
     if (mKeyExperiment == 6) {
-        auto RdmaPortBase = 8980;
         ip_port_devs.push_back(std::make_tuple(
             "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
-
         if (mOption == 1) {
             mSelfIp = "12.12.12.1";
         } else if (mOption == 2) {
@@ -211,85 +209,6 @@ int ZstoreController::SetParameters(int key_experiment, int option)
             log_error("Invalid gateway server");
         }
 
-        log_info("RDMA server: listen ip {} port {}", mSelfIp,
-                 RdmaPortBase + mOption + 1);
-
-        auto rdma_core_base = Configuration::GetHttpThreadCoreId() +
-                              Configuration::GetNumHttpThreads();
-
-        // RDMA server: recv
-        // TODO simplify this part
-        mRdmaThread = std::jthread([rdma_core_base, this] {
-            // #ifdef PERF
-            //             cpu_set_t cpuset;
-            //             CPU_ZERO(&cpuset);
-            //             CPU_SET(rdma_core_base, &cpuset);
-            //             std::string name = "rdma_recv";
-            //             int rc =
-            // pthread_setname_np(rdma_server_thread.native_handle(),
-            //                                         name.c_str());
-            //             if (rc != 0) {
-            //                 log_error("RDMA server: Error calling
-            //                 pthread_setname: {}", rc);
-            //             }
-            //             rc =
-            // pthread_setaffinity_np(rdma_server_thread.native_handle(),
-            //                                         sizeof(cpu_set_t),
-            //                                         &cpuset);
-            //             if (rc != 0) {
-            //                 log_error("RDMA server: Error calling "
-            //                           "pthread_setaffinity_np: {}",
-            //                           rc);
-            //             }
-            auto ln_s = kym::endpoint::Listen(mSelfIp, 8987);
-            if (!ln_s.ok()) {
-                std::cerr << "Error listening" << ln_s.status() << std::endl;
-                return;
-            }
-            auto ln = ln_s.value();
-
-            // Allocate a page of normal heap memory
-            int size = 4 * 1024 * 1024;
-            void *generic = malloc(size);
-            struct ibv_mr *generic_mr =
-                ibv_reg_mr(ln->GetPd(), generic, size,
-                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-
-            // Allocate "magic" buffer
-            auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
-            if (!magic_s.ok()) {
-                std::cerr << "error allocating magic buffer "
-                          << magic_s.status() << std::endl;
-                return;
-            }
-            void *magic = magic_s.value();
-            struct ibv_mr *magic_mr =
-                ibv_reg_mr(ln->GetPd(), magic, 2 * size,
-                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-
-            struct cinfo ci;
-            ci.generic_addr = (uint64_t)generic;
-            ci.generic_key = generic_mr->lkey;
-            ci.magic_addr = (uint64_t)magic;
-            ci.magic_key = magic_mr->lkey;
-
-            mRdmaOpts.private_data = &ci;
-            mRdmaOpts.private_data_len = sizeof(ci);
-
-            auto ep_s = ln->Accept(mRdmaOpts);
-            if (!ep_s.ok()) {
-                std::cerr << "error allocating magic buffer "
-                          << magic_s.status() << std::endl;
-                return;
-            }
-            serverEndpoint = ep_s.value();
-            log_info("RDMA server: connected");
-            return;
-            // rdma_server_thread.detach();
-            // #endif
-        });
-        mRdmaThread.detach();
-
     } else {
         mSelfIp = "12.12.12.1";
         ip_port_devs.push_back(std::make_tuple(
@@ -302,6 +221,60 @@ int ZstoreController::SetParameters(int key_experiment, int option)
             "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
     }
+
+    auto RdmaPortBase = 8980;
+    log_info("RDMA server: listen ip {} port {}", mSelfIp,
+             RdmaPortBase + mOption + 1);
+
+    mRdmaThread = std::jthread([this] {
+        auto ln_s = kym::endpoint::Listen(mSelfIp, 8987);
+        if (!ln_s.ok()) {
+            std::cerr << "Error listening" << ln_s.status() << std::endl;
+            return;
+        }
+        auto ln = ln_s.value();
+
+        // Allocate a page of normal heap memory
+        int size = 4 * 1024 * 1024;
+        // void *generic = malloc(size);
+        // struct ibv_mr *generic_mr =
+        //     ibv_reg_mr(ln->GetPd(), generic, size,
+        //                IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+        // Allocate "magic" buffer
+        auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
+        if (!magic_s.ok()) {
+            std::cerr << "error allocating magic buffer " << magic_s.status()
+                      << std::endl;
+            return;
+        }
+        void *magic = magic_s.value();
+        struct ibv_mr *magic_mr =
+            ibv_reg_mr(ln->GetPd(), magic, 2 * size,
+                       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+        struct cinfo ci;
+        // ci.generic_addr = (uint64_t)generic;
+        // ci.generic_key = generic_mr->lkey;
+        ci.magic_addr = (uint64_t)magic;
+        ci.magic_key = magic_mr->lkey;
+
+        mRdmaOpts.private_data = &ci;
+        mRdmaOpts.private_data_len = sizeof(ci);
+
+        auto ep_s = ln->Accept(mRdmaOpts);
+        if (!ep_s.ok()) {
+            std::cerr << "error allocating magic buffer " << magic_s.status()
+                      << std::endl;
+            return;
+        }
+        serverEndpoint = ep_s.value();
+        log_info("RDMA server: connected");
+        return;
+        // rdma_server_thread.detach();
+        // #endif
+    });
+    mRdmaThread.detach();
 
     int rc = 0;
     for (auto &dev_tuple : ip_port_devs) {
