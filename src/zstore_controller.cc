@@ -1444,6 +1444,10 @@ Result<void> ZstoreController::Checkpoint()
         // persisted map
         std::string path = tx_root_ + "/" + leaderNodeName_;
         log_debug("Setting Leader watcher on {}", path);
+
+        auto node = getNodeData(path);
+        log_info("data from {}: {}", path, node);
+
         int rc =
             zoo_wexists(mZkHandler, path.c_str(), LeaderWatcher, this, NULL);
         if (rc != ZOK) {
