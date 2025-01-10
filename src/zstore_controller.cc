@@ -1353,6 +1353,7 @@ Result<void> ZstoreController::Checkpoint()
                     }
 
                     if (node != leaderNodeName_) {
+                        log_debug("Setting TX watcher on {}", tx_path);
                         // leader needs to watch if follower has committed
                         rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
                                          this, NULL);
@@ -1431,6 +1432,7 @@ Result<void> ZstoreController::Checkpoint()
         // follower sets a watcher on /tx/leader to check if the leader has
         // persisted map
         std::string path = tx_root_ + "/" + leaderNodeName_;
+        log_debug("Setting Leader watcher on {}", path);
         int rc =
             zoo_wexists(mZkHandler, path.c_str(), LeaderWatcher, this, NULL);
         if (rc != ZOK) {
