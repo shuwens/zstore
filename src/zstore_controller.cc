@@ -1337,7 +1337,8 @@ Result<void> ZstoreController::Checkpoint()
                          tx_path);
                 if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
                     ZOK) {
-                    log_info("{} does not exist", tx_path);
+                    if (Configuration::Debugging())
+                        log_info("{} does not exist", tx_path);
                     int rc =
                         zoo_create(mZkHandler, tx_path.c_str(), "empty", 10,
                                    &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
@@ -1363,8 +1364,8 @@ Result<void> ZstoreController::Checkpoint()
                 }
             }
         }
-
         sleep(1);
+        log_debug("TX map start");
         // std::vector<char *> tx_map;
         // Map2Tx(mMap, tx_map);
         //
@@ -1416,6 +1417,8 @@ Result<void> ZstoreController::Checkpoint()
 
     } else {
         // follower
+
+        sleep(1);
 
         // Deprecated:
         // Send all records in current gateway to the leader gateway
