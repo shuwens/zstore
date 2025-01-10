@@ -2,7 +2,28 @@
 
 ## ckpt
 
+    Latency   151.82us   37.39us   1.43ms   75.58%
+    Req/Sec    32.23k     1.30k   35.64k    89.68%
+  Latency Distribution
+     50%  148.00us
+     75%  170.00us
+     90%  196.00us
+     99%  268.00us
+  808043 requests in 2.10s, 3.15GB read
+Requests/sec: 384859.72
+Transfer/sec:      1.50GB
+
+
 ## without ckpt
+   Latency   151.67us   33.66us 493.00us   72.73%
+    Req/Sec    32.25k     1.15k   37.12k    89.29%
+  Latency Distribution
+     50%  149.00us
+     75%  170.00us
+     90%  194.00us
+     99%  254.00us
+  808272 requests in 2.10s, 3.15GB read
+Requests/sec: 384903.34
 
 
 # 1'000'000 with full capacity
