@@ -25,6 +25,6 @@ do
 done
 sleep 10
 
-ssh zstore6 '~/dev/zstore/utils/bench_read.sh'
+ssh zstore6 'cd ~/dev/zstore/utils && bench_read.sh &'
 
 echo "Done"

@@ -50,5 +50,5 @@ set -xeuo pipefail
 
 sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c12 -d1s \
 	-H 'Connection: keep-alive' --latency --timeout 60 \
-	-s ~/dev/zstore/utils/random-reads.lua http://12.12.12.1:2000 -- 100000 false
+	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
