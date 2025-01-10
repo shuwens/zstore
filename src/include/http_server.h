@@ -139,8 +139,8 @@ std::pair<std::string, std::string> parse_url(const std::string &str)
 }
 
 // This function implements the core logic of async
-auto awaitable_on_request(HttpRequest req,
-                          ZstoreController &zctrl_) -> asio::awaitable<HttpMsg>
+auto awaitable_on_request(HttpRequest req, ZstoreController &zctrl_)
+    -> asio::awaitable<HttpMsg>
 {
     auto url = req.target();
     auto [bucket, object_key] = parse_url(url);
@@ -541,38 +541,49 @@ auto awaitable_on_request(HttpRequest req,
             // 2. Serialize to buffer
             std::vector<char> buffer = WriteZstoreObjectToBuffer(original_obj);
 
+            auto dev = zctrl_.GetDevice("Zstore2Dev1");
             // debug_buffer
 
             // log_debug("Writing buffer {}, body {}", buffer, req.body());
 
-            auto s1 = MakeWriteRequest(&zctrl_, dev1, req).value();
-            auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
-            auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
+            auto s1 = MakeWriteRequest(&zctrl_, dev, req).value();
+            // auto s2 = MakeWriteRequest(&zctrl_, dev2, req).value();
+            // auto s3 = MakeWriteRequest(&zctrl_, dev3, req).value();
 
             // log_debug("dispatching write requests");
+            // co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
+            //             assert(s1->success && s2->success && s3->success &&
+            //                    "Write request failed");
 
-            co_await (zoneAppend(s1) && zoneAppend(s2) && zoneAppend(s3));
-            assert(s1->success && s2->success && s3->success &&
-                   "Write request failed");
+            co_await (zoneAppend(s1));
+            assert(s1->success && "Write request failed");
 
             co_await async_sleep(co_await asio::this_coro::executor,
                                  std::chrono::microseconds(0),
                                  asio::use_awaitable);
 
+            // auto new_entry =
+            //     createMapEntry(
+            //         std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
+            //                         std::make_pair(tgt2, dev2->GetZoneId()),
+            //                         std::make_pair(tgt3, dev3->GetZoneId())),
+            //         s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+            //         .value();
+
             auto new_entry =
                 createMapEntry(
                     std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
-                                    std::make_pair(tgt2, dev2->GetZoneId()),
-                                    std::make_pair(tgt3, dev3->GetZoneId())),
-                    s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+                                    std::make_pair(tgt1, dev1->GetZoneId()),
+                                    std::make_pair(tgt1, dev1->GetZoneId())),
+                    s1->append_lba, 1, s1->append_lba, 1, s1->append_lba, 1)
                     .value();
 
             s1->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s1);
-            s2->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s2);
-            s3->Clear();
-            zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+            // s2->Clear();
+            // zctrl_.mRequestContextPool->ReturnRequestContext(s2);
+            // s3->Clear();
+            // zctrl_.mRequestContextPool->ReturnRequestContext(s3);
 
             // update lba in map
             auto rc = zctrl_.PutObject(key_hash, new_entry).value();
