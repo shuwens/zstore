@@ -1040,8 +1040,8 @@ void ZstoreController::checkTxChange()
                 auto duration =
                     std::chrono::duration_cast<std::chrono::seconds>(
                         mCkptEnd - mCkptStart);
-                log_info("Total checkpoint duration: {} seconds",
-                         duration.count());
+                log_debug("Hooray: Total checkpoint duration: {} seconds",
+                          duration.count());
             }
         }
         deallocate_String_vector(&children);
@@ -1381,50 +1381,48 @@ Result<void> ZstoreController::Checkpoint()
         }
         sleep(5);
         log_debug("TX map start");
-        // std::vector<char *> tx_map;
-        // Map2Tx(mMap, tx_map);
-        //
-        // // we might want to set a threshold
-        // assert(tx_map.size() <= mContextPoolSize);
-        // std::vector<RequestContext *> reqs;
-        // reqs.reserve(tx_map.size());
-        // char *buffer =
-        //     (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
-        //                          Configuration::GetBlockSize(), NULL,
-        //                          SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
-        // auto dev = GetDevice("Zstore2Dev1");
-        // for (u64 i = 0; i < tx_map.size(); i++) {
-        //     buffer = tx_map[i];
-        //     auto slot = MakeWriteChunk(this, dev, buffer).value();
-        //     reqs.push_back(slot);
-        // }
-        // asio::io_context ctx;
-        // asio::co_spawn(
-        //     ctx,
-        //     [reqs]() -> asio::awaitable<void> {
-        //         auto ex = co_await asio::this_coro::executor;
-        //         using Task =
-        //             decltype(co_spawn(ex, zoneAppend(reqs[0]),
-        //             asio::deferred));
-        //         std::vector<Task> reqs_to_write;
-        //         for (auto &slot : reqs) {
-        //             reqs_to_write.push_back(
-        //                 co_spawn(ex, zoneAppend(slot), asio::deferred));
-        //         }
-        //         auto grp = asio::experimental::make_parallel_group(
-        //             std::move(reqs_to_write));
-        //
-        //         auto rr = co_await (grp.async_wait(
-        //             asio::experimental::wait_for_all(),
-        //             asio::use_awaitable));
-        //     },
-        //     asio::detached);
-        // ctx.run();
-        //
-        // for (auto &slot : reqs) {
-        //     slot->Clear();
-        //     mRequestContextPool->ReturnRequestContext(slot);
-        // }
+        std::vector<char *> tx_map;
+        Map2Tx(mMap, tx_map);
+
+        // we might want to set a threshold
+        assert(tx_map.size() <= mContextPoolSize);
+        std::vector<RequestContext *> reqs;
+        reqs.reserve(tx_map.size());
+        char *buffer =
+            (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
+                                 Configuration::GetBlockSize(), NULL,
+                                 SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+        auto dev = GetDevice("Zstore2Dev1");
+        for (u64 i = 0; i < tx_map.size(); i++) {
+            buffer = tx_map[i];
+            auto slot = MakeWriteChunk(this, dev, buffer).value();
+            reqs.push_back(slot);
+        }
+        asio::io_context ctx;
+        asio::co_spawn(
+            ctx,
+            [reqs]() -> asio::awaitable<void> {
+                auto ex = co_await asio::this_coro::executor;
+                using Task =
+                    decltype(co_spawn(ex, zoneAppend(reqs[0]), asio::deferred));
+                std::vector<Task> reqs_to_write;
+                for (auto &slot : reqs) {
+                    reqs_to_write.push_back(
+                        co_spawn(ex, zoneAppend(slot), asio::deferred));
+                }
+                auto grp = asio::experimental::make_parallel_group(
+                    std::move(reqs_to_write));
+
+                auto rr = co_await (grp.async_wait(
+                    asio::experimental::wait_for_all(), asio::use_awaitable));
+            },
+            asio::detached);
+        ctx.run();
+
+        for (auto &slot : reqs) {
+            slot->Clear();
+            mRequestContextPool->ReturnRequestContext(slot);
+        }
 
         // leader commit since all data is written
         std::string path = tx_root_ + "/" + leaderNodeName_;

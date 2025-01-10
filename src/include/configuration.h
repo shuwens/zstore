@@ -182,5 +182,5 @@ class Configuration
     std::string gZookeeperUrl = "12.12.12.1:2181";
 
     // bool gVerbose = true; // this will turn on all logs
-    bool gDebug = true; // this will turn on all checks and log
+    bool gDebug = false; // this will turn on all checks and log
 };
