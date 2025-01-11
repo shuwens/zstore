@@ -171,7 +171,7 @@ class Configuration
     const int gCurrentZone = 0; // read from zone 0
     // const int gCurrentZone = 66; // write
 
-    uint32_t gObjectSizeInBytes = 4096 * 2; // 4kB
+    uint32_t gObjectSizeInBytes = 4096; // 4kB
     // uint32_t gObjectSizeInBytes = 4096 * 16;
     // uint32_t gObjectSizeInBytes = 4096 * 64; // test large object
     // uint32_t gObjectSizeInBytes = 4096 * 512;
