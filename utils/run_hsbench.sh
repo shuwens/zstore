@@ -2,8 +2,16 @@
 set -xeuo pipefail
 # go install github.com/markhpc/hsbench@latest
 
+# PUT: , GET:
+# hsbench -a test -s test -u http://12.12.12.1:2000 -z 4K -d 1 -t 10 -b 1
+# PUT: , GET:
+# hsbench -a test -s test -u http://12.12.12.1:2000 -z 4K -d 5 -t 10 -b 1
+
+hsbench -a test -s test -u http://12.12.12.1:2000 -z 4K -d 1 -t 5 -b 1
+
+
 # TO RUN
-hsbench -a test -s test -u http://12.12.12.1:2000 -z 4K -d 10 -t 80 -b 1
+# hsbench -a test -s test -u http://12.12.12.1:2000 -z 4K -d 10 -t 80 -b 1
 
 
 
