@@ -21,7 +21,7 @@ function init(args)
    writes    = 0
    responses = 0
    method    = "POST"
-   path      = "/db/new-secret-0"
+   path      = "/bucket-data/new-secret-0"
    body      = ''
    local msg = "thread %d created"
    print(msg:format(id))
@@ -33,7 +33,7 @@ function request()
    if requests > 0 then
       writes = writes + 1
       -- cycle through paths from 1 to num_secrets in order
-      path = "/db/new-secret-" .. writes
+      path = "/bucket-data/new-secret-" .. writes
       -- minimal secret giving thread id and # of write
       -- body = '{"foo-' .. id .. '" : "bar-' .. writes ..'"}'
       -- add extra key with 100 bytes
