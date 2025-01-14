@@ -49,8 +49,8 @@ set -xeuo pipefail
 # 	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
 # Ceph
-sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c120 -d5s \
+sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c12 -d5s \
 	-H 'Connection: keep-alive' --latency --timeout 60 \
-	-s random-reads.lua http://12.12.12.2:80 -- 100000 false
+	-s ceph-reads.lua http://12.12.12.2:80 -- 10000 false
 
 
