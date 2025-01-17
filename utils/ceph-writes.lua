@@ -11,6 +11,11 @@ function setup(thread)
 end
 
 function init(args)
+   lines = {}                              -- Create an empty array to store lines
+   for line in io.lines("presign_urls") do -- Open file and iterate through lines
+      table.insert(lines, line)            -- Add each line to the array
+   end
+
    if args[1] == nil then
       num_secrets = 1000
    else
@@ -21,7 +26,7 @@ function init(args)
    writes    = 0
    responses = 0
    method    = "POST"
-   path      = "/bucket-data/new-secret-0"
+   path      = "/bucket-data/0"
    body      = ''
    local msg = "thread %d created"
    print(msg:format(id))
@@ -33,7 +38,8 @@ function request()
    if requests > 0 then
       writes = writes + 1
       -- cycle through paths from 1 to num_secrets in order
-      path = "/bucket-data/new-secret-" .. writes
+      -- path = "/bucket-data/" .. writes
+      path = lines[writes]
       -- minimal secret giving thread id and # of write
       -- body = '{"foo-' .. id .. '" : "bar-' .. writes ..'"}'
       -- add extra key with 100 bytes

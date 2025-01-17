@@ -234,8 +234,8 @@ auto awaitable_on_request(HttpRequest req,
                 // log_info("Object {} is recently modified", object_key);
                 // log_error("Unimplemented!!!");
             } else {
-                log_info("Object {} is recently modified", object_key);
-                log_error("Unimplemented!!!");
+                // log_info("Object {} is recently modified", object_key);
+                // log_error("Unimplemented!!!");
             }
         }
 

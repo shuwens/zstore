@@ -1,0 +1,38 @@
++ hsbench -a 50I9XIIDPA2TC8LKYUKM -s J10qS4Bb4vIWxyJW3gWR4XATae0AbhRovkiiTOkj -u http://12.12.12.2:80 -z 4K -d 1 -t 100 -b 1
+2025/01/13 22:05:37 Hotsauce S3 Benchmark Version 0.1
+2025/01/13 22:05:37 Parameters:
+2025/01/13 22:05:37 url=http://12.12.12.2:80
+2025/01/13 22:05:37 object_prefix=
+2025/01/13 22:05:37 bucket_prefix=hotsauce-bench
+2025/01/13 22:05:37 region=us-east-1
+2025/01/13 22:05:37 modes=cxiplgdcx
+2025/01/13 22:05:37 output=
+2025/01/13 22:05:37 json_output=
+2025/01/13 22:05:37 max_keys=1000
+2025/01/13 22:05:37 object_count=-1
+2025/01/13 22:05:37 bucket_count=1
+2025/01/13 22:05:37 duration=1
+2025/01/13 22:05:37 threads=100
+2025/01/13 22:05:37 loops=1
+2025/01/13 22:05:37 size=4K
+2025/01/13 22:05:37 interval=1.000000
+2025/01/13 22:05:37 Running Loop 0 BUCKET CLEAR TEST
+2025/01/13 22:05:37 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BCLR, Ops: 0, MB/s: 0.00, IO/s: 0, Lat(ms): [ min: 0.0, avg: 0.0, 99%: 0.0, max: 0.0 ], Slowdowns: 0
+2025/01/13 22:05:37 Running Loop 0 BUCKET DELETE TEST
+2025/01/13 22:05:37 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BDEL, Ops: 0, MB/s: 0.00, IO/s: 0, Lat(ms): [ min: 0.0, avg: 0.0, 99%: 0.0, max: 0.0 ], Slowdowns: 0
+2025/01/13 22:05:37 Running Loop 0 BUCKET INIT TEST
+2025/01/13 22:05:37 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BINIT, Ops: 1, MB/s: 0.00, IO/s: 72, Lat(ms): [ min: 13.9, avg: 13.9, 99%: 13.9, max: 13.9 ], Slowdowns: 0
+2025/01/13 22:05:37 Running Loop 0 OBJECT PUT TEST
+2025/01/13 22:05:38 Loop: 0, Int: 0, Dur(s): 1.0, Mode: PUT, Ops: 4919, MB/s: 19.21, IO/s: 4919, Lat(ms): [ min: 2.7, avg: 19.6, 99%: 67.2, max: 122.8 ], Slowdowns: 0
+2025/01/13 22:05:38 Loop: 0, Int: TOTAL, Dur(s): 1.1, Mode: PUT, Ops: 5019, MB/s: 18.55, IO/s: 4750, Lat(ms): [ min: 2.7, avg: 20.3, 99%: 69.7, max: 124.0 ], Slowdowns: 0
+2025/01/13 22:05:38 Running Loop 0 BUCKET LIST TEST
+2025/01/13 22:05:38 Loop: 0, Int: TOTAL, Dur(s): 0.1, Mode: LIST, Ops: 6, MB/s: 0.00, IO/s: 72, Lat(ms): [ min: 0.8, avg: 13.9, 99%: 20.3, max: 20.3 ], Slowdowns: 0
+2025/01/13 22:05:38 Running Loop 0 OBJECT GET TEST
+2025/01/13 22:05:39 Loop: 0, Int: TOTAL, Dur(s): 0.3, Mode: GET, Ops: 5019, MB/s: 58.93, IO/s: 15086, Lat(ms): [ min: 1.9, avg: 6.4, 99%: 9.2, max: 13.5 ], Slowdowns: 0
+2025/01/13 22:05:39 Running Loop 0 OBJECT DELETE TEST
+2025/01/13 22:05:39 Loop: 0, Int: TOTAL, Dur(s): 0.9, Mode: DEL, Ops: 5019, MB/s: 22.31, IO/s: 5711, Lat(ms): [ min: 2.7, avg: 16.8, 99%: 84.2, max: 130.5 ], Slowdowns: 0
+2025/01/13 22:05:39 Running Loop 0 BUCKET CLEAR TEST
+2025/01/13 22:05:39 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BCLR, Ops: 0, MB/s: 0.00, IO/s: 0, Lat(ms): [ min: 0.0, avg: 0.0, 99%: 0.0, max: 0.0 ], Slowdowns: 0
+2025/01/13 22:05:39 Running Loop 0 BUCKET DELETE TEST
+2025/01/13 22:05:39 Loop: 0, Int: TOTAL, Dur(s): 0.0, Mode: BDEL, Ops: 1, MB/s: 0.00, IO/s: 56, Lat(ms): [ min: 17.9, avg: 17.9, 99%: 17.9, max: 17.9 ], Slowdowns: 0
+

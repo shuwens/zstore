@@ -1,0 +1,20 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AddPerm",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:PutObjectAcl",
+                "iam:CreateUser"
+            ],
+            "Resource": [
+                "arn:aws:s3:::bucket-data",
+                "arn:aws:s3:::bucket-data/*"
+            ]
+        }
+    ]
+}
