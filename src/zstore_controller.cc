@@ -1,5 +1,7 @@
 #include "include/configuration.h"
 #include "include/http_server.h"
+#include "src/include/utils.h"
+#include <boost/outcome/success_failure.hpp>
 #include <boost/outcome/utils.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/string.hpp>
@@ -8,23 +10,111 @@
 #include <infiniband/verbs.h>
 #include <spdk/nvme_zns.h>
 #include <spdk/string.h>
+#include <system_error>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 const std::string election_root_ = "/election";
 const std::string tx_root_ = "/tx";
-// const std::string election_node_path = "/election/node_";
 #define SESSION_TIMEOUT 30000
 std::string g_data;
 
 int ZstoreController::Init(bool object, int key_experiment, int option)
 {
-
     int rc = 0;
-    // verbose = Configuration::Verbose();
+
+    rc = SetParameters(key_experiment, option);
+    assert(rc == 0);
+
+    // Preallocate contexts for user requests
+    // Sufficient to support multiple I/O queues of NVMe-oF target
+    mRequestContextPool = new RequestContextPool(mContextPoolSize);
+    if (mRequestContextPool == NULL) {
+        log_error("could not initialize task pool");
+        rc = 1;
+        zstore_cleanup();
+        return rc;
+    }
+
+    rc = ConfigureSpdkQpairs();
+    assert(rc == 0);
+
+    auto num_ioc_threads = Configuration::GetNumHttpThreads();
+    // The io_context is required for all I/O
+    asio::io_context ioc{num_ioc_threads};
+    boost::asio::ip::address address = asio::ip::make_address(mSelfIp);
+    auto const port = 2000;
+
+    // Spawn a listening port
+    asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
+                   [](std::exception_ptr e) {
+                       if (e)
+                           try {
+                               std::rethrow_exception(e);
+                           } catch (std::exception &e) {
+                               log_error("Error in listener: {}", e.what());
+                           }
+                   });
+
+    std::vector<std::jthread> threads(num_ioc_threads);
+    for (int i = 0; i < num_ioc_threads; ++i) {
+        threads[i] = std::jthread([&ioc, i, &threads] {
+#ifdef PERF
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i + Configuration::GetHttpThreadCoreId(), &cpuset);
+            std::string name = "zstore_ioc" + std::to_string(i);
+            int rc =
+                pthread_setname_np(threads[i].native_handle(), name.c_str());
+            assert(rc == 0);
+            rc = pthread_setaffinity_np(threads[i].native_handle(),
+                                        sizeof(cpu_set_t), &cpuset);
+            assert(rc == 0);
+
+            if (Configuration::Debugging())
+                log_info("HTTP server: Thread {} on core {}", i,
+                         i + Configuration::GetHttpThreadCoreId());
+#endif
+            // ioc.run();
+            for (;;)
+                ioc.poll();
+        });
+    }
+
+    // rc = SetupHttpThreads();
+    // assert(rc == 0);
+
+    rc = PopulateDevHash();
+    assert(rc == 0);
+
+    rc = PopulateMap();
+    assert(rc == 0);
+
+    rc = ReadZoneHeaders();
+    assert(rc == 0);
+
+    if (mKeyExperiment == 6) {
+        rc = SetupZookeeper();
+        assert(rc == 0);
+    }
+
+    if (Configuration::Debugging())
+        CheckIoThread("Starting all the threads");
+
+    log_info("ZstoreController Init finish");
+    return rc;
+}
+
+int ZstoreController::SetParameters(int key_experiment, int option)
+{
+    pivot = 0;
 
     setContextPoolSize(Configuration::GetContextPoolSize());
-    setKeyExperiment(key_experiment);
     setOption(option);
+    setNumOfDevices(Configuration::GetNumOfDevices() *
+                    Configuration::GetNumOfTargets());
+    setKeyExperiment(key_experiment);
+    if (Configuration::Debugging())
+        log_info("Init ZstoreController with {} devices", mN);
 
     if (mKeyExperiment == 1) {
         log_info("Init Zstore for random read, starting from zone {}",
@@ -48,6 +138,10 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else if (mKeyExperiment == 5) {
         // Target and gateway failure
     } else if (mKeyExperiment == 6) {
+        setNumOfDevices(Configuration::GetNumOfDevices());
+        if (Configuration::Debugging())
+            log_info("Init ZstoreController with {} devices", mN);
+
         // Checkpoint
         if (mOption == 1) {
             log_info("Init Checkpointing Gateway on Zstore1", mKeyExperiment,
@@ -86,10 +180,6 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     } else if (mKeyExperiment == 7) {
         // GC
     }
-    setNumOfDevices(Configuration::GetNumOfDevices() *
-                    Configuration::GetNumOfTargets());
-    auto const port = 2000;
-    auto const num_ioc_threads = Configuration::GetNumHttpThreads();
 
     // TODO: set all parameters too
     log_debug(
@@ -100,119 +190,28 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 
     std::vector<std::tuple<std::string, std::string, std::string, u32, u32>>
         ip_port_devs;
-    std::string ip;
     if (mKeyExperiment == 6) {
-        auto RdmaPortBase = 8980;
+        ip_port_devs.push_back(std::make_tuple(
+            "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
+            Configuration::GetZoneId(), Configuration::GetZoneId()));
         if (mOption == 1) {
-            ip = "12.12.12.1";
-            ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
-                Configuration::GetZoneId(), Configuration::GetZoneId()));
-            ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore3:cnode1", "12.12.12.3", "5520",
-                Configuration::GetZoneId(), Configuration::GetZoneId()));
-            ip_port_devs.push_back(std::make_tuple(
-                "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
-                Configuration::GetZoneId(), Configuration::GetZoneId()));
-            // ip_port_devs.push_back(std::make_tuple(
-            //     "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
-            //     Configuration::GetZoneId(), Configuration::GetZoneId()));
+            mSelfIp = "12.12.12.1";
         } else if (mOption == 2) {
-            ip = "12.12.12.2";
+            mSelfIp = "12.12.12.2";
         } else if (mOption == 3) {
-            ip = "12.12.12.3";
+            mSelfIp = "12.12.12.3";
         } else if (mOption == 4) {
-            ip = "12.12.12.4";
+            mSelfIp = "12.12.12.4";
         } else if (mOption == 5) {
-            ip = "12.12.12.5";
+            mSelfIp = "12.12.12.5";
         } else if (mOption == 6) {
-            ip = "12.12.12.6";
+            mSelfIp = "12.12.12.6";
         } else {
             log_error("Invalid gateway server");
         }
 
-        log_info("RDMA server: listen ip {} port {}", ip,
-                 RdmaPortBase + mOption + 1);
-
-        auto rdma_core_base =
-            Configuration::GetHttpThreadCoreId() + num_ioc_threads;
-
-        // RDMA server: recv
-        // TODO simplify this part
-        std::jthread rdma_server_thread = std::jthread([rdma_core_base,
-                                                        &rdma_server_thread,
-                                                        &ip, this] {
-            // #ifdef PERF
-            //             cpu_set_t cpuset;
-            //             CPU_ZERO(&cpuset);
-            //             CPU_SET(rdma_core_base, &cpuset);
-            //             std::string name = "rdma_recv";
-            //             int rc =
-            //             pthread_setname_np(rdma_server_thread.native_handle(),
-            //                                         name.c_str());
-            //             if (rc != 0) {
-            //                 log_error("RDMA server: Error calling
-            //                 pthread_setname: {}", rc);
-            //             }
-            //             rc =
-            //             pthread_setaffinity_np(rdma_server_thread.native_handle(),
-            //                                         sizeof(cpu_set_t),
-            //                                         &cpuset);
-            //             if (rc != 0) {
-            //                 log_error("RDMA server: Error calling "
-            //                           "pthread_setaffinity_np: {}",
-            //                           rc);
-            //             }
-            auto ln_s = kym::endpoint::Listen(ip, 8987);
-            if (!ln_s.ok()) {
-                std::cerr << "Error listening" << ln_s.status() << std::endl;
-                return;
-            }
-            auto ln = ln_s.value();
-
-            // Allocate a page of normal heap memory
-            int size = 4 * 1024 * 1024;
-            void *generic = malloc(size);
-            struct ibv_mr *generic_mr =
-                ibv_reg_mr(ln->GetPd(), generic, size,
-                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-
-            // Allocate "magic" buffer
-            auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
-            if (!magic_s.ok()) {
-                std::cerr << "error allocating magic buffer "
-                          << magic_s.status() << std::endl;
-                return;
-            }
-            void *magic = magic_s.value();
-            struct ibv_mr *magic_mr =
-                ibv_reg_mr(ln->GetPd(), magic, 2 * size,
-                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-
-            struct cinfo ci;
-            ci.generic_addr = (uint64_t)generic;
-            ci.generic_key = generic_mr->lkey;
-            ci.magic_addr = (uint64_t)magic;
-            ci.magic_key = magic_mr->lkey;
-
-            mRdmaOpts.private_data = &ci;
-            mRdmaOpts.private_data_len = sizeof(ci);
-
-            auto ep_s = ln->Accept(mRdmaOpts);
-            if (!ep_s.ok()) {
-                std::cerr << "error allocating magic buffer "
-                          << magic_s.status() << std::endl;
-                return;
-            }
-            serverEndpoint = ep_s.value();
-            log_info("RDMA server: connected");
-            return;
-            // rdma_server_thread.detach();
-            // #endif
-        });
-
     } else {
-        ip = "12.12.12.1";
+        mSelfIp = "12.12.12.1";
         ip_port_devs.push_back(std::make_tuple(
             "nqn.2024-04.io.zstore2:cnode1", "12.12.12.2", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
@@ -222,13 +221,63 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         ip_port_devs.push_back(std::make_tuple(
             "nqn.2024-04.io.zstore4:cnode1", "12.12.12.4", "5520",
             Configuration::GetZoneId(), Configuration::GetZoneId()));
-        // ip_port_devs.push_back(std::make_tuple(
-        //     "nqn.2024-04.io.zstore5:cnode1", "12.12.12.5", "5520",
-        //     Configuration::GetZoneId(), Configuration::GetZoneId()));
     }
 
-    boost::asio::ip::address address = asio::ip::make_address(ip);
+    auto RdmaPortBase = 8980;
+    log_info("RDMA server: listen ip {} port {}", mSelfIp,
+             RdmaPortBase + mOption + 1);
 
+    mRdmaThread = std::jthread([this] {
+        auto ln_s = kym::endpoint::Listen(mSelfIp, 8987);
+        if (!ln_s.ok()) {
+            std::cerr << "Error listening" << ln_s.status() << std::endl;
+            return;
+        }
+        auto ln = ln_s.value();
+
+        // Allocate a page of normal heap memory
+        int size = 4 * 1024 * 1024;
+        // void *generic = malloc(size);
+        // struct ibv_mr *generic_mr =
+        //     ibv_reg_mr(ln->GetPd(), generic, size,
+        //                IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+        // Allocate "magic" buffer
+        auto magic_s = kym::ringbuffer::GetMagicBuffer(size);
+        if (!magic_s.ok()) {
+            std::cerr << "error allocating magic buffer " << magic_s.status()
+                      << std::endl;
+            return;
+        }
+        void *magic = magic_s.value();
+        struct ibv_mr *magic_mr =
+            ibv_reg_mr(ln->GetPd(), magic, 2 * size,
+                       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+
+        struct cinfo ci;
+        // ci.generic_addr = (uint64_t)generic;
+        // ci.generic_key = generic_mr->lkey;
+        ci.magic_addr = (uint64_t)magic;
+        ci.magic_key = magic_mr->lkey;
+
+        mRdmaOpts.private_data = &ci;
+        mRdmaOpts.private_data_len = sizeof(ci);
+
+        auto ep_s = ln->Accept(mRdmaOpts);
+        if (!ep_s.ok()) {
+            std::cerr << "error allocating magic buffer " << magic_s.status()
+                      << std::endl;
+            return;
+        }
+        serverEndpoint = ep_s.value();
+        log_info("RDMA server: connected");
+        return;
+        // rdma_server_thread.detach();
+        // #endif
+    });
+    mRdmaThread.detach();
+
+    int rc = 0;
     for (auto &dev_tuple : ip_port_devs) {
         if (register_controllers(g_devices, dev_tuple) != 0) {
             rc = 1;
@@ -237,20 +286,16 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         }
     }
     mDevices = g_devices;
+    if (Configuration::Debugging())
+        log_info("SPDK {} devices registered", mN);
 
-    // Preallocate contexts for user requests
-    // Sufficient to support multiple I/O queues of NVMe-oF target
-    mRequestContextPool = new RequestContextPool(mContextPoolSize);
+    return 0;
+}
 
-    if (mRequestContextPool == NULL) {
-        log_error("could not initialize task pool");
-        rc = 1;
-        zstore_cleanup();
-        return rc;
-    }
-    isDraining = false;
-    // bogus setup for Map and BF
-
+int ZstoreController::ConfigureSpdkQpairs()
+{
+    if (Configuration::Debugging())
+        log_debug("Configure SPDK qpairs");
     // Create poll groups for the io threads and perform initialization
     for (int threadId = 0; threadId < Configuration::GetNumIoThreads();
          ++threadId) {
@@ -272,68 +317,15 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
     if (Configuration::Debugging())
         CheckIoQpair("Starting all the threads");
 
-    log_debug("ZstoreController launching threads");
-
     initIoThread();
 
-    // The io_context is required for all I/O
-    asio::io_context ioc{num_ioc_threads};
+    if (Configuration::Debugging())
+        log_info("Configure SPDK qpairs finish");
+    return 0;
+}
 
-    // Spawn a listening port
-    asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
-                   [](std::exception_ptr e) {
-                       if (e)
-                           try {
-                               std::rethrow_exception(e);
-                           } catch (std::exception &e) {
-                               std::cerr << "Error in acceptor: " << e.what()
-                                         << "\n";
-                           }
-                   });
-
-    std::vector<std::jthread> threads(num_ioc_threads);
-    for (unsigned i = 0; i < num_ioc_threads; ++i) {
-        threads[i] = std::jthread([&ioc, i, &threads] {
-#ifdef PERF
-            // Create a cpu_set_t object representing a set of CPUs.
-            // Clear it and mark only CPU i as set.
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(i + Configuration::GetHttpThreadCoreId(), &cpuset);
-            std::string name = "zstore_ioc" + std::to_string(i);
-            // log_info("HTTP server: Thread {} on core {}", i,
-            //          i + Configuration::GetHttpThreadCoreId());
-            int rc =
-                pthread_setname_np(threads[i].native_handle(), name.c_str());
-            if (rc != 0) {
-                log_error("HTTP server: Error calling pthread_setname: {}", rc);
-            }
-            rc = pthread_setaffinity_np(threads[i].native_handle(),
-                                        sizeof(cpu_set_t), &cpuset);
-            if (rc != 0) {
-                log_error("HTTP server: Error calling "
-                          "pthread_setaffinity_np: {}",
-                          rc);
-            }
-            log_info("HTTP server: Thread {} on core {}", i,
-                     i + Configuration::GetHttpThreadCoreId());
-#endif
-            ioc.run();
-        });
-    }
-
-    log_info("Initialization complete. Launching workers.");
-
-    rc = PopulateDevHash();
-    assert(rc == 0);
-
-    rc = PopulateMap();
-    assert(rc == 0);
-
-    pivot = 0;
-
-    // Read zone headers
-
+int ZstoreController::ReadZoneHeaders()
+{
     // Valid (full and open) zones and their headers
     std::map<uint64_t, uint8_t *> zonesAndHeaders[mN];
     for (int i = 0; i < mN; ++i) {
@@ -348,23 +340,28 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         // mDevices[i]->ReadZoneHeaders(zonesAndHeaders[i]);
         // mDevices[i]->GetZoneHeaders(zonesAndHeaders[i]);
     }
-
-    if (mKeyExperiment == 6) {
-        startZooKeeper();
-        sleep(5);
-        auto rc = Checkpoint();
-        assert(rc && "Checkpoint failed");
-    }
-
-    // RDMA circular buffer initialization
-    //
-    // rdma_server_thread.join();
-
-    log_info("ZstoreController Init finish");
     if (Configuration::Debugging())
-        CheckIoThread("Starting all the threads");
+        log_info("Read zone headers finish");
+    return 0;
+}
 
-    return rc;
+int ZstoreController::SetupZookeeper()
+{
+    startZooKeeper();
+    sleep(2);
+    auto rc = Checkpoint();
+    assert(rc && "Checkpoint failed");
+
+    log_info("Zookeeper setup finish");
+    return 0;
+}
+
+int ZstoreController::SetupHttpThreads()
+{
+    log_debug("Setup HTTP threads");
+
+    log_info("HTTP server setup finish");
+    return 0;
 }
 
 // this yields a list of devices for a given object key
@@ -384,26 +381,28 @@ int ZstoreController::PopulateDevHash()
     //         tgt_dev_vec.push_back({tgt_list[i] + dev_list[j]});
     //     }
     // }
-
     // this seems to be stupid, but we are just manually adding the
     // target device and the zone we write to here
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore3Dev1", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore3Dev2", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore4Dev1", Configuration::GetZoneId())});
-    tgt_dev_vec.push_back(
-        {std::make_pair("Zstore4Dev2", Configuration::GetZoneId())});
-    // tgt_dev_vec.push_back(
-    //     {std::make_pair("Zstore5Dev1", Configuration::GetZoneId())});
-    // tgt_dev_vec.push_back(
-    //     {std::make_pair("Zstore5Dev2", Configuration::GetZoneId())});
 
+    if (mKeyExperiment == 6) {
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
+    } else {
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore2Dev2", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore3Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore3Dev2", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore4Dev1", Configuration::GetZoneId())});
+        tgt_dev_vec.push_back(
+            {std::make_pair("Zstore4Dev2", Configuration::GetZoneId())});
+    }
     for (unsigned long i = 0; i < tgt_dev_vec.size(); i++) {
         for (unsigned long j = 0; j < tgt_dev_vec.size(); j++) {
             if (i == j) {
@@ -418,10 +417,12 @@ int ZstoreController::PopulateDevHash()
             }
         }
     }
-    // for (int i = 0; i < mDevHash.size(); i++) {
-    //     log_debug("DevHash: {}", i);
-    //     log_debug("DevHash: {}", mDevHash[i]);
-    // }
+    if (Configuration::Debugging()) {
+        for (unsigned long i = 0; i < mDevHash.size(); i++) {
+            log_debug("DevHash: {}", i);
+            log_debug("DevHash: {}", mDevHash[i]);
+        }
+    }
     return 0;
 }
 
@@ -458,20 +459,6 @@ std::string readString(std::ifstream &inFile)
     std::string str(size, '\0');
     inFile.read(&str[0], size);
     return str;
-}
-
-// Deprecated
-void tryDrainController(void *args)
-{
-    DrainArgs *drainArgs = (DrainArgs *)args;
-    // drainArgs->ctrl->CheckSegments();
-    // drainArgs->ctrl->ReclaimContexts();
-    // drainArgs->ctrl->ProceedGc();
-    drainArgs->success =
-        drainArgs->ctrl->mRequestContextPool->availableContexts.size() ==
-        drainArgs->ctrl->GetContextPoolSize();
-
-    drainArgs->ready = true;
 }
 
 static void busyWait(bool *ready)
@@ -683,16 +670,17 @@ bool ZstoreController::CheckIoThread(std::string msg)
         log_debug("Check Io thread {}: running {}, idle {}, exited {}", i,
                   spdk_thread_is_running(thread), spdk_thread_is_idle(thread),
                   spdk_thread_is_exited(thread));
-        // assert(spdk_thread_is_running(thread) && "Thread should be running");
-        // assert(!spdk_thread_is_idle(thread) && "Thread should not be idle");
-        // assert(!spdk_thread_is_exited(thread) && "Thread should not be
-        // exited");
+        // assert(spdk_thread_is_running(thread) && "Thread should be
+        // running"); assert(!spdk_thread_is_idle(thread) && "Thread should
+        // not be idle"); assert(!spdk_thread_is_exited(thread) && "Thread
+        // should not be exited");
     }
 
     log_debug("Check Device GetIoThread: {}", msg);
     // for (int i = 0; i < mN; ++i) {
     //     auto thread = mDevices[i]->GetIoThread();
-    //     log_debug("Check Io thread {}: running {}, idle {}, exited {}", i,
+    //     log_debug("Check Io thread {}: running {}, idle {}, exited {}",
+    //     i,
     //               spdk_thread_is_running(thread),
     //               spdk_thread_is_idle(thread),
     //               spdk_thread_is_exited(thread));
@@ -712,7 +700,6 @@ struct spdk_nvme_qpair *ZstoreController::GetIoQpair()
 {
     assert(mDevices[0] != nullptr);
     assert(mDevices[0]->GetIoQueue(0) != nullptr);
-
     return mDevices[0]->GetIoQueue(0);
 }
 
@@ -730,7 +717,6 @@ ZstoreController::~ZstoreController()
     // log_debug("drain io: {}", spdk_get_ticks());
     // log_debug("clean up ns worker");
     cleanup_ns_worker_ctx();
-    // log_debug("end work fn");
 }
 
 void ZstoreController::zstore_cleanup()
@@ -760,39 +746,6 @@ void ZstoreController::cleanup(uint32_t task_count)
     //               spdk_mempool_count(mTaskPool), task_count);
     // }
     // spdk_mempool_free(mTaskPool);
-}
-
-void ZstoreController::Drain()
-{
-    // FIXME GetDevice default
-    log_info("Perform draining on the system.");
-    isDraining = true;
-    DrainArgs args;
-    args.ctrl = this;
-    args.success = false;
-    while (!args.success) {
-        args.ready = false;
-        // thread_send_msg(mDispatchThread, tryDrainController, &args);
-        busyWait(&args.ready);
-    }
-
-    auto etime = std::chrono::high_resolution_clock::now();
-    auto delta =
-        std::chrono::duration_cast<std::chrono::microseconds>(etime - stime)
-            .count();
-    auto tput = mTotalCounts * g_micro_to_second / delta;
-
-    // if (g->verbose)
-    log_info("Total IO {}, total time {}ms, throughput {} IOPS", mTotalCounts,
-             delta, tput);
-
-    // log_debug("drain io: {}", spdk_get_ticks());
-    log_debug("clean up ns worker");
-    // ctrl->cleanup_ns_worker_ctx();
-    // print_stats(ctrl);
-    // exit(0);
-
-    log_info("done .");
 }
 
 // void ZstoreController::writeMapToFile(const std::string &filename)
@@ -836,50 +789,37 @@ void ZstoreController::Drain()
 
 int ZstoreController::PopulateMap()
 {
-    // TODO: 4KiB, 4MiB, 1GiB ....
     if (mKeyExperiment == 1) {
+        // Random Read
         log_info("Populate Map({},{}): random read, starting from zone {}",
                  mKeyExperiment, mOption, Configuration::GetZoneId());
-        // Random Read
         u32 current_zone = Configuration::GetZoneId();
         u64 current_lba = 0;
         u64 zone_offset = 0;
-        for (int i = 0; i < _map_size; i++) {
+        auto len = Configuration::GetObjectSizeInBytes() /
+                   Configuration::GetBlockSize();
+        for (int i = 0; i < mRandReadMapSize; i++) {
             std::string device;
-            // if (i % 6 == 0) {
-            //     device = "Zstore2Dev1";
-            // } else if (i % 6 == 1) {
-            //     device = "Zstore2Dev2";
-            // } else if (i % 6 == 2) {
-            //     device = "Zstore3Dev1";
-            // } else if (i % 6 == 3) {
-            //     device = "Zstore3Dev2";
-            // } else if (i % 6 == 4) {
-            //     device = "Zstore4Dev1";
-            // } else if (i % 6 == 5) {
-            //     device = "Zstore4Dev2";
-            // }
-
-            if (i % 2 == 0) {
+            if (i % 6 == 0)
                 device = "Zstore2Dev1";
-            } else if (i % 2 == 1) {
+            else if (i % 6 == 1)
                 device = "Zstore2Dev2";
-            }
-            // else if (i % 4 == 2) {
-            //     device = "Zstore4Dev1";
-            // } else if (i % 4 == 3) {
-            //     device = "Zstore4Dev2";
-            // }
+            else if (i % 6 == 2)
+                device = "Zstore3Dev1";
+            else if (i % 6 == 3)
+                device = "Zstore3Dev2";
+            else if (i % 6 == 4)
+                device = "Zstore4Dev1";
+            else if (i % 6 == 5)
+                device = "Zstore4Dev2";
 
-            // the lba should be zone_num * 0x80000 + offset [0,
-            // 0x43500]
+            // the lba should be zone_num * 0x80000 + offset [0, 0x43500]
             zone_offset = current_lba % Configuration::GetZoneDist();
             if (zone_offset > Configuration::GetZoneCap()) {
                 current_zone++;
                 current_lba = current_zone * Configuration::GetZoneDist();
                 log_debug("Populate Map for index {}, current lba {}: "
-                          "zone {} "
-                          "is full, moving to next zone",
+                          "zone {} is full, moving to next zone",
                           i, current_lba, current_zone);
             }
 
@@ -891,15 +831,7 @@ int ZstoreController::PopulateMap()
                                        Configuration::GetZoneId()),
                         std::make_pair("Zstore3Dev1",
                                        Configuration::GetZoneId())),
-                    current_lba,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize(),
-                    current_lba,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize(),
-                    current_lba,
-                    Configuration::GetObjectSizeInBytes() /
-                        Configuration::GetBlockSize())
+                    current_lba, len, current_lba, len, current_lba, len)
                     .value();
             mMap.emplace(computeSHA256(std::to_string(i)), entry);
             current_lba++;
@@ -933,6 +865,49 @@ int ZstoreController::PopulateMap()
         // Target and gateway failure
     } else if (mKeyExperiment == 6) {
         // GC
+        log_info("Populate Map({},{}): random read, starting from zone {}",
+                 mKeyExperiment, mOption, Configuration::GetZoneId());
+        u32 current_zone = Configuration::GetZoneId();
+        u64 current_lba = 0;
+        u64 zone_offset = 0;
+        auto len = Configuration::GetObjectSizeInBytes() /
+                   Configuration::GetBlockSize();
+        for (int i = 0; i < mCkptMapSize; i++) {
+            std::string device;
+            if (i % 2 == 0)
+                device = "Zstore2Dev1";
+            else if (i % 2 == 1)
+                device = "Zstore2Dev2";
+
+            // the lba should be zone_num * 0x80000 + offset [0, 0x43500]
+            zone_offset = current_lba % Configuration::GetZoneDist();
+            if (zone_offset > Configuration::GetZoneCap()) {
+                current_zone++;
+                current_lba = current_zone * Configuration::GetZoneDist();
+                log_debug("Populate Map for index {}, current lba {}: "
+                          "zone {} "
+                          "is full, moving to next zone",
+                          i, current_lba, current_zone);
+            }
+
+            auto entry =
+                createMapEntry(
+                    std::make_tuple(
+                        std::make_pair(device, Configuration::GetZoneId()),
+                        std::make_pair("Zstore2Dev2",
+                                       Configuration::GetZoneId()),
+                        std::make_pair("Zstore3Dev1",
+                                       Configuration::GetZoneId())),
+                    current_lba, len, current_lba, len, current_lba, len)
+                    .value();
+            mMap.emplace(computeSHA256(std::to_string(i)), entry);
+            current_lba++;
+        }
+
+        for (int i = 0; i < mCkptRecentMapSize; i++) {
+            mRecentWriteMap.emplace(computeSHA256(std::to_string(i)), i);
+        }
+
     } else if (mKeyExperiment == 7) {
         // Checkpoint
     }
@@ -1059,6 +1034,15 @@ void ZstoreController::checkTxChange()
                     }
                 }
             }
+        } else {
+            if (mCkpt) {
+                auto mCkptEnd = std::chrono::high_resolution_clock::now();
+                auto duration =
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                        mCkptEnd - mCkptStart);
+                log_debug("Hooray: Total checkpoint duration: {} seconds",
+                          duration.count());
+            }
         }
         deallocate_String_vector(&children);
     }
@@ -1092,11 +1076,33 @@ void ZstoreController::checkChildrenChange()
     }
 }
 
+static void LeaderWatcher(zhandle_t *zkH, int type, int state, const char *path,
+                          void *watcherCtx)
+{
+    ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
+    if (type == ZOO_CHANGED_EVENT) {
+        log_debug("Follower detects the leader change, and ACK the epoch");
+        std::string path = tx_root_ + "/" + ctrl->nodeName_;
+        ctrl->ZkSet(path, "commit");
+    }
+    if (state == ZOO_CONNECTED_STATE) {
+        log_debug("1111");
+        if (type == ZOO_CHILD_EVENT) {
+            log_debug("2222");
+            ctrl->checkChildrenChange();
+        } else {
+            log_debug("3333");
+            ctrl->createZnodes();
+        }
+    }
+}
+
 static void TxWatcher(zhandle_t *zkH, int type, int state, const char *path,
                       void *watcherCtx)
 {
     ZstoreController *ctrl = static_cast<ZstoreController *>(watcherCtx);
     if (type == ZOO_CHANGED_EVENT) {
+        log_debug("TxWatcher detects the change");
         ctrl->checkTxChange();
     }
 }
@@ -1144,17 +1150,179 @@ void ZstoreController::startZooKeeper()
     log_info("Connecting to ZooKeeper server...");
 }
 
+kym::endpoint::Options opts = {
+    .qp_attr =
+        {
+            .cap =
+                {
+                    .max_send_wr = 1,
+                    .max_recv_wr = 1,
+                    .max_send_sge = 1,
+                    .max_recv_sge = 1,
+                    .max_inline_data = 8,
+                },
+            .qp_type = IBV_QPT_RC,
+        },
+    .responder_resources = 5,
+    .initiator_depth = 5,
+    .retry_count = 8,
+    .rnr_retry_count = 0,
+    .native_qp = false,
+    .inline_recv = 0,
+};
+
+std::vector<void *> dumpMap(const ZstoreMap &hashmap)
+{
+    std::vector<void *> buffer;
+    hashmap.visit_all([&buffer](auto &x) {
+        buffer.push_back(
+            reinterpret_cast<void *>(const_cast<MapEntry *>(&x.second)));
+    });
+    return buffer;
+}
+
+std::vector<void *> dumpRecentWriteMap(const ZstoreRecentWriteMap &hashmap)
+{
+    std::vector<void *> buffer;
+    hashmap.visit_all([&buffer](auto &x) {
+        buffer.push_back(reinterpret_cast<void *>(const_cast<u8 *>(&x.second)));
+    });
+    return buffer;
+}
+
+Result<void> ZstoreController::SendRecordsToGateway()
+{
+    namespace chrono = std::chrono;
+    using clock_type = chrono::high_resolution_clock;
+    std::string ip = "12.12.12.1";
+
+    auto ep_s = kym::endpoint::Dial(ip, 8987, opts);
+    if (!ep_s.ok()) {
+        std::cerr << "error dialing " << ep_s.status() << std::endl;
+        return outcome::failure(std::error_code());
+    }
+    kym::endpoint::Endpoint *ep = ep_s.value();
+
+    struct cinfo *ci;
+    ep->GetConnectionInfo((void **)&ci);
+
+    std::vector<void *> map_buffer = dumpMap(mMap);
+    int n = map_buffer.size();
+    int map_entry_size = sizeof(MapEntry);
+    void *send = malloc(map_entry_size);
+    struct ibv_mr *send_mr =
+        ibv_reg_mr(ep->GetPd(), send, map_entry_size, IBV_ACCESS_LOCAL_WRITE);
+
+    auto start = clock_type::now();
+    for (auto &x : map_buffer) {
+        auto stat = ep->PostWrite(
+            reinterpret_cast<uint64_t>(&x), send_mr->lkey, send, map_entry_size,
+            ci->magic_addr + 2 * 1024 * 1024, ci->magic_key);
+        if (!stat.ok()) {
+            std::cerr << "Error writing " << stat << std::endl;
+            return outcome::failure(std::error_code());
+        }
+        auto wc_s = ep->PollSendCq();
+        if (!wc_s.ok()) {
+            std::cerr << "error polling send cq for write " << wc_s.status()
+                      << std::endl;
+        }
+    }
+    auto end = clock_type::now();
+    auto dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    log_info("Total write latency for map: {}", dur);
+
+    std::vector<void *> recent_buffer = dumpRecentWriteMap(mRecentWriteMap);
+    n = recent_buffer.size();
+    int size = sizeof(u8);
+    send = malloc(size);
+    send_mr = ibv_reg_mr(ep->GetPd(), send, size, IBV_ACCESS_LOCAL_WRITE);
+
+    // Test latency for magic mr
+    start = clock_type::now();
+    for (auto &x : recent_buffer) {
+        auto stat = ep->PostWrite(reinterpret_cast<uint64_t>(&x), send_mr->lkey,
+                                  send, size, ci->magic_addr + 2 * 1024 * 1024,
+                                  ci->magic_key);
+        if (!stat.ok()) {
+            std::cerr << "Error writing " << stat << std::endl;
+            return outcome::failure(std::error_code());
+        }
+        auto wc_s = ep->PollSendCq();
+        if (!wc_s.ok()) {
+            std::cerr << "error polling send cq for write " << wc_s.status()
+                      << std::endl;
+        }
+    }
+    end = clock_type::now();
+    dur = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    log_info("Total write latency for recent write map: {}", dur);
+
+    return outcome::success();
+}
+
+void ZstoreController::ZkSet(const std::string &path, const char *data)
+{
+    int rc = zoo_set(mZkHandler, path.c_str(), data, 10, -1);
+    if (rc != ZOK) {
+        log_error("Error setting data to {}", path);
+    } else {
+        log_info("Success setting data to {}", path);
+    }
+}
+
+void ZstoreController::Map2Tx(const ZstoreMap &hashmap,
+                              std::vector<char *> &tx_map)
+{
+    std::vector<char *> tmpBuffer;
+    tmpBuffer.reserve(mMap.size());
+    char *buffer = new char[sizeof(ObjectKeyHash) + sizeof(MapEntry)];
+    log_debug("size of tmpBuffer: {}",
+              sizeof(ObjectKeyHash) + sizeof(MapEntry));
+    hashmap.visit_all([&tmpBuffer, buffer](auto &x) {
+        std::memcpy(buffer, &x.first, sizeof(ObjectKeyHash));
+        std::memcpy(buffer + sizeof(ObjectKeyHash), &x.second,
+                    sizeof(MapEntry));
+        tmpBuffer.push_back(buffer);
+    });
+
+    // Split tempBuffer into 4096-byte chunks
+    size_t bufferSize;
+    if (Configuration::GetObjectSizeInBytes() > Configuration::GetChunkSize()) {
+        bufferSize = Configuration::GetChunkSize();
+    } else
+        bufferSize = Configuration::GetObjectSizeInBytes();
+
+    size_t totalSize = tmpBuffer.size();
+    size_t numBuffers =
+        (totalSize + bufferSize - 1) / bufferSize; // Round up division
+    tx_map.resize(numBuffers);
+
+    for (size_t i = 0; i < numBuffers; ++i) {
+        tx_map[i] = new char[bufferSize];
+        size_t copySize = std::min(bufferSize, totalSize - i * bufferSize);
+        std::memcpy(tx_map[i], tmpBuffer.data() + i * bufferSize, copySize);
+
+        // Zero out remaining space if not a full buffer
+        if (copySize < bufferSize) {
+            std::memset(tx_map[i] + copySize, 0, bufferSize - copySize);
+        }
+    }
+}
+
 /* NOTE workflow for persisting map
  * 1. zookeeper will select a server (leader) perform checkpoint
  * 2. leader will announce epoch change to all servers (N -> N+1). Each
- *    follower will (1) create new map and new bloom filter for N+1, and
- *    (2) return list of writes and wp for each device
+ *    follower will (1) create new map and new bloom filter for N+1,
+ *    (2) the leader will take existing map and write to disk, (3) if the
+ *    follower detects that the leader has persisted the map, it will set
+ *    /tx/follower to commit
  */
 Result<void> ZstoreController::Checkpoint()
 {
     // create /tx/nodeName_ under /tx for every znode
-    if (leaderNodeName_ == nodeName_) {
-        sleep(10);
+    if (nodeName_ == leaderNodeName_) {
+        log_debug("Checkpoint start");
         // increase epoch
         {
             auto current_epoch = GetEpoch();
@@ -1164,6 +1332,8 @@ Result<void> ZstoreController::Checkpoint()
         Stat stat;
 
         // checkpoint has already started or not
+        mCkptStart = std::chrono::high_resolution_clock::now();
+        mCkpt = true;
 
         // get all children
         String_vector children;
@@ -1181,44 +1351,120 @@ Result<void> ZstoreController::Checkpoint()
                          tx_path);
                 if (zoo_exists(mZkHandler, tx_path.c_str(), false, &stat) !=
                     ZOK) {
-                    log_info("{} does not exist", tx_path);
+                    if (Configuration::Debugging())
+                        log_info("{} does not exist", tx_path);
                     int rc =
                         zoo_create(mZkHandler, tx_path.c_str(), "empty", 10,
                                    &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, 0, 0);
                     if (rc != ZOK) {
                         log_error("Error creating znode {}", tx_path);
                     } else {
-                        log_info("Success creating znode {}", tx_path);
+                        if (Configuration::Debugging())
+                            log_info("Success creating znode {}", tx_path);
                     }
-                    rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
-                                     this, NULL);
-                    if (rc != ZOK) {
-                        log_error("Error setting watcher on {}", tx_path);
-                    } else {
-                        log_info("Success setting watcher on {}", tx_path);
+
+                    if (node != leaderNodeName_) {
+                        log_debug("Setting TX watcher on {}", tx_path);
+                        // leader needs to watch if follower has committed
+                        rc = zoo_wexists(mZkHandler, tx_path.c_str(), TxWatcher,
+                                         this, NULL);
+                        if (rc != ZOK) {
+                            log_error("Error setting watcher on {}", tx_path);
+                        } else {
+                            if (Configuration::Debugging())
+                                log_info("Success setting watcher on {}",
+                                         tx_path);
+                        }
                     }
                 }
             }
         }
-    }
 
-    sleep(10);
-    std::string path = tx_root_ + "/" + nodeName_;
-    int rc = zoo_set(mZkHandler, path.c_str(), "commit", 10, -1);
-    if (rc != ZOK) {
-        log_error("Error setting data to {}", path);
+        sleep(2);
+        log_debug("TX map start");
+
+        std::vector<char *> tx_map;
+        Map2Tx(mMap, tx_map);
+
+        // we might want to set a threshold
+        assert(tx_map.size() <= mContextPoolSize);
+        std::vector<RequestContext *> reqs;
+        reqs.reserve(tx_map.size());
+        char *buffer =
+            (char *)spdk_zmalloc(Configuration::GetObjectSizeInBytes(),
+                                 Configuration::GetBlockSize(), NULL,
+                                 SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+        auto dev = GetDevice("Zstore2Dev1");
+        for (u64 i = 0; i < tx_map.size(); i++) {
+            buffer = tx_map[i];
+            auto slot = MakeWriteChunk(this, dev, buffer).value();
+            reqs.push_back(slot);
+        }
+        asio::io_context ctx;
+        asio::co_spawn(
+            ctx,
+            [reqs]() -> asio::awaitable<void> {
+                auto ex = co_await asio::this_coro::executor;
+                using Task =
+                    decltype(co_spawn(ex, zoneAppend(reqs[0]), asio::deferred));
+                std::vector<Task> reqs_to_write;
+                for (auto &slot : reqs) {
+                    reqs_to_write.push_back(
+                        co_spawn(ex, zoneAppend(slot), asio::deferred));
+                }
+                auto grp = asio::experimental::make_parallel_group(
+                    std::move(reqs_to_write));
+
+                auto rr = co_await (grp.async_wait(
+                    asio::experimental::wait_for_all(), asio::use_awaitable));
+            },
+            asio::detached);
+        ctx.run();
+
+        for (auto &slot : reqs) {
+            slot->Clear();
+            mRequestContextPool->ReturnRequestContext(slot);
+        }
+
+        // sleep(1);
+
+        // leader commit since all data is written
+        std::string path = tx_root_ + "/" + leaderNodeName_;
+        ZkSet(path, "commit");
+
     } else {
-        log_info("Success setting data to {}", path);
+        // follower
+
+        // Deprecated:
+        // Send all records in current gateway to the leader gateway
+        // auto ret = SendRecordsToGateway();
+        // assert(ret && "SendRecordsToGateway failed");
+
+        // follower sets a watcher on /tx/leader to check if the leader has
+        // persisted map
+        std::string path = tx_root_ + "/" + leaderNodeName_;
+        log_debug("Setting Leader watcher on {}", path);
+
+        auto node = getNodeData(path);
+        log_info("data from {}: {}", path, node);
+
+        int rc =
+            zoo_wexists(mZkHandler, path.c_str(), LeaderWatcher, this, NULL);
+        if (rc != ZOK) {
+            log_error("Error setting watcher on leader {}", path);
+        } else {
+            if (Configuration::Debugging())
+                log_info("Success setting watcher on leader {}", path);
+        }
+
+        // move map
+        {
+            auto map_to_persist = mMap;
+            auto recent_write_map_to_persist = mRecentWriteMap;
+
+            mMap.clear();
+            mRecentWriteMap.clear();
+        }
     }
-
-    // move map
-    {
-        auto map_to_persist = mMap;
-        auto recent_write_map_to_persist = mRecentWriteMap;
-
-        mMap.clear();
-        mRecentWriteMap.clear();
-    }
-
     return outcome::success();
 }

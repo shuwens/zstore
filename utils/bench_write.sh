@@ -2,7 +2,7 @@
 set -xeuo pipefail
 
 # RUN 4k writes
-sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c120 -d5s \
+sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c120 -d2s \
 	-H 'Connection: keep-alive' --latency --timeout 60 \
 	-s seq-writes.lua http://12.12.12.2:80 -- 100000 false
 

@@ -38,15 +38,16 @@ set -xeuo pipefail
 # Requests/sec: 329905.63
 # Transfer/sec:      1.29GB
 # sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c120 -d5s \
+
 # 	-H 'Connection: keep-alive' --latency --timeout 60 \
 # 	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
 # sudo taskset -c 10-15 ~/tools/wrk/wrk -t12 -c180 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 # sudo taskset -c 10-15 ~/tools/wrk/wrk -t18 -c256 -d10s -s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
-# sudo taskset -c 10-15 ~/tools/wrk/wrk -t6 -c120 -d10s \
-# 	-H 'Connection: keep-alive' --latency --timeout 60 \
-# 	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
+sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c60 -d2s \
+	-H 'Connection: keep-alive' --latency --timeout 60 \
+	-s random-reads.lua http://12.12.12.1:2000 -- 100000 false
 
 # Ceph
 sudo taskset -c 1-12 ~/tools/wrk/wrk -t12 -c120 -d5s \

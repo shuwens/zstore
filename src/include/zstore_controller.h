@@ -81,6 +81,11 @@ class ZstoreController
     void writeMapToFile(const std::string &filename);
     void readMapFromFile(const std::string &filename);
 
+    int ReadZoneHeaders();
+    int SetupZookeeper();
+    int SetupHttpThreads();
+    Result<void> SendRecordsToGateway();
+
     int PopulateDevHash();
     Result<DevTuple> GetDevTuple(ObjectKeyHash object_key_hash);
     Result<DevTuple> GetDevTupleForRandomReads(ObjectKeyHash key_hash);
@@ -119,7 +124,7 @@ class ZstoreController
     ZstoreGcSet mGcSet;
     Result<bool> AddGcObject(const TargetLbaTuple &tuple);
 
-    ZstoreController(asio::io_context &ioc) : mIoc_(ioc){};
+    ZstoreController(asio::io_context &ioc) : mIoc_(ioc) {};
     // The io_context is required for all I/O
     asio::io_context &mIoc_;
 
@@ -140,6 +145,7 @@ class ZstoreController
     void setOption(int option) { mOption = option; };
 
     void SetEventPoller(spdk_poller *p) { mEventsPoller = p; }
+    int ConfigureSpdkQpairs();
 
     int GetContextPoolSize() { return mContextPoolSize; };
     void setContextPoolSize(int context_pool_size)
@@ -148,6 +154,8 @@ class ZstoreController
     };
 
     void setNumOfDevices(int num_of_device) { mN = num_of_device; };
+
+    int SetParameters(int key_experiment, int option);
 
     // Setting up SPDK
     void register_ctrlr(std::vector<Device *> &g_devices,
@@ -238,6 +246,8 @@ class ZstoreController
 
     void SetGateway(u8 gateway) { mGateway = gateway; };
     u8 GetGateway() { return mGateway; };
+    void ZkSet(const std::string &path, const char *data);
+    void Map2Tx(const ZstoreMap &hashmap, std::vector<char *> &tx_map);
 
     // zookeeper handler: these have to be public
     void checkChildrenChange();
@@ -306,16 +316,16 @@ class ZstoreController
     int mN;
     // context pool size
     int mContextPoolSize;
-    int _map_size = 1'000'000;
+    int mRandReadMapSize = 1'000'000;
+
+    // int mCkptMapSize = 500'000;
+    // int mCkptMapSize = 1'000'000;
+    int mCkptMapSize = 2'000'000;
+    int mCkptRecentMapSize = mCkptMapSize * 0.01;
+
     bool mCkpt = false;
 
-    // RequestContext *getContextForUserRequest();
-    // void doWrite(RequestContext *context);
-    // void doRead(RequestContext *context);
-
     std::vector<Device *> mDevices;
-    // std::queue<RequestContext *> mRequestQueue;
-    // std::shared_mutex mRequestQueueMutex;
 
     spdk_poller *mEventsPoller = nullptr;
     // spdk_poller *mDispatchPoller = nullptr;
@@ -325,13 +335,12 @@ class ZstoreController
     int mQueueDepth = 1;
 
     IoThread mIoThread[16];
-    // struct spdk_thread *mDispatchThread;
-    // IoThread mHttpThread[16];
-    // struct spdk_thread *mCompletionThread;
 
-    // std::queue<RequestContext *> mEventsToDispatch;
-    // std::queue<RequestContext *> mWriteQueue;
-    // std::queue<RequestContext *> mReadQueue;
+    std::jthread mRdmaThread;
 
     std::vector<Zone *> mZones;
+    std::string mSelfIp;
+    std::vector<std::jthread> mHttpThreads;
+
+    chrono_tp mCkptStart;
 };
