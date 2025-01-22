@@ -59,11 +59,13 @@ if [ "$HOSTNAME" == "zstore2" ]; then
 	ctrl_nqn="nqn.2024-04.io.zstore2:cnode1"
 elif [ "$HOSTNAME" == "zstore3" ]; then
 	sudo ifconfig enp1s0 12.12.12.3/24 up
+	sudo ifconfig enp1s0 mtu 4200
 	pci1=05:00.0
 	pci2=07:00.0
 	ctrl_nqn="nqn.2024-04.io.zstore3:cnode1"
 elif [ "$HOSTNAME" == "zstore4" ]; then
 	sudo ifconfig enp1s0 12.12.12.4/24 up
+	sudo ifconfig enp1s0 mtu 4200
 	pci1=06:00.0
 	pci2=0c:00.0
 	ctrl_nqn="nqn.2024-04.io.zstore4:cnode1"

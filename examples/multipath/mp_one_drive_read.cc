@@ -19,7 +19,7 @@ bool check = false;
 int cnt = 2;
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-static const char *g_hostnqn = "nqn.2024-04.io.zstore2:cnode1";
+static const char *g_hostnqn = "nqn.2024-04.io.zstore3:cnode1";
 
 struct ctrlr_entry {
     struct spdk_nvme_ctrlr *ctrlr;
@@ -983,7 +983,7 @@ static int register_controllers(struct arb_context *ctx)
 {
     printf("Initializing NVMe Controllers\n");
 
-    zns_dev_init(ctx, "12.12.12.2", "5520"); // 221993.20 IO/s + 57607.20
+    zns_dev_init(ctx, "12.12.12.3", "5520"); // 221993.20 IO/s + 57607.20
     // zns_dev_init(ctx, "12.12.12.3", "5520"); // 377933.00 IO/s + 202988.41
     // zns_dev_init(ctx, "12.12.12.4", "5520"); // 57936.00 IO/s + 57698.60
 
