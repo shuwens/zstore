@@ -168,11 +168,11 @@ class Configuration
     int gSamplingRate = 0;
 
     // manually set the zone id
-    // const int gCurrentZone = 0; // read from zone 0
-    const int gCurrentZone = 72; // write
+    const int gCurrentZone = 0; // read from zone 0
+    // const int gCurrentZone = 72; // write
 
-    uint32_t gObjectSizeInBytes = 4096; // 4kB
-    // uint32_t gObjectSizeInBytes = 4096 * 16;
+    // uint32_t gObjectSizeInBytes = 4096; // 4kB
+    uint32_t gObjectSizeInBytes = 4096 * 32;
     // uint32_t gObjectSizeInBytes = 4096 * 64; // test large object
     // uint32_t gObjectSizeInBytes = 4096 * 512;
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB

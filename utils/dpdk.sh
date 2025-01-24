@@ -17,7 +17,9 @@ fi
 
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
-HUGEMEM=4096 ./scripts/setup.sh
+# HUGEMEM=4096 ./scripts/setup.sh
+HUGEMEM=8192./scripts/setup.sh
+
 
 if [[ $(hostname) == "zstore1" ]]; then
 	sudo ifconfig enp1s0 12.12.12.1/24 up
