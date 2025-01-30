@@ -157,7 +157,7 @@ class Configuration
 
     // Configured parameters: 64/256/4096
     int gContextPoolSize = 4096;
-    u64 gChunkSize = 4096 * 16; // this should be the MDTS: 32 blocks
+    u64 gChunkSize = 4096 * 32; // this should be the MDTS: 32 blocks
 
     // how many targets one gateway talks to
     int gNumOfTargets = 3;
@@ -171,8 +171,8 @@ class Configuration
     const int gCurrentZone = 0; // read from zone 0
     // const int gCurrentZone = 72; // write
 
-    // uint32_t gObjectSizeInBytes = 4096; // 4kB
-    uint32_t gObjectSizeInBytes = 4096 * 32;
+    uint32_t gObjectSizeInBytes = 4096; // 4kB
+    // uint32_t gObjectSizeInBytes = 4096 * 32;
     // uint32_t gObjectSizeInBytes = 4096 * 64; // test large object
     // uint32_t gObjectSizeInBytes = 4096 * 512;
     // uint32_t gObjectSizeInBytes = 4096 * 1024; // 4MB
