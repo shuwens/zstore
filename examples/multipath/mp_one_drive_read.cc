@@ -19,6 +19,8 @@ bool check = false;
 int cnt = 2;
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
+// NOTE that here the nqn is zstore4. This is unique per node. We are talking
+// to 12.12.12.4
 static const char *g_hostnqn = "nqn.2024-04.io.zstore4:cnode1";
 
 struct ctrlr_entry {
@@ -113,7 +115,6 @@ static struct arb_context g_arbitration = {
     .num_workers = 0,
     .num_namespaces = 0,
     .rw_percentage = 50,
-    // .queue_depth = 64,
     .queue_depth = 128,
     .time_in_sec = 1,
     .io_count = 1000000,
@@ -121,7 +122,6 @@ static struct arb_context g_arbitration = {
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
     .io_size_bytes = 4096,
-    // .io_size_bytes = 131072,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     // .core_mask = "0xf",
