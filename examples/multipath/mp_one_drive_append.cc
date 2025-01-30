@@ -13,7 +13,9 @@
 #include <vector>
 
 using chrono_tp = std::chrono::high_resolution_clock::time_point;
-static const char *g_hostnqn = "nqn.2024-04.io.zstore:cnode1";
+// NOTE that here the nqn is zstore2. This is unique per node. We are talking
+// to 12.12.12.2
+static const char *g_hostnqn = "nqn.2024-04.io.zstore2:cnode1";
 
 bool starting_lba = false;
 
@@ -110,15 +112,13 @@ static struct arb_context g_arbitration = {
     .num_workers = 0,
     .num_namespaces = 0,
     .rw_percentage = 50,
-    .queue_depth = 64,
+    .queue_depth = 1,
     .io_count = 1000000,
     .latency_tracking_enable = 0,
     .arbitration_mechanism = SPDK_NVME_CC_AMS_RR,
     .arbitration_config = 0,
     .io_size_bytes = 4096,
-    // .io_size_bytes = 20480,
-    .time_in_sec = 10,
-    // .io_size_bytes = 131072,
+    .time_in_sec = 1,
     .max_completions = 0,
     /* Default 4 cores for urgent/high/medium/low */
     // .core_mask = "0xf",
@@ -956,8 +956,8 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
 
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
-    // trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
+    // Here we specify the transport type
+    trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     // struct spdk_nvme_transport_id trid2 = {};
     // snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
