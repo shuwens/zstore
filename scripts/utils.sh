@@ -45,4 +45,3 @@ function hugepages_or_exit() {
     echo "Insufficient hugepages"
   fi
 }
-

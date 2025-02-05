@@ -27,6 +27,9 @@ void testSerializationDeserialization(int datalen)
     // 2. Serialize to buffer
     auto buffer = WriteZstoreObjectToBuffer(original_obj);
 
+    spdk_nvme_append(buffer) spdk_nvme_ns_cmd_read(buffer2)
+        assert(buffer == buffer2);
+
     // 3. Deserialize back to a new ZstoreObject
     ZstoreObject deserialized_obj;
     bool success = ReadBufferToZstoreObject(buffer.data(), buffer.size(),
