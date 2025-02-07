@@ -954,29 +954,29 @@ static void zns_dev_init(struct arb_context *ctx, std::string ip1,
     int rc = 0;
 
     // 1. connect nvmf device
-    static const char *g_hostnqn1 = "nqn.2024-04.io.zstore:cnode1";
+    static const char *g_hostnqn1 = "nqn.2024-04.io.zstore2:cnode1";
     struct spdk_nvme_transport_id trid1 = {};
     snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
     snprintf(trid1.trsvcid, sizeof(trid1.trsvcid), "%s", port1.c_str());
     snprintf(trid1.subnqn, sizeof(trid1.subnqn), "%s", g_hostnqn1);
     trid1.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid1.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid1.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
-    static const char *g_hostnqn2 = "nqn.2024-04.io.zstore:cnode1";
+    static const char *g_hostnqn2 = "nqn.2024-04.io.zstore3:cnode1";
     struct spdk_nvme_transport_id trid2 = {};
     snprintf(trid2.traddr, sizeof(trid2.traddr), "%s", ip2.c_str());
     snprintf(trid2.trsvcid, sizeof(trid2.trsvcid), "%s", port2.c_str());
     snprintf(trid2.subnqn, sizeof(trid2.subnqn), "%s", g_hostnqn2);
     trid2.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid2.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid2.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
-    static const char *g_hostnqn3 = "nqn.2024-04.io.zstore:cnode1";
+    static const char *g_hostnqn3 = "nqn.2024-04.io.zstore4:cnode1";
     struct spdk_nvme_transport_id trid3 = {};
     snprintf(trid3.traddr, sizeof(trid3.traddr), "%s", ip3.c_str());
     snprintf(trid3.trsvcid, sizeof(trid3.trsvcid), "%s", port3.c_str());
     snprintf(trid3.subnqn, sizeof(trid3.subnqn), "%s", g_hostnqn3);
     trid3.adrfam = SPDK_NVMF_ADRFAM_IPV4;
-    trid3.trtype = SPDK_NVME_TRANSPORT_TCP;
+    trid3.trtype = SPDK_NVME_TRANSPORT_RDMA;
 
     struct spdk_nvme_ctrlr_opts opts1;
     spdk_nvme_ctrlr_get_default_ctrlr_opts(&opts1, sizeof(opts1));

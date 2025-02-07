@@ -19,7 +19,7 @@ function init(args)
    else
       num_secrets = tonumber(args[1])
    end
-   print("Number of secrets is: " .. num_secrets)
+   -- print("Number of secrets is: " .. num_secrets)
    if args[2] == nil then
       print_secrets = "false"
    else
@@ -32,8 +32,8 @@ function init(args)
    body      = ''
    -- give each thread different random seed
    math.randomseed(os.time() + id * 1000)
-   local msg = "thread %d created with print_secrets set to %s"
-   print(msg:format(id, print_secrets))
+   -- local msg = "thread %d created with print_secrets set to %s"
+   -- print(msg:format(id, print_secrets))
 end
 
 function request()
