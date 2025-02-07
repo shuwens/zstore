@@ -3,4 +3,4 @@
 --object_size 1
 --workload wrk_read
 --num_processes 6
---ip_addr http://12.12.12.2:80
+--ip_addr http://12.12.12.1:2000
