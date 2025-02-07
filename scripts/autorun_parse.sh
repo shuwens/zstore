@@ -40,6 +40,7 @@ autorun_err_prefix="/tmp/${autorun_app}_err"
 autorun_object_size_pages=`get_from_config "object_size_pages"`
 autorun_num_processes=`get_from_config "num_processes"`
 autorun_num_gateways=`get_from_config "num_gateways"`
+autorun_num_connections=`get_from_config "num_connections"`
 autorun_ip_addr=`get_from_config "ip_addr"`
 
 INPUT=`get_from_config "app"`

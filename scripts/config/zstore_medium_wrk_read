@@ -1,5 +1,6 @@
 --app zstore
 --num_gateways 1
---object_size 1
 --workload wrk_read
---num_processes 6
+--num_processes 12
+--num_connections 60
+--ip_addr http://12.12.12.1:2000

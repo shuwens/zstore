@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -xeuo pipefail
+# set -xeuo pipefail
+set -euo pipefail
 
 source $(dirname $0)/utils.sh
 source $(dirname $0)/autorun_parse.sh
