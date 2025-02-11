@@ -293,7 +293,7 @@ static void submit_single_io(struct ns_worker_ctx *ns_ctx)
 
     task->buf =
         (char *)spdk_dma_zmalloc(g_arbitration.io_size_bytes, 4096, NULL);
-    snprintf(task->buf, 4096, "%s:%d", "zstore1", ns_ctx->count);
+    snprintf(task->buf, 4096, "%s:%lu", "zstore1", ns_ctx->count);
     ns_ctx->count++;
 
     if (!task->buf) {
@@ -515,7 +515,6 @@ static int work_fn(void *arg)
         }
     }
 
-exit:
     TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link)
     {
         drain_io(ns_ctx);
@@ -628,7 +627,7 @@ static void print_performance(void)
             printf("%-43.43s core %u: %8.2f IO/s %8.2f secs/%d ios\n",
                    ns_ctx->entry->name, worker->lcore, io_per_second,
                    sent_all_io_in_secs, g_arbitration.io_count);
-            printf("Completed IO %d\n", ns_ctx->io_completed);
+            printf("Completed IO %lu\n", ns_ctx->io_completed);
         }
     }
     printf("========================================================\n");
@@ -920,35 +919,9 @@ static int register_workers(void)
     return 0;
 }
 
-static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                     struct spdk_nvme_ctrlr_opts *opts)
-{
-    /* Update with user specified arbitration configuration */
-    opts->arb_mechanism =
-        static_cast<enum spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
-
-    printf("Attaching to %s\n", trid->traddr);
-
-    return true;
-}
-
-static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                      struct spdk_nvme_ctrlr *ctrlr,
-                      const struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Attached to %s\n", trid->traddr);
-
-    /* Update with actual arbitration configuration in use */
-    g_arbitration.arbitration_mechanism = opts->arb_mechanism;
-
-    register_ctrlr(ctrlr);
-}
-
 static void zns_dev_init(struct arb_context *ctx, std::string ip1,
                          std::string port1)
 {
-    int rc = 0;
-
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid1 = {};
     snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());
@@ -1224,7 +1197,6 @@ int main(int argc, char **argv)
     }
 
     g_arbitration.tsc_rate = spdk_get_ticks_hz();
-    printf("DEBUG %d\n", spdk_get_ticks_hz());
 
     if (register_workers() != 0) {
         rc = 1;

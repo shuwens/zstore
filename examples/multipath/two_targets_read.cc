@@ -924,35 +924,9 @@ static int register_workers(void)
     return 0;
 }
 
-static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                     struct spdk_nvme_ctrlr_opts *opts)
-{
-    /* Update with user specified arbitration configuration */
-    opts->arb_mechanism =
-        static_cast<enum spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
-
-    printf("Attaching to %s\n", trid->traddr);
-
-    return true;
-}
-
-static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                      struct spdk_nvme_ctrlr *ctrlr,
-                      const struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Attached to %s\n", trid->traddr);
-
-    /* Update with actual arbitration configuration in use */
-    g_arbitration.arbitration_mechanism = opts->arb_mechanism;
-
-    register_ctrlr(ctrlr);
-}
-
 static void zns_dev_init(struct arb_context *ctx, std::string ip1,
                          std::string port1, std::string ip2, std::string port2)
 {
-    int rc = 0;
-
     // 1. connect nvmf device
     struct spdk_nvme_transport_id trid1 = {};
     snprintf(trid1.traddr, sizeof(trid1.traddr), "%s", ip1.c_str());

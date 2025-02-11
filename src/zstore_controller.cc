@@ -461,15 +461,6 @@ std::string readString(std::ifstream &inFile)
     return str;
 }
 
-static void busyWait(bool *ready)
-{
-    while (!*ready) {
-        if (spdk_get_thread() == nullptr) {
-            std::this_thread::sleep_for(std::chrono::seconds(0));
-        }
-    }
-}
-
 // Bloom filter APIs
 Result<bool>
 ZstoreController::SearchRecentWriteMap(const ObjectKeyHash &key_hash)
