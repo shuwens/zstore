@@ -43,5 +43,5 @@ install-deps:
 
 install-python:
 	sudo apt install -y python3-pip
-	sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old
+	[ -f "/usr/lib/python3.12/EXTERNALLY-MANAGED" ] && sudo mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old || true
 	pip3 install meson pyelftools
