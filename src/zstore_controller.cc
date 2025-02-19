@@ -40,12 +40,12 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 
     auto num_ioc_threads = Configuration::GetNumHttpThreads();
     // The io_context is required for all I/O
-    asio::io_context ioc{num_ioc_threads};
+    // asio::io_context ioc{num_ioc_threads};
     boost::asio::ip::address address = asio::ip::make_address(mSelfIp);
     auto const port = 2000;
 
     // Spawn a listening port
-    asio::co_spawn(ioc, do_listen(tcp::endpoint{address, port}, *this),
+    asio::co_spawn(mIoc, do_listen(tcp::endpoint{address, port}, *this),
                    [](std::exception_ptr e) {
                        if (e)
                            try {
@@ -55,18 +55,19 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
                            }
                    });
 
-    std::vector<std::jthread> threads(num_ioc_threads);
+    mHttpThreads.resize(num_ioc_threads);
+    // std::vector<std::jthread> threads(num_ioc_threads);
     for (int i = 0; i < num_ioc_threads; ++i) {
-        threads[i] = std::jthread([&ioc, i, &threads] {
+        mHttpThreads[i] = std::jthread([i, this] {
 #ifdef PERF
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
             CPU_SET(i + Configuration::GetHttpThreadCoreId(), &cpuset);
             std::string name = "zstore_ioc" + std::to_string(i);
-            int rc =
-                pthread_setname_np(threads[i].native_handle(), name.c_str());
+            int rc = pthread_setname_np(mHttpThreads[i].native_handle(),
+                                        name.c_str());
             assert(rc == 0);
-            rc = pthread_setaffinity_np(threads[i].native_handle(),
+            rc = pthread_setaffinity_np(mHttpThreads[i].native_handle(),
                                         sizeof(cpu_set_t), &cpuset);
             assert(rc == 0);
 
@@ -76,7 +77,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
 #endif
             // ioc.run();
             for (;;)
-                ioc.poll();
+                mIoc.poll();
         });
     }
 
@@ -101,7 +102,7 @@ int ZstoreController::Init(bool object, int key_experiment, int option)
         CheckIoThread("Starting all the threads");
 
     log_info("ZstoreController Init finish");
-    return rc;
+    return 0;
 }
 
 int ZstoreController::SetParameters(int key_experiment, int option)
