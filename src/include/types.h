@@ -1,15 +1,28 @@
 #pragma once
-
 #include "device.h"
 #include "utils.h"
 #include <boost/beast/http.hpp>
+#include <boost/circular_buffer.hpp>
+#include <boost/unordered/concurrent_flat_map.hpp>
+#include <boost/unordered/concurrent_flat_set.hpp>
 #include <fmt/chrono.h>
 #include <spdk/nvme.h>
+
+using namespace std;
+
+//
+// Aliasing to make life easier
+//
 
 // HTTP stuff
 namespace http = boost::beast::http; // from <boost/beast/http.hpp>
 typedef http::request<http::string_body> HttpRequest;
 typedef http::response<http::string_body> HttpResponse;
+namespace asio = boost::asio; // from <boost/asio.hpp>
+
+//
+// Zstore types
+//
 
 // Basic Zstore types
 typedef std::string ObjectKey;
@@ -18,23 +31,10 @@ typedef std::string TargetDev;
 typedef u64 Lba;
 typedef u32 Length;
 
-// Custom hash function for std::array<uint8_t, 32>
-struct ArrayHash {
-    std::size_t operator()(const std::array<uint8_t, 32> &key) const
-    {
-        std::size_t hash = 0;
-        for (auto byte : key) {
-            hash = hash * 31 + byte; // Simple hash combination
-        }
-        return hash;
-    }
-};
-
 // Device types
 typedef std::tuple<TargetDev, Lba, Length> TargetLbaTuple;
 typedef std::tuple<Lba, Length> LbaTuple;
-typedef std::tuple<std::pair<TargetDev, u32>, std::pair<TargetDev, u32>,
-                   std::pair<TargetDev, u32>>
+typedef tuple<pair<TargetDev, u32>, pair<TargetDev, u32>, pair<TargetDev, u32>>
     DevTuple;
 
 // This is the most important data structure of Zstore as it holds the mapping
@@ -56,6 +56,40 @@ struct BufferEntry {
     uint64_t lba;              // Logical Block Address: 8 bytes
     uint32_t length;           // Length: 4 bytes
 };
+
+// We use a circular buffer to store RDMA writes, note that we have two designs
+// for this. We are choosing the first design for now, as it is more efficient:
+// 1. use a 64 bytes entry for the circular buffer, where the upper 32 bytes is
+//    the hash of object key, and the lower 32 bytes stores the current epoch,
+//    and the value is the target device and LBA
+// 2. use a 64 bits entry for the circular buffer, where the upper 31 bytes is
+//   the hash of object key, and the lower bit signals the epoch change
+//  (0: no change, 1: epoch change), and the value is the target device and LBA
+using RdmaBuffer = boost::circular_buffer<BufferEntry>;
+
+// Custom hash function for std::array<uint8_t, 32>
+struct ArrayHash {
+    std::size_t operator()(const std::array<uint8_t, 32> &key) const
+    {
+        std::size_t hash = 0;
+        for (auto byte : key) {
+            hash = hash * 31 + byte; // Simple hash combination
+        }
+        return hash;
+    }
+};
+
+// We store the SHA256 hash of the object key as the key in the Zstore Map, and
+// the value in the Zstore Map is the tuple of the target device and the LBA
+using ZstoreMap =
+    boost::concurrent_flat_map<ObjectKeyHash, MapEntry, ArrayHash>;
+
+// We record hash of recent writes as a concurrent hashmap, where the key is
+// the hash, and the value is the gateway of the writes.
+using ZstoreRecentWriteMap = boost::concurrent_flat_map<ObjectKeyHash, u8>;
+
+// We record the target device and LBA of the blocks that we need to GC
+using ZstoreGcSet = boost::concurrent_flat_set<TargetLbaTuple>;
 
 class ZstoreController;
 

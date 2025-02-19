@@ -23,8 +23,6 @@ cpp = meson.get_compiler('cpp')
 
 add_project_arguments(
 	'-Wuninitialized',
-	# '-DBOOST_ASIO_HAS_IO_URING',
-	# '-DBOOST_ASIO_DISABLE_EPOLL',
 	'-fPIC',
 	'-Wno-unused-parameter',
 	'-Wno-deprecated-declarations',
@@ -39,16 +37,6 @@ endif
 if get_option('buildtype') == 'debug'
 	add_project_arguments('-fno-inline', language: 'cpp')
 	add_project_arguments('-DLOGLV=1', language: 'cpp')
-	# add sanitizers for debug builds
-	# add_project_arguments(
-	# 	'-fsanitize=address,undefined,nullability,implicit-conversion',
-	# 	language: 'cpp',
-	# )
-	# add_project_link_arguments(
-	# 	'-fsanitize=address,undefined',
-	# 	'-Wl,--unresolved-symbols=ignore-in-object-files',
-	# 	language: 'cpp',
-	# )
 endif
 
 zk_inc_dir = [
@@ -59,7 +47,6 @@ zk_inc_dir = [
 
 zstore_deps = [
 	dependency('uuid'),
-	# dependency('numa'),
 	dependency('openssl'),
 	dependency('fmt'),
 	dependency('_spdk'),
@@ -227,16 +214,6 @@ test('4MB object', t5)
 # 	install: true,
 # )
 
-# FIXME
-# reads from the drive
-# executable(
-# 	'spdk_read',
-# 	files('examples/spdk_append.cc'),
-# 	dependencies: [zstore_deps, libs] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
 # nvmf multipath signle drive
 executable(
 	'mpsd_append',
@@ -248,13 +225,6 @@ executable(
 executable(
 	'mpsd_read',
 	files('examples/multipath/mp_one_drive_read.cc'),
-	dependencies: [zstore_deps] + [dependency('_spdk')],
-	link_args: spdk_link_args,
-	install: true,
-)
-executable(
-	'two_targets_read',
-	files('examples/multipath/two_targets_read.cc'),
 	dependencies: [zstore_deps] + [dependency('_spdk')],
 	link_args: spdk_link_args,
 	install: true,
@@ -273,75 +243,6 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-# executable(
-# 	'check_read',
-# 	files('src/examples/check_read.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
-# nvmf arbitration
-# executable(
-# 	'test_read',
-# 	files('examples/arbitration/arbitration_read.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'test_append',
-# 	files('examples/arbitration/arbitration_append.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
-# localand rdma
-# executable(
-# 	'arbitration',
-# 	files('examples/arbitration/arbitration.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'rdma_read',
-# 	files('examples/arbitration/arbitration_rdma_read.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'rdma_append',
-# 	files('examples/arbitration/arbitration_rdma_append.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-
-# HTTP server
-# executable(
-# 	'http_async',
-# 	files('examples/boost/http_server_async.cpp'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'http_awaitable',
-# 	files('examples/boost/http_server_awaitable.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'http_awaitable2',
-# 	files('examples/boost/http_server_awaitable2.cc'),
-# 	dependencies: [zstore_deps] + [dependency('_spdk')],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
 
 # zookeeper
 executable(
@@ -352,7 +253,6 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-
 executable(
 	'zkleader',
 	files('examples/zookeeper/zkleader.cc'),
@@ -361,7 +261,6 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-
 executable(
 	'zklock',
 	files('examples/zookeeper/zklock.cc'),
@@ -370,7 +269,6 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-
 executable(
 	'zktest',
 	files('examples/zookeeper/zktest.cc'),
@@ -381,20 +279,6 @@ executable(
 )
 
 # rdma
-# executable(
-# 	'rdma_client',
-# 	files('examples/rdma/rdma_client.cc'),
-# 	dependencies: [zstore_deps] + [rdma],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
-# executable(
-# 	'rdma_server',
-# 	files('examples/rdma/rdma_server.cc'),
-# 	dependencies: [zstore_deps] + [rdma],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )
 executable(
 	'circular_buffer_client',
 	files('examples/rdma/circular_buffer_client.cc'),
@@ -409,10 +293,3 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
-# executable(
-# 	'test_rdma',
-# 	files('examples/rdma/test.cc'),
-# 	dependencies: [zstore_deps] + [rdma],
-# 	link_args: spdk_link_args,
-# 	install: true,
-# )

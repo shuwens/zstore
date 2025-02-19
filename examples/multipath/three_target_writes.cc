@@ -928,36 +928,10 @@ static int register_workers(void)
     return 0;
 }
 
-static bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                     struct spdk_nvme_ctrlr_opts *opts)
-{
-    /* Update with user specified arbitration configuration */
-    opts->arb_mechanism =
-        static_cast<enum spdk_nvme_cc_ams>(g_arbitration.arbitration_mechanism);
-
-    printf("Attaching to %s\n", trid->traddr);
-
-    return true;
-}
-
-static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
-                      struct spdk_nvme_ctrlr *ctrlr,
-                      const struct spdk_nvme_ctrlr_opts *opts)
-{
-    printf("Attached to %s\n", trid->traddr);
-
-    /* Update with actual arbitration configuration in use */
-    g_arbitration.arbitration_mechanism = opts->arb_mechanism;
-
-    register_ctrlr(ctrlr);
-}
-
 static void zns_dev_init(struct arb_context *ctx, std::string ip1,
                          std::string port1, std::string ip2, std::string port2,
                          std::string ip3, std::string port3)
 {
-    int rc = 0;
-
     // 1. connect nvmf device
     static const char *g_hostnqn1 = "nqn.2024-04.io.zstore2:cnode1";
     struct spdk_nvme_transport_id trid1 = {};
