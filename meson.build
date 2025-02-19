@@ -141,7 +141,6 @@ zstore_src = [
 	'src/device.cc',
 	'src/object.cc',
 	'src/zstore_controller.cc',
-	'src/main.cc',
 	'src/tinyxml2.cpp',
 	'src/zone.cc',
 	'src/rdma_common.cc',
@@ -151,7 +150,7 @@ zstore_src = [
 
 executable(
 	'zstore',
-	zstore_src,
+	zstore_src + ['src/main.cc'],
 	dependencies: [zstore_deps] + [rdma],
 	include_directories: zk_inc_dir,
 	link_args: spdk_link_args,
@@ -206,6 +205,17 @@ t5 = executable(
 )
 test('4MB object', t5)
 
+# unit tests
+t6 = executable(
+	'test_append_read',
+	zstore_src + ['src/tests/unit_tests/append_read_test.cc'],
+	dependencies: [zstore_deps] + [rdma],
+	include_directories: zk_inc_dir,
+	link_args: spdk_link_args,
+	install: true,
+)
+test('Append and read buffer', t6)
+
 # executable(
 # 	'test_map',
 # 	files('src/tests/map_test.cc'),
@@ -229,6 +239,13 @@ executable(
 	link_args: spdk_link_args,
 	install: true,
 )
+# executable(
+# 	'test_append_read',
+# 	files('examples/test_append_read.cc'),
+# 	dependencies: [zstore_deps] + [dependency('_spdk')],
+# 	link_args: spdk_link_args,
+# 	install: true,
+# )
 executable(
 	'three_targets_reads',
 	files('examples/multipath/three_target_reads.cc'),
