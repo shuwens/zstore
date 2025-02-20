@@ -2,7 +2,6 @@
 
 #include "boost_utils.h"
 #include "common.h"
-// #include "configuration.h"
 #include "global.h"
 #include "object.h"
 #include "tinyxml2.h"
@@ -14,8 +13,6 @@
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
 #include <chrono>
-// #include <functional>
-// #include <regex>
 #include <utility>
 
 using namespace boost::asio::experimental::awaitable_operators;

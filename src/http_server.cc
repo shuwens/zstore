@@ -10,15 +10,6 @@
 #include <regex>
 #include <utility>
 
-// using namespace boost::asio::experimental::awaitable_operators;
-// namespace http = boost::beast::http; // from <boost/beast/http.hpp>
-//
-// using HttpMsg = http::message_generator;
-// using tcp = asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
-// using tcp_stream = typename boost::beast::tcp_stream::rebind_executor<
-//     asio::use_awaitable_t<>::executor_with_default<asio::any_io_executor>>::
-//     other;
-
 void async_sleep_impl(
     asio::any_completion_handler<void(boost::system::error_code)> handler,
     asio::any_io_executor ex, std::chrono::nanoseconds duration)
@@ -129,6 +120,8 @@ std::pair<std::string, std::string> parse_url(const std::string &str)
         return {part1, part2};
     }
 }
+
+void handle_get_request() {}
 
 // This function implements the core logic of async
 auto awaitable_on_request(HttpRequest req,
