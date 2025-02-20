@@ -140,6 +140,7 @@ zstore_src = [
 	'src/common.cc',
 	'src/device.cc',
 	'src/object.cc',
+	'src/http_server.cc',
 	'src/zstore_controller.cc',
 	'src/tinyxml2.cpp',
 	'src/zone.cc',
