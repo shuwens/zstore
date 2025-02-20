@@ -138,6 +138,7 @@ spdk_link_args = ['-Wl,--no-as-needed'] + spdk_paths + ['-Wl,--as-needed']
 
 zstore_src = [
 	'src/common.cc',
+	'src/http_server.cc',
 	'src/device.cc',
 	'src/object.cc',
 	'src/zstore_controller.cc',

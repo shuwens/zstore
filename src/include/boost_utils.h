@@ -116,9 +116,3 @@ http::message_generator handle_not_found_request(
     };
     return not_found(req.target());
 }
-
-// Report a failure
-void fail(beast::error_code ec, char const *what)
-{
-    std::cerr << what << ": " << ec.message() << "\n";
-}
