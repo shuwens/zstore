@@ -2,6 +2,8 @@
 
 #include "boost_utils.h"
 #include "common.h"
+#include "global.h"
+#include "object.h"
 #include "tinyxml2.h"
 #include "zstore_controller.h"
 #include <boost/asio/any_completion_handler.hpp>
