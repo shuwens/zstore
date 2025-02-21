@@ -70,10 +70,8 @@ class Configuration
 
     static int GetSamplingRate() { return GetInstance().gSamplingRate; }
 
-    // static bool Verbose() { return GetInstance().gVerbose; }
+    static bool Experimental() { return GetInstance().gExperimental; }
     static bool Debugging() { return GetInstance().gDebug; }
-    // static bool UseDummyWorkload() { return GetInstance().gUseDummyWorkload;
-    // }
 
     static bool GetDeviceSupportMetadata()
     {
@@ -181,6 +179,6 @@ class Configuration
 
     std::string gZookeeperUrl = "12.12.12.1:2181";
 
-    // bool gVerbose = true; // this will turn on all logs
-    bool gDebug = false; // this will turn on all checks and log
+    bool gDebug = false;       // this will turn on all checks and log
+    bool gExperimental = true; // this will turn on all logs
 };
