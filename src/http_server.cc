@@ -1,4 +1,7 @@
 #include "include/http_server.h"
+#include "include/configuration.h"
+#include "include/global.h"
+#include "include/object.h"
 #include <boost/asio/any_completion_handler.hpp>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/async_result.hpp>
@@ -491,12 +494,12 @@ auto awaitable_on_request(HttpRequest req,
             spdk_free(buffer);
             chunk_write_reqs.clear();
             chunk_vec.clear();
+
             co_return handle_request(std::move(req));
 
         } else {
             // if (Configuration::Debugging()) {
-            //     log_debug("Writing to tgt1 {} tgt2 {} tgt3 {}", tgt1,
-            //     tgt2,
+            //     log_debug("Writing to tgt1 {} tgt2 {} tgt3 {}", tgt1, tgt2,
             //               tgt3);
             //     // log_debug("Writing to dev1 {} dev2 {} dev3 {}",
             //     // dev1->GetZoneId(),
@@ -510,11 +513,9 @@ auto awaitable_on_request(HttpRequest req,
             original_obj.entry.chunk_seqnum = 24;
             original_obj.datalen = Configuration::GetObjectSizeInBytes();
             original_obj.body = std::malloc(original_obj.datalen);
-
             std::memset(original_obj.body, req.body().data()[0],
                         original_obj.datalen); // Fill with example data (0xCD)
             // std::strcpy(original_obj.key_hash, key_hash);
-
             original_obj.key_size = kHashSize;
             // static_cast<uint16_t>(std::strlen(original_obj.key_hash));
 
@@ -541,14 +542,11 @@ auto awaitable_on_request(HttpRequest req,
 
             // auto new_entry =
             //     createMapEntry(
-            //         std::make_tuple(std::make_pair(tgt1,
-            //         dev1->GetZoneId()),
-            //                         std::make_pair(tgt2,
-            //                         dev2->GetZoneId()),
-            //                         std::make_pair(tgt3,
-            //                         dev3->GetZoneId())),
-            //         s1->append_lba, 1, s2->append_lba, 1,
-            //         s3->append_lba, 1) .value();
+            //         std::make_tuple(std::make_pair(tgt1, dev1->GetZoneId()),
+            //                         std::make_pair(tgt2, dev2->GetZoneId()),
+            //                         std::make_pair(tgt3, dev3->GetZoneId())),
+            //         s1->append_lba, 1, s2->append_lba, 1, s3->append_lba, 1)
+            //         .value();
 
             auto new_entry =
                 createMapEntry(
@@ -565,6 +563,7 @@ auto awaitable_on_request(HttpRequest req,
             zctrl_.mRequestContextPool->ReturnRequestContext(s2);
             s3->Clear();
             zctrl_.mRequestContextPool->ReturnRequestContext(s3);
+
 
             // update lba in map
             auto rc = zctrl_.PutObject(key_hash, new_entry).value();
