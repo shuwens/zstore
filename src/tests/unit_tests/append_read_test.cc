@@ -22,14 +22,14 @@ int main(int argc, char **argv)
     ioc.run();
 
     log_info("write->append_lba: {}", write->append_lba);
-    auto read = MakeReadRequest(gZstore, dev, write->append_lba).value();
+    auto read = MakeReadRequest(gZstore, dev, 0).value();
 
     boost::asio::co_spawn(
         ioc, [&]() -> boost::asio::awaitable<void> { co_await zoneRead(read); },
         boost::asio::detached);
     ioc.run();
 
-    read->dataBuffer[msg_len - 1] = '\0';
+    // read->dataBuffer[msg_len - 1] = '\0';
     printf("[READ] Data: %s\n", (char *)read->dataBuffer);
 
     //     task->buf =
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     //     printf("[WRITE] Starting LBA: 0x%" PRIx64 "\n", starting_lba);
     //     printf("[WRITE] Starting LBA: %lu \n", starting_lba);
 
-    spdk_env_thread_wait_all();
+    // spdk_env_thread_wait_all();
     gZstore->zstore_cleanup();
     return 0;
 }
