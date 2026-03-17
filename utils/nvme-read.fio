@@ -1,0 +1,20 @@
+; https://github.com/utsaslab/SplitFS/blob/1ac6412676724760557b587e85cc21f26f654fee/fio/examples/zbd-seq-read.fio
+; Sequentially read 40 zones of a (zoned) block device, reading only
+; written data from the 524th zone (524 * 256M = 140660178944)
+
+[global]
+name=zbd-seq-read
+rw=read
+bs=256K
+direct=1
+numjobs=1
+zonemode=zbd
+zonesize=256M
+read_beyond_wp=0
+
+[dev1]
+filename=/dev/sdd
+offset=140660178944
+size=10G
+ioengine=libaio
+iodepth=16
