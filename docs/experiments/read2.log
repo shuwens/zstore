@@ -1,0 +1,51 @@
+
+1 2 4 8 16
+
+    Latency   573.73us  401.72us  20.82ms   99.50%
+    Req/Sec    26.63k     1.22k   34.37k    98.60%
+  3210933 requests in 10.10s, 12.51GB read
+Requests/sec: 317925.08
+
+
+2
+
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   722.84us  210.69us  12.83ms   84.68%
+    Req/Sec    20.85k     1.34k   25.41k    97.94%
+  2514351 requests in 10.10s, 19.39GB read
+Requests/sec: 248952.79
+Transfer/sec:      1.92GB
+
+
+4
+12 threads and 180 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     1.30ms  379.59us  20.67ms   97.54%
+    Req/Sec    11.63k   642.57    15.69k    97.11%
+  1402994 requests in 10.10s, 21.52GB read
+Requests/sec: 138918.12
+Transfer/sec:      2.13GB
+
+
+8
+
+12 threads and 180 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.30ms  457.55us  28.39ms   93.43%
+    Req/Sec     6.55k   542.77     9.47k    96.45%
+  789486 requests in 10.10s, 24.16GB read
+Requests/sec:  78173.22
+Transfer/sec:      2.39GB
+
+16
+
+
+  12 threads and 180 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.23ms  562.18us  19.97ms   89.66%
+    Req/Sec     3.56k   209.80     4.53k    97.11%
+  428866 requests in 10.10s, 26.21GB read
+Requests/sec:  42463.04
+Transfer/sec:      2.60GB
+
+
